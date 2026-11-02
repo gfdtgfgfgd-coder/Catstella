@@ -184,6 +184,7 @@
       if (document.activeElement !== $("dream-scrim")) $("dream-scrim").value = ds.scrim ?? 25;
       $("dream-scrim-value").textContent = $("dream-scrim").value + "%";
       if (document.activeElement !== $("dream-output-mode")) $("dream-output-mode").checked = ds.outputMode === "glass";
+      if (document.activeElement !== $("uiLanguage")) $("uiLanguage").value = ds.uiLanguage || "en";
     }
 
     // 渲染两个全新画廊

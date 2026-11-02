@@ -16,26 +16,23 @@
  function render(){
   if(!snapshot)return;const s=snapshot.settings,l=snapshot.ledger;
   const pack=s.characterPack==="lin-cat"?"lin-cat":"gemini-star-v1";
-  if(mascot.dataset.characterPack!==pack){
-   mascot.dataset.characterPack=pack;
+  // 帧图 URL 全部携带内容指纹版本号：资产更新即缓存失效，根治"偶尔变回老立绘"。
+  const artKey=pack+":"+(snapshot.artVersion||"0");
+  if(mascot.dataset.characterPack!==pack||mascot.dataset.artKey!==artKey){
+   mascot.dataset.characterPack=pack;mascot.dataset.artKey=artKey;
+   const v="?v="+artKey.replace(/[^a-z0-9]/gi,"-");
+   const base=pack==="lin-cat"?"../../assets/character-packs/lin-cat/frames/":"../../assets/character-packs/gemini-star-v1/frames/";
+   const files=pack==="lin-cat"?{idle:"idle.png",proud:"proud.png",sad:"sad.png",shy:"shy.png",angry:"angry.png"}:{idle:"idle.png",proud:"proud-v3.png",sad:"sad-v3.png",shy:"shy.png",angry:"angry.png"};
    const idleEl=document.querySelector(".agy-frame--idle");
    const proudEl=document.querySelector(".agy-expression--proud");
    const sadEl=document.querySelector(".agy-expression--crying");
    const shyEl=document.querySelector(".agy-expression--shy");
    const angryEl=document.querySelector(".agy-expression--angry");
-   if(pack==="lin-cat"){
-    if(idleEl)idleEl.src="../../assets/character-packs/lin-cat/frames/idle.png";
-    if(proudEl)proudEl.src="../../assets/character-packs/lin-cat/frames/proud.png";
-    if(sadEl)sadEl.src="../../assets/character-packs/lin-cat/frames/sad.png";
-    if(shyEl)shyEl.src="../../assets/character-packs/lin-cat/frames/shy.png";
-    if(angryEl)angryEl.src="../../assets/character-packs/lin-cat/frames/angry.png";
-   }else{
-    if(idleEl)idleEl.src="../../assets/character-packs/gemini-star-v1/frames/idle.png";
-    if(proudEl)proudEl.src="../../assets/character-packs/gemini-star-v1/frames/proud-v3.png";
-    if(sadEl)sadEl.src="../../assets/character-packs/gemini-star-v1/frames/sad-v3.png";
-    if(shyEl)shyEl.src="../../assets/character-packs/gemini-star-v1/frames/shy.png";
-    if(angryEl)angryEl.src="../../assets/character-packs/gemini-star-v1/frames/angry.png";
-   }
+   if(idleEl)idleEl.src=base+files.idle+v;
+   if(proudEl)proudEl.src=base+files.proud+v;
+   if(sadEl)sadEl.src=base+files.sad+v;
+   if(shyEl)shyEl.src=base+files.shy+v;
+   if(angryEl)angryEl.src=base+files.angry+v;
   }
   mascot.style.setProperty("--agy-width",(snapshot.displayScale||s.scale)+"px");mascot.style.setProperty("--agy-shift",(snapshot.artShift||0)+"px");mascot.dataset.state=snapshot.state;mascot.dataset.dock=snapshot.dockSide||"";mascot.dataset.facing=snapshot.facing||"left";mascot.dataset.reducedMotion=String(s.reducedMotion);
   bubbleVisibility(!closed&&s.bubbleOn);for(const id of ["quota","value","detail"])$(id).hidden=true;  $("page").textContent=(pages.indexOf(selected)+1)+" / "+pages.length;

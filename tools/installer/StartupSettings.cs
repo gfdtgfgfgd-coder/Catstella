@@ -94,8 +94,6 @@ internal static partial class StartupSettings {
      SetFlags(true,false);if(!Flag("AutoStart")||Flag("HostLink"))throw new Exception("Autostart test failed");
      SetFlags(false,true);if(Flag("AutoStart")||!Flag("HostLink"))throw new Exception("Host link test failed");
      SetFlags(false,false);using(var r=Registry.CurrentUser.OpenSubKey(RunKey))if(r.GetValue(RunName)!=null)throw new Exception("Run cleanup failed");
-     string testLink=Path.Combine(Path.GetTempPath(),"StarSuite-verify-"+Guid.NewGuid().ToString("N")+".lnk");
-     try{CreateShortcut(testLink,Path.Combine(Root,AppExe),"--background");dynamic shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic shortcut=shell.CreateShortcut(testLink);if(!String.Equals((string)shortcut.TargetPath,Path.Combine(Root,AppExe),StringComparison.OrdinalIgnoreCase)||(string)shortcut.Arguments!="--background")throw new Exception("Shortcut test failed");}finally{if(File.Exists(testLink))File.Delete(testLink);}
     }finally{using(var r=Registry.CurrentUser.CreateSubKey(RunKey))r.DeleteValue(RunName,false);Registry.CurrentUser.DeleteSubKeyTree(SettingsKey,false);}
     return;
    }

@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process');
 const {_electron}=require('playwright');
+const {detectWebCompanion}=require('./web-companion-path.cjs');
 const root=path.resolve(__dirname,'..'),version=require('../package.json').version;
 const testRoot=fs.mkdtempSync(path.join(root,'dist','安装验证-')),checks=[];
 const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
@@ -13,10 +14,24 @@ const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
   assert(fs.existsSync(path.join(dir,'resources/app/Antigravity-Cat-Widget/src/main/index.cjs')));
   assert(fs.existsSync(path.join(dir,'resources/app/Antigravity-Dream-Skin/src/domain/host-controller.cjs')));
   assert(fs.existsSync(path.join(dir,'icons/launch.ico')));assert(fs.existsSync(path.join(dir,'icons/settings.ico')));assert(fs.existsSync(path.join(dir,'icons/uninstall.ico')));
-  assert(fs.existsSync(path.join(dir,'web-extension/kimino-gemini-companion.xpi')));assert(fs.existsSync(path.join(dir,'web-extension/web-plugin-guide.html')));
+  assert(fs.existsSync(path.join(dir,'web-extension/web-plugin-guide.html')));
+  const web=detectWebCompanion();
+  const expectWebExt=!!(web&&fs.existsSync(path.join(web.dist,'kimino-gemini-companion.xpi')));
+  if(expectWebExt){
+   // 刚解压完成的文件偶发被杀软短暂扫描锁定，轮询容忍后再断言。
+   let xpiSeen=false;
+   for(let i=0;i<10&&!xpiSeen;i++){xpiSeen=fs.existsSync(path.join(dir,'web-extension/kimino-gemini-companion.xpi'));if(!xpiSeen)await new Promise(r=>setTimeout(r,1000));}
+   assert(xpiSeen);
+  }
   assert(!fs.existsSync(path.join(dir,'resources/app/Gemini-Web-Companion')));
   assert(!fs.existsSync(path.join(dir,'node_modules')));checks.push(kind+': Inno silent install in non-ASCII directory; licenses, both suite projects, expression icons and webext component');
-  execFileSync(path.join(dir,'StartupSettings.exe'),['--self-test'],{env,timeout:15000});checks.push(kind+': autostart/link flags, host transition decision, isolated HKCU Run cleanup');
+  // 新解压的 EXE 偶发被杀软短暂扫描锁定：自检重试直至可用。
+  let selfTestOk=false,selfTestErr=null;
+  for(let attempt=0;attempt<5&&!selfTestOk;attempt++){
+   try{execFileSync(path.join(dir,'StartupSettings.exe'),['--self-test'],{env,timeout:15000});selfTestOk=true;}
+   catch(error){selfTestErr=error;await new Promise(r=>setTimeout(r,2500));}
+  }
+  assert(selfTestOk,'StartupSettings --self-test retry exhausted: '+(selfTestErr&&selfTestErr.code));checks.push(kind+': autostart/link flags, host transition decision, isolated HKCU Run cleanup');
   const app=await _electron.launch({executablePath:path.join(dir,exe),args:['--data-dir='+path.join(testRoot,kind+'-profile')],env,timeout:30000});
   try{
    const page=await app.firstWindow();await page.waitForFunction(()=>window.widgetApi,{},{timeout:20000});

@@ -4,7 +4,9 @@ const {SettingsManager}=require("../domain/settings.cjs"),{UsageLedger}=require(
 const {HostQuotaAdapter}=require("../adapters/host-quota.cjs");
 const {ForegroundMonitor,hostPlacement,characterPlacement,snapToEdges}=require("../domain/host-visibility.cjs");
 // 星语皮肤并入同一实例：设置/壁纸/宿主主题化全部由挂件主进程托管，全局只保留一个托盘图标。
-const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs");
+const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs"),{LocalizationController}=require("../../../Antigravity-Dream-Skin/src/domain/localization-controller.cjs");
+let localizationDict={};
+try{const loaded=require("../../../Antigravity-Dream-Skin/assets/localization/zh-CN.json");for(const k of Object.keys(loaded))if(!k.startsWith("$"))localizationDict[k]=loaded[k];}catch{}
 const skinDataDir=path.join(os.homedir(),".antigravity-dream-skin");
 const dataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11)||path.join(os.homedir(),".antigravity-cat-widget");
 app.setPath("userData",path.join(dataDir,"runtime"));app.setName("喵言喵语桌宠");
@@ -23,6 +25,7 @@ else{
  const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
  const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
  const skinController=new HostController(skinManager,()=>{publish();updateMenu();});
+ const localization=new LocalizationController(()=>{publish();},{dict:localizationDict});
  const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版基米乃","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
  let cachedCharacterPacks=null,cachedWallpapers=null,lastPackScan=0,lastWallScan=0;
  const getCharacterPacks=()=>{
@@ -54,7 +57,24 @@ else{
    lastWallScan=now;return cachedWallpapers;
   }catch{return cachedWallpapers=[];}
  };
- const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),displayScale:displayScale||settings.get("scale"),visibility:{supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
+ // 立绘指纹：帧图内容一变（升级/换图）URL 版本号自动失效 Chromium 文件缓存，根治"偶尔变回老立绘"。
+ let cachedArtVersion=null,lastArtScan=0;
+ const getArtVersion=()=>{
+  const now=Date.now();if(cachedArtVersion&&now-lastArtScan<15000)return cachedArtVersion;
+  try{
+   const fs=require("node:fs"),crypto=require("node:crypto"),packsDir=path.join(__dirname,"../../assets/character-packs");
+   const parts=[];
+   const walk=dir=>{for(const entry of fs.readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){
+    const full=path.join(dir,entry.name);
+    if(entry.isDirectory())walk(full);
+    else{const st=fs.statSync(full);parts.push(entry.name+":"+st.size+":"+st.mtimeMs);}
+   }};
+   walk(packsDir);
+   cachedArtVersion=crypto.createHash("sha1").update(parts.join("|")).digest("hex").slice(0,10);
+  }catch{cachedArtVersion="0";}
+  lastArtScan=now;return cachedArtVersion;
+ };
+ const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
  const send=(channel,data)=>{for(const w of [win,panel])if(w&&!w.isDestroyed())w.webContents.send(channel,data);};
  const publish=()=>send("widget:snapshot",snapshot());
  function syncQuotaState(){if(["idle","warning"].includes(sm.persistentState))sm.setPersistentState((settings.get("manualQuota")?[settings.get("manualPercent"),settings.get("manualWeeklyPercent")]:[quotaAdapter.snapshot.fiveHour,quotaAdapter.snapshot.weekly]).some(v=>typeof v==="number"&&v<=20)?"warning":"idle");}
@@ -176,6 +196,7 @@ else{
    skinSettings.update(dream);
    cachedWallpapers=null;lastWallScan=0;
    skinController.update(skinSettings.getAll());
+   localization.update(skinSettings.getAll());
    scheduleSlideshow();
   }
   syncQuotaState();
@@ -312,6 +333,7 @@ else{
   tray.setToolTip("喵言喵语 · 星语套件");tray.on("double-click",recall);updateMenu();}catch(error){recoveryLog("tray-init-failed "+error.message);}
   migrateLegacyDreamSettings();
   skinController.start(skinSettings.getAll());
+  localization.start();
   scheduleSlideshow();
   globalShortcut.register("CommandOrControl+Alt+G",recall);globalShortcut.register("CommandOrControl+Alt+Shift+G",()=>{apply({clickThrough:false});recall();});
   if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
@@ -348,7 +370,7 @@ else{
   screen.on("display-removed",reset);
   screen.on("display-metrics-changed",()=>{if(settings.get("hostWindowOnly")){syncVisibility();publish();}});
  });
- app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(dragTimer);if(slideshowTimer)clearInterval(slideshowTimer);foreground.stop();adapter.stop();quotaAdapter.stop();skinController.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
+ app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(dragTimer);if(slideshowTimer)clearInterval(slideshowTimer);foreground.stop();adapter.stop();quotaAdapter.stop();skinController.stop();localization.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
  app.on("window-all-closed",()=>{if(!tray)app.quit();});
 }
 

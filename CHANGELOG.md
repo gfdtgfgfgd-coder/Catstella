@@ -1,5 +1,13 @@
 # 更新记录
 
+## 1.5.0 · 界面汉化翻译层 + 立绘缓存击穿 + 帧图同步工具 / 2026-11-03
+
+- **Antigravity 界面汉化（实验）**：宿主为自研 React IDE，"自带汉化文件"仅是 Chromium 层 .pak（只管原生菜单），改 asar 属禁区——故走 **CDP 注入翻译层**（与主题化同通道）：`localize.cjs`（serialized，自包含）字典精确匹配替换可见文本节点，MutationObserver 增量跟随；输入框/代码/终端/[contenteditable] 绝对不碰；原文记录于数组、关闭语言时完整还原；独立 `LocalizationController` 按签名增量注入/销毁。统一面板新增「Antigravity 界面语言」选择（English / 简体中文），起步字典 60+ 条（数据目录 JSON 可持续扩充）。沙箱验证：注入→翻译→保护区免疫→销毁→还原全链路。
+- **立绘缓存击穿**：主进程计算 character-packs 内容指纹（size+mtime 哈希，15s 缓存）作为 `artVersion` 注入快照；渲染层全部帧图 URL 携带 `?v=<指纹>`，资产一变 Chromium 文件缓存自动失效——根治升级后"偶尔变回老版本红眼立绘"。
+- **帧图同步工具**：`tools/sync-character-frames.cjs [--check]`——从 web 端（角色素材权威源）同步到桌面 character-packs，自动探测 worktree 分房后的路径（../Catstella-web 或 WEB_COMPANION_PATH）。
+- **Inno 验收链加固**：web 端组件改为从 worktree 现场构建（`tools/web-companion-path.cjs` 探测，分房后不再依赖旧单仓库路径）；新解压 EXE 被杀软短暂扫描导致的自检/断言偶发失败改为轮询重试；`StartupSettings --self-test` 删除遗留的快捷方式创建测试段（Inno 已接管快捷方式，该行为也是 Defender 行为启发式的误报源）。
+- 测试 48 项全绿。版本 0.5.0。
+
 ## 1.4.2 · 额度断供修复 + Inno Setup 组件化安装器 / 2026-11-03
 
 - **额度断供根因修复**：`queryHostQuota`（CDP 服务主路径）返回值丢失 `cacheAvailable:true` 标记——适配器把所有主路径样本误判为"宿主不兼容"丢进 initializing 桶，Gemini 额度永远显示 "—"。恢复标记并在测试钉死 `out.cacheAvailable===true`（此前 mock 直接返回样本绕过了真实路径，教训：主路径输出形状要有形状断言）。
