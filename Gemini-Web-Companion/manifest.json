@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "星语喵伴 · Gemini Web Companion",
+  "version": "1.1.0",
+  "description": "Gemini 网页端专属基米乃桌宠挂件与星语毛玻璃主题 (Dream Skin)。实时监测 Argon/Thinking 模型单会话用量与限流预警。Bilingual (ZH/EN) & Full Firefox/Edge/Chrome support.",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://gemini.google.com/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "kimino-gemini-companion@antigravity",
+      "strict_min_version": "109.0"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "星语喵伴设置 / Companion Settings",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://gemini.google.com/*"],
+      "js": [
+        "content/inject-bridge.js",
+        "content/tracker.js",
+        "content/skin.js",
+        "content/widget.js"
+      ],
+      "css": [
+        "content/skin.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/*",
+        "assets/*/*",
+        "assets/*/*/*",
+        "assets/characters/gemini-star-v1/*",
+        "assets/characters/lin-cat/*",
+        "assets/wallpapers/*",
+        "assets/audio/*",
+        "assets/dialogue/*",
+        "assets/icons/*",
+        "content/*"
+      ],
+      "matches": ["*://gemini.google.com/*"]
+    }
+  ]
+}
