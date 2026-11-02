@@ -1,6 +1,5 @@
-// 星语喵伴 · Cat Pet Widget (Shadow DOM + Zero-CSP Embedded Architecture)
+// 星语喵伴 · Cat Pet Widget (Shadow DOM + 真实 Google 额度条展示)
 (() => {
-  // 内置全量傲娇台词库（确保火狐与 CSP 限制环境下零网络依赖秒级启动）
   const EMBEDDED_DIALOGUES = {
     idle: [
       "我才不是美版豆包，哼！",
@@ -14,7 +13,6 @@
       "叫声猫猫，说不定就帮你了。",
       "代码写累了？准你摸一下耳朵。",
       "看什么看，本喵只是在等你。",
-      "哼，这么安静，是在憋大招？",
       "星星归天空，本喵归……才不告诉你！",
       "人类，今天也要记得喝水。",
       "本喵不是美版豆包，是限量星空猫猫。",
@@ -25,9 +23,7 @@
       "本喵没摸鱼，只是在进行低功耗推理。",
       "你这需求变得，比本喵尾巴还快。",
       "先保存文件，再夸本喵，两件都很重要。",
-      "报错红了？别慌，本喵的脸可没红。",
-      "本喵说得再自信，该查文档也得查。",
-      "禁止拿猫猫的气势代替测试结果。"
+      "报错红了？别慌，本喵的脸可没红。"
     ],
     thinking: [
       "在动脑子了在动脑子了，别催本喵！",
@@ -35,12 +31,12 @@
       "正在进行高强度推理，本喵耳灯都亮起来了！"
     ],
     warning: [
-      "杂鱼君慢点！Argon 已经开始喘粗气了，小心爆额度喵！",
-      "会话太长啦！上下文塞这么满，一会儿显卡冒烟本喵可不管！"
+      "杂鱼君慢点！当前用量快到警戒线了，小心被降级喵！",
+      "会话太长啦！一会儿被限流本喵可不借你额度！"
     ],
     crying: [
-      "口牙！我就说 Argon 这个电老虎撑不住吧！被你玩爆了喵！(大哭)",
-      "呜哇……额度见底了，都怪杂鱼君问个没完没了！",
+      "口牙！我就说 Argon 这个电老虎撑不住吧！额度见底了喵！(大哭)",
+      "呜哇……当前周期用光了，都怪杂鱼君问个没完没了！",
       "彻底被限流了喵！快看倒计时，老老实实等它恢复吧！"
     ],
     petting: [
@@ -50,7 +46,6 @@
     ]
   };
 
-  // 内置 Shadow DOM 独立样式（100% 隔离，绝不受页面或扩展网络加载影响）
   const EMBEDDED_WIDGET_CSS = `
     :host {
       all: initial;
@@ -100,7 +95,6 @@
       50% { filter: drop-shadow(0 0 24px rgba(236, 72, 153, 0.95)); }
     }
 
-    /* 角色主体 */
     .kimino-character-box {
       position: relative;
       cursor: grab;
@@ -113,7 +107,6 @@
       transform: scale(0.94);
     }
 
-    /* 耳灯光效 */
     .kimino-ear-glow {
       position: absolute;
       top: 15%;
@@ -151,7 +144,6 @@
       animation: kimino-ear-pulse 0.8s ease-in-out infinite;
     }
 
-    /* 半身像 */
     .kimino-sprite {
       display: block;
       width: 200px;
@@ -166,13 +158,12 @@
       animation: kimino-warning-flash 2s infinite ease-in-out;
     }
 
-    /* 气泡与用量仪表盘 */
     .kimino-bubble {
       position: absolute;
       bottom: 102%;
       right: 0;
-      width: 280px;
-      background: rgba(22, 16, 38, 0.92);
+      width: 290px;
+      background: rgba(22, 16, 38, 0.94);
       backdrop-filter: blur(20px) saturate(130%);
       border: 1px solid rgba(190, 160, 245, 0.35);
       border-radius: 18px;
@@ -194,7 +185,7 @@
       height: 0;
       border-left: 8px solid transparent;
       border-right: 8px solid transparent;
-      border-top: 8px solid rgba(22, 16, 38, 0.92);
+      border-top: 8px solid rgba(22, 16, 38, 0.94);
     }
 
     .kimino-bubble-header {
@@ -213,6 +204,12 @@
       display: flex;
       align-items: center;
       gap: 5px;
+    }
+
+    .kimino-header-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
     }
 
     .kimino-btn-icon {
@@ -255,68 +252,67 @@
       opacity: 0.7;
     }
 
-    .kimino-monitor-card {
+    /* 真实用量限额面板 (100% 还原 Google 官方用量双周期) */
+    .kimino-quota-panel {
       margin-top: 8px;
       padding-top: 8px;
       border-top: 1px dashed rgba(185, 155, 234, 0.2);
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
     }
 
-    .kimino-metric-row {
+    .quota-block {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .quota-title-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
       font-size: 11px;
       color: #cbd5e1;
     }
 
-    .kimino-metric-label {
+    .quota-name {
       color: #a78bfa;
+      font-weight: 500;
     }
 
-    .kimino-metric-value {
-      font-weight: 600;
+    .quota-pct {
+      font-weight: 700;
       color: #f8fafc;
     }
 
-    .kimino-progress-track {
+    .quota-track {
       width: 100%;
-      height: 7px;
+      height: 6px;
       background: rgba(255, 255, 255, 0.12);
       border-radius: 4px;
       overflow: hidden;
-      margin-top: 2px;
     }
 
-    .kimino-progress-fill {
+    .quota-bar {
       height: 100%;
-      width: 0%;
       border-radius: 4px;
       transition: width 0.4s ease, background 0.4s ease;
     }
 
-    .kimino-progress-fill.fill-safe {
-      background: linear-gradient(90deg, #38bdf8, #818cf8);
+    .quota-sub {
+      font-size: 10px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
     }
 
-    .kimino-progress-fill.fill-warn {
-      background: linear-gradient(90deg, #fbbf24, #f59e0b);
-    }
-
-    .kimino-progress-fill.fill-danger {
-      background: linear-gradient(90deg, #f87171, #ef4444);
-    }
-
-    .kimino-progress-fill.fill-limited {
-      background: linear-gradient(90deg, #ec4899, #f43f5e);
-      animation: kimino-bar-pulse 1s infinite alternate;
-    }
-
-    @keyframes kimino-bar-pulse {
-      from { filter: brightness(1); }
-      to { filter: brightness(1.4); }
+    .session-meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #c4b5fd;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .kimino-rate-alert {
@@ -324,7 +320,6 @@
       border: 1px solid rgba(244, 63, 94, 0.5);
       border-radius: 8px;
       padding: 6px 10px;
-      margin-top: 6px;
       font-size: 11px;
       color: #fda4af;
       display: flex;
@@ -371,6 +366,12 @@
     return chrome.runtime.getURL(`assets/characters/${pack}/${frame}.png`);
   }
 
+  function getBarGradient(pct) {
+    if (pct >= 85) return 'linear-gradient(90deg, #ec4899, #ef4444)';
+    if (pct >= 60) return 'linear-gradient(90deg, #fbbf24, #f59e0b)';
+    return 'linear-gradient(90deg, #38bdf8, #818cf8)';
+  }
+
   async function initWidget() {
     let config = {
       enabled: true,
@@ -395,26 +396,23 @@
     widgetScale = config.widgetScale || 200;
     bubbleVisible = config.bubbleVisible !== false;
 
-    // 1. 确保宿主节点存在且置于顶层
     let host = document.getElementById('kimino-companion-root');
     if (!host) {
       host = document.createElement('div');
       host.id = 'kimino-companion-root';
-      document.documentElement.appendChild(host);
+      (document.body || document.documentElement).appendChild(host);
     }
 
     const shadow = host.attachShadow({ mode: 'open' });
 
-    // 2. 注入样式
     const styleEl = document.createElement('style');
     styleEl.textContent = EMBEDDED_WIDGET_CSS;
     shadow.appendChild(styleEl);
 
-    // 3. 构建 DOM 骨架
     const wrapper = document.createElement('div');
     wrapper.className = 'kimino-wrapper';
 
-    // 默认停靠右下角空白区域，避免与左侧边栏冲突
+    // 默认停靠右下角空白区
     if (config.widgetPos && typeof config.widgetPos.x === 'number') {
       wrapper.style.left = `${config.widgetPos.x}px`;
       wrapper.style.top = `${config.widgetPos.y}px`;
@@ -432,9 +430,10 @@
         <div class="kimino-bubble-header">
           <div class="kimino-header-title">
             <span>✨</span>
-            <span class="kimino-title-text">基米乃 · Argon 监工</span>
+            <span class="kimino-title-text">基米乃 · 额度审计喵</span>
           </div>
           <div class="kimino-header-actions">
+            <button class="kimino-btn-icon btn-sync-quota" title="点击打开设置同步最新官方额度">⚙️同步</button>
             <button class="kimino-btn-icon btn-toggle-bubble" title="收起气泡">✕</button>
           </div>
         </div>
@@ -444,21 +443,39 @@
         </div>
         <div class="kimino-dialogue-hint">点击文字换一句喵～</div>
 
-        <div class="kimino-monitor-card">
-          <div class="kimino-metric-row">
-            <span class="kimino-metric-label">会话轮次:</span>
-            <span class="kimino-metric-value metric-turns">第 0 轮 (建议 ≤ 8)</span>
+        <div class="kimino-quota-panel">
+          <!-- 当前周期用量条 (5小时) -->
+          <div class="quota-block">
+            <div class="quota-title-row">
+              <span class="quota-name">当前用量 (5h)</span>
+              <span class="quota-pct cur-quota-pct">--%</span>
+            </div>
+            <div class="quota-track">
+              <div class="quota-bar cur-quota-bar" style="width: 0%;"></div>
+            </div>
+            <div class="quota-sub">
+              <span class="cur-quota-reset">重置时间: --</span>
+              <span class="quota-source-tag">官方限额</span>
+            </div>
           </div>
-          <div class="kimino-metric-row">
-            <span class="kimino-metric-label">预估 Tokens:</span>
-            <span class="kimino-metric-value metric-tokens">0 (思维链 0)</span>
+
+          <!-- 每周限额条 (1周) -->
+          <div class="quota-block">
+            <div class="quota-title-row">
+              <span class="quota-name">每周限额</span>
+              <span class="quota-pct week-quota-pct">--%</span>
+            </div>
+            <div class="quota-track">
+              <div class="quota-bar week-quota-bar" style="width: 0%;"></div>
+            </div>
+            <div class="quota-sub">
+              <span class="week-quota-reset">重置时间: --</span>
+            </div>
           </div>
-          <div class="kimino-metric-row">
-            <span class="kimino-metric-label">Argon 疲劳度:</span>
-            <span class="kimino-metric-value metric-stress">0%</span>
-          </div>
-          <div class="kimino-progress-track">
-            <div class="kimino-progress-fill fill-safe"></div>
+
+          <div class="session-meta-row">
+            <span class="meta-turns">当前会话: 第 0 轮</span>
+            <span class="meta-tokens">预估: 0 tokens</span>
           </div>
 
           <div class="kimino-rate-alert" style="display: none;">
@@ -476,17 +493,24 @@
 
     shadow.appendChild(wrapper);
 
-    // 4. 获取 DOM 节点
     const charBox = wrapper.querySelector('.kimino-character-box');
     const spriteImg = wrapper.querySelector('.kimino-sprite');
     const earGlow = wrapper.querySelector('.kimino-ear-glow');
     const bubble = wrapper.querySelector('.kimino-bubble');
     const dialogueEl = wrapper.querySelector('.kimino-dialogue');
     const btnToggleBubble = wrapper.querySelector('.btn-toggle-bubble');
-    const turnsVal = wrapper.querySelector('.metric-turns');
-    const tokensVal = wrapper.querySelector('.metric-tokens');
-    const stressVal = wrapper.querySelector('.metric-stress');
-    const progressFill = wrapper.querySelector('.kimino-progress-fill');
+    const btnSyncQuota = wrapper.querySelector('.btn-sync-quota');
+
+    const curQuotaPct = wrapper.querySelector('.cur-quota-pct');
+    const curQuotaBar = wrapper.querySelector('.cur-quota-bar');
+    const curQuotaReset = wrapper.querySelector('.cur-quota-reset');
+
+    const weekQuotaPct = wrapper.querySelector('.week-quota-pct');
+    const weekQuotaBar = wrapper.querySelector('.week-quota-bar');
+    const weekQuotaReset = wrapper.querySelector('.week-quota-reset');
+
+    const metaTurns = wrapper.querySelector('.meta-turns');
+    const metaTokens = wrapper.querySelector('.meta-tokens');
     const rateAlert = wrapper.querySelector('.kimino-rate-alert');
     const alertClock = wrapper.querySelector('.kimino-alert-clock');
 
@@ -512,7 +536,7 @@
     }
     startBlinkLoop();
 
-    // 5. 拖拽与点击交互
+    // 拖拽与点击
     let isDragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
@@ -591,50 +615,84 @@
       chrome.storage.local.set({ bubbleVisible: false });
     });
 
-    // 6. 订阅用量数据
+    // 点击同步按钮：尝试触发左下角设置菜单打开限额，自动刮取
+    btnSyncQuota.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playSound('press');
+      btnSyncQuota.textContent = '嗅探中...';
+      const settingsBtn = document.querySelector('button[aria-label*="设置"], button[aria-label*="Settings"], .side-nav-footer button, [data-test-id="user-profile"]');
+      if (settingsBtn) {
+        settingsBtn.click();
+      }
+      setTimeout(() => {
+        if (window.__KIMINO_TRACKER__) window.__KIMINO_TRACKER__.scrapeRealQuotaFromDom();
+        btnSyncQuota.textContent = '⚙️同步';
+      }, 1000);
+    });
+
+    // 订阅追踪器数据
     if (window.__KIMINO_TRACKER__) {
       window.__KIMINO_TRACKER__.subscribe((data) => {
-        turnsVal.textContent = `第 ${data.turns} 轮 (建议 ≤ 8)`;
+        metaTurns.textContent = `当前会话: 第 ${data.turns} 轮`;
         const totalK = (data.totalTokensEst / 1000).toFixed(1);
-        const thinkK = (data.thinkingTokensEst / 1000).toFixed(1);
-        tokensVal.textContent = `~${totalK}k (思维链 ~${thinkK}k)`;
-        stressVal.textContent = `${data.fatiguePercent}%`;
+        metaTokens.textContent = `预估: ~${totalK}k tokens`;
 
-        progressFill.style.width = `${Math.min(100, data.fatiguePercent)}%`;
-        progressFill.className = 'kimino-progress-fill';
+        // 1. 真实当前用量 (5h)
+        const curPct = typeof data.realQuota.currentUsagePercent === 'number' 
+          ? data.realQuota.currentUsagePercent 
+          : data.fatiguePercent;
+
+        curQuotaPct.textContent = `已使用 ${curPct}%`;
+        curQuotaBar.style.width = `${Math.min(100, curPct)}%`;
+        curQuotaBar.style.background = getBarGradient(curPct);
+        curQuotaReset.textContent = data.realQuota.currentResetTime 
+          ? `重置时间: ${data.realQuota.currentResetTime}` 
+          : '实时推算中';
+
+        // 2. 真实每周限额
+        if (typeof data.realQuota.weeklyUsagePercent === 'number') {
+          const weekPct = data.realQuota.weeklyUsagePercent;
+          weekQuotaPct.textContent = `已使用 ${weekPct}%`;
+          weekQuotaBar.style.width = `${Math.min(100, weekPct)}%`;
+          weekQuotaBar.style.background = getBarGradient(weekPct);
+          weekQuotaReset.textContent = data.realQuota.weeklyResetTime 
+            ? `重置时间: ${data.realQuota.weeklyResetTime}` 
+            : '每周限额';
+        } else {
+          weekQuotaPct.textContent = '待同步';
+          weekQuotaBar.style.width = '0%';
+          weekQuotaReset.textContent = '点左下角⚙️用量限额同步';
+        }
+
+        // 3. 耳灯与状态机
         earGlow.className = 'kimino-ear-glow';
         charBox.classList.remove('rate-limited');
 
-        if (data.rateLimited) {
-          progressFill.classList.add('fill-limited');
+        if (data.rateLimited || curPct >= 100) {
           earGlow.classList.add('glow-rate_limited');
           charBox.classList.add('rate-limited');
           baseFrame = 'sad';
           setFrame('sad');
           rateAlert.style.display = 'flex';
-          alertClock.textContent = data.resetCountdownText || '恢复中...';
+          alertClock.textContent = data.resetCountdownText || data.realQuota.currentResetTime || '恢复中...';
           dialogueEl.textContent = "口牙！我就说 Argon 这个电老虎撑不住吧！被你玩爆了喵！(哭)";
-        } else if (data.fatiguePercent >= 80) {
-          progressFill.classList.add('fill-danger');
+        } else if (curPct >= 80) {
           earGlow.classList.add('glow-exhausted');
           baseFrame = 'angry';
           setFrame('angry');
           rateAlert.style.display = 'none';
-          dialogueEl.textContent = "杂鱼君停手！Argon 的思维链快把显卡干冒烟了喵！";
-        } else if (data.fatiguePercent >= 50) {
-          progressFill.classList.add('fill-warn');
+          dialogueEl.textContent = "杂鱼君停手！当前用量已经飙到 80%+ 了，快见底了喵！";
+        } else if (curPct >= 60) {
           earGlow.classList.add('glow-warning');
           baseFrame = 'shy';
           setFrame('shy');
           rateAlert.style.display = 'none';
         } else if (data.status === 'thinking') {
-          progressFill.classList.add('fill-safe');
           earGlow.classList.add('glow-thinking');
           baseFrame = 'idle';
           setFrame('idle');
           rateAlert.style.display = 'none';
         } else {
-          progressFill.classList.add('fill-safe');
           earGlow.classList.add('glow-idle');
           baseFrame = 'idle';
           setFrame('idle');
@@ -643,7 +701,6 @@
       });
     }
 
-    // 7. 监听配置热更新
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local') {
         if (changes.character) {

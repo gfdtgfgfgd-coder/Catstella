@@ -1,5 +1,6 @@
-/* 星语喵伴 · Gemini Web 专属 Dream Skin 毛玻璃原生质感皮肤 */
+/* 星语喵伴 · Gemini Web 专属 Dream Skin (深度还原反重力原版质感) */
 
+/* 1. 壁纸全屏铺设与暗部微光渐变 */
 #kimino-dream-wallpaper {
   position: fixed !important;
   inset: 0 !important;
@@ -10,11 +11,10 @@
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  transition: opacity 0.6s ease, filter 0.6s ease !important;
-  opacity: 0.92;
+  transition: opacity 0.6s ease !important;
 }
 
-/* 激活皮肤时的全局透明化 */
+/* 激活皮肤时的全局底色透视 */
 html.kimino-dream-active,
 html.kimino-dream-active body {
   background-color: transparent !important;
@@ -30,22 +30,63 @@ html.kimino-dream-active :is(
   [data-test-id="chat-history-container"],
   header,
   .top-bar,
+  infinite-scroller,
   .bottom-container
 ) {
   background-color: transparent !important;
   background-image: none !important;
 }
 
-/* 1. 侧边栏：100% 还原反重力星语原设材质 (斜向微网格 + 柔光漫射) */
+/* 2. 彻底抹除页面底部的死黑渐变迷雾 (消除灰黑大色块) */
+html.kimino-dream-active :is(
+  .bottom-gradient,
+  .chat-history-gradient,
+  .scroll-gradient,
+  .gradient,
+  [class*="gradient"],
+  [class*="fade-out"],
+  .input-area-container::before,
+  .input-area-container::after,
+  .conversation-container::after
+) {
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* 3. 侧边栏：100% 还原反重力原版斜向微网格与星轨底纹 */
 html.kimino-dream-active :is(bard-sidenav, aside, [role="navigation"]) {
   background-color: rgba(18, 14, 28, 0.82) !important;
   background-image: radial-gradient(ellipse at 0 0, rgba(168, 142, 229, 0.12), transparent 65%), 
                     repeating-linear-gradient(135deg, transparent 0 38px, rgba(185, 148, 238, 0.04) 38px 39px) !important;
   border-right: 1px solid rgba(174, 142, 218, 0.22) !important;
-  backdrop-filter: blur(16px) saturate(120%) !important;
+  backdrop-filter: blur(18px) saturate(120%) !important;
 }
 
-/* 侧边栏悬浮与选中态：还原反重力原版星光颗粒高亮 */
+/* 修复左下角头像区域小黑框：穿透所有嵌套容器 */
+html.kimino-dream-active :is(
+  .bottom-container,
+  [class*="bottom-container"],
+  [data-test-id="user-profile"],
+  .user-info,
+  .profile-button,
+  .user-profile-button,
+  [aria-label*="Google 帐号"],
+  [aria-label*="Google Account"],
+  .side-nav-footer
+),
+html.kimino-dream-active :is(
+  .bottom-container,
+  [class*="bottom-container"],
+  .side-nav-footer
+) :is(div, button, a, span) {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+/* 侧边栏悬浮态与当前会话选中态 (反重力星光颗粒高亮) */
 html.kimino-dream-active :is(bard-sidenav, aside) :is(button, a, [role="button"], .nav-item):hover:not(:disabled) {
   background-color: rgba(185, 155, 234, 0.16) !important;
   outline-color: #b99bea !important;
@@ -60,53 +101,94 @@ html.kimino-dream-active :is(bard-sidenav, aside) :is([aria-selected="true"], [a
   border-radius: 9px !important;
 }
 
-/* 2. 对话卡片：星语毛玻璃玻璃拟态 (Glassmorphism) */
-html.kimino-dream-active :is(
-  .user-query-container,
-  user-query,
-  model-response,
-  response-container,
-  .message-content,
-  [data-test-id="user-query"],
-  [data-test-id="model-response"]
-) {
-  background-color: transparent !important;
+/* 4. 彻底解决“俄罗斯套娃”多层毛玻璃框问题：只对单层气泡生效 */
+
+/* (A) 用户提问消息卡片：只在最外层或直接容器上打一层毛玻璃 */
+html.kimino-dream-active .user-query-container {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  margin: 14px 0 !important;
+}
+
+html.kimino-dream-active :is(user-query, .user-query) {
+  background-color: rgba(28, 20, 48, 0.78) !important;
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)) !important;
   backdrop-filter: blur(18px) saturate(120%) !important;
-  border: 1px solid rgba(185, 155, 234, 0.24) !important;
-  border-radius: 16px !important;
-  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.18), 0 8px 28px rgba(12, 8, 24, 0.38) !important;
-  padding: 14px 18px !important;
-  margin-top: 12px !important;
-  margin-bottom: 12px !important;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+  border: 1px solid rgba(190, 160, 245, 0.28) !important;
+  border-radius: 20px !important;
+  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.2), 0 8px 24px rgba(12, 8, 24, 0.4) !important;
+  padding: 14px 20px !important;
+  display: inline-block !important;
+  max-width: 85% !important;
 }
 
-html.kimino-dream-active :is(.user-query-container, user-query):hover {
-  border-color: rgba(205, 175, 255, 0.45) !important;
-  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.25), 0 10px 32px rgba(160, 130, 230, 0.25) !important;
+/* 剥离用户提问内部所有子元素的重复边框与背景 */
+html.kimino-dream-active :is(user-query, .user-query) * {
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
 }
 
-/* 3. Thinking (思维链/Argon) 思考过程卡片 */
-html.kimino-dream-active :is(details, .thought-container, [data-test-id="thinking-process"], .thinking-content) {
+/* (B) 模型回答卡片：平铺通透单层卡片 */
+html.kimino-dream-active .response-container,
+html.kimino-dream-active [data-test-id="model-response"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+}
+
+html.kimino-dream-active model-response {
+  display: block !important;
+  background-color: rgba(18, 14, 30, 0.72) !important;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)) !important;
+  backdrop-filter: blur(20px) saturate(125%) !important;
+  border: 1px solid rgba(185, 155, 234, 0.22) !important;
+  border-radius: 20px !important;
+  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.18), 0 10px 32px rgba(10, 6, 22, 0.45) !important;
+  padding: 18px 24px !important;
+  margin: 14px 0 !important;
+}
+
+/* 剥离模型回答内部子容器的重复滤镜 */
+html.kimino-dream-active model-response :is(
+  .response-container-content,
+  .message-content,
+  .presented-response-container,
+  .response-content
+) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+}
+
+/* (C) 思维链/Thinking 折叠卡片 */
+html.kimino-dream-active :is(details, .thought-container, [data-test-id="thinking-process"]) {
   background-color: rgba(26, 18, 46, 0.65) !important;
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent) !important;
   border: 1px dashed rgba(185, 155, 234, 0.35) !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   backdrop-filter: blur(12px) !important;
   padding: 10px 14px !important;
+  margin: 8px 0 !important;
 }
 
-/* 4. 底部输入框：100% 还原反重力 .surface-composer 水晶玻璃药丸 */
+/* 5. 底部输入药丸：100% 还原反重力 .surface-composer 水晶玻璃药丸 */
 html.kimino-dream-active :is(
   .input-area,
-  .text-input-field,
-  .rich-textarea,
   .chat-input-container,
   [data-test-id="chat-input-container"],
   form
 ) {
-  border-radius: 24px !important;
+  border-radius: 26px !important;
   background-color: transparent !important;
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02)) !important;
   backdrop-filter: blur(24px) saturate(130%) !important;
@@ -114,17 +196,19 @@ html.kimino-dream-active :is(
   border: none !important;
 }
 
-/* 清除 Gemini 内部多层黑色背景遮罩，露出剔透玻璃 */
+/* 消除输入框内部嵌套的黑色背景 */
 html.kimino-dream-active :is(
   .input-area,
   .chat-input-container,
   form
 ) :is(.text-input-field, .rich-textarea, .input-wrapper, textarea) {
   background-color: transparent !important;
+  background-image: none !important;
   box-shadow: none !important;
+  border: none !important;
 }
 
-/* 5. 保护区域：代码块、终端、表格与弹出菜单保持高对比度暗底 */
+/* 6. 保护区域：代码块、终端、表格与弹出菜单保持高对比度暗底 */
 html.kimino-dream-active :is(
   pre,
   code,

@@ -1,18 +1,26 @@
-// 星语喵伴 · Main World Script Injector Bridge (Fail-safe for Firefox & Chromium)
+// 星语喵伴 · Main World Script Injector Bridge (100% 容错防崩)
 (() => {
-  try {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('content/interceptor.js');
-    script.async = false;
-    (document.head || document.documentElement).appendChild(script);
-    script.onload = () => {
-      script.remove();
-    };
-    script.onerror = () => {
-      console.warn('[星语喵伴] 页面 CSP 限制拦截器脚本标签，已无缝降级为 DOM 嗅探模式。');
-      script.remove();
-    };
-  } catch (err) {
-    console.warn('[星语喵伴] 拦截器注入捕获异常 (已安全降级):', err);
+  function tryInject() {
+    try {
+      const parent = document.head || document.documentElement;
+      if (!parent) {
+        requestAnimationFrame(tryInject);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('content/interceptor.js');
+      script.async = false;
+      parent.appendChild(script);
+      script.onload = () => script.remove();
+      script.onerror = () => script.remove();
+    } catch (e) {
+      // 页面 CSP 拦截时静默忽略，由 DOM 嗅探兜底
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryInject, { once: true });
+  } else {
+    tryInject();
   }
 })();

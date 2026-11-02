@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "星语喵伴 · Gemini Web Companion",
-  "version": "1.1.0",
-  "description": "Gemini 网页端专属基米乃桌宠挂件与星语毛玻璃主题 (Dream Skin)。实时监测 Argon/Thinking 模型单会话用量与限流预警。Bilingual (ZH/EN) & Full Firefox/Edge/Chrome support.",
+  "version": "1.2.0",
+  "description": "Gemini 网页端专属基米乃桌宠挂件与星语毛玻璃主题 (Dream Skin)。支持 Google 官方用量限额双周期同步、深度质感还原与跨浏览器 (Edge/Chrome/Firefox/Zen) 兼容。",
   "icons": {
     "16": "assets/icons/icon-16.png",
     "48": "assets/icons/icon-48.png",
@@ -45,7 +45,7 @@
       "css": [
         "content/skin.css"
       ],
-      "run_at": "document_start"
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
