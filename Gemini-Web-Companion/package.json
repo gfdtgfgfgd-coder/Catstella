@@ -1,0 +1,10 @@
+{
+  "name": "kimino-gemini-companion",
+  "version": "1.0.0",
+  "description": "星语喵伴 · Gemini 网页端专属基米乃桌宠与毛玻璃皮肤扩展 (支持 Edge / Chrome / Firefox)",
+  "scripts": {
+    "build": "node scripts/build.js"
+  },
+  "author": "Antigravity & Kimino",
+  "license": "MIT"
+}
