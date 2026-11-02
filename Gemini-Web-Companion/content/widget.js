@@ -1,5 +1,45 @@
 // 星语喵伴 · Cat Pet Widget (Shadow DOM + 真实 Google 额度条展示)
 (() => {
+  if (window.__KIMINO_WIDGET_READY__) return;
+  window.__KIMINO_WIDGET_READY__ = true;
+
+  // 跨浏览器 API 垫片 (Firefox / Zen 上杜绝未捕获 Promise rejection)
+  const api = window.KIMINO_API || {
+    available: false,
+    getURL: (p) => p,
+    storageGet: async () => ({}),
+    storageSet: () => {},
+    onChanged: () => {}
+  };
+
+  // Trusted Types 安全壳：gemini.google.com 开启 require-trusted-types-for 后，
+  // 裸 innerHTML 赋值会抛 'TrustedHTML' 错误；有策略走策略，没策略走手动 DOM。
+  const ttPolicy = (() => {
+    try {
+      if (typeof trustedTypes !== 'undefined' && trustedTypes.createPolicy) {
+        return trustedTypes.createPolicy('kimino-companion', { createHTML: (s) => s });
+      }
+    } catch (e) { /* 策略名被 CSP 限制时降级 */ }
+    return null;
+  })();
+  const setHTML = (el, html) => {
+    try {
+      el.innerHTML = ttPolicy ? ttPolicy.createHTML(html) : html;
+      return true;
+    } catch (e) {
+      try {
+        // 无策略兜底：模板仅由本扩展静态字符串构成，经 DOMParser 走安全解析路径
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        while (el.firstChild) el.removeChild(el.firstChild);
+        while (doc.body.firstChild) el.appendChild(doc.body.firstChild);
+        return true;
+      } catch (e2) {
+        console.warn('[星语喵伴] Trusted Types 兜底渲染失败:', e2);
+        return false;
+      }
+    }
+  };
+
   const EMBEDDED_DIALOGUES = {
     idle: [
       "我才不是美版豆包，哼！",
@@ -48,16 +88,10 @@
 
   const EMBEDDED_WIDGET_CSS = `
     :host {
+      /* 宿主元素不生成任何盒子：Google 页面级 CSS（如 body>div:last-child 类规则）
+         无法再把它染成可见色块；桌宠全部由内部 position:fixed 的 wrapper 承载 */
       all: initial;
-      display: block !important;
-      position: fixed !important;
-      inset: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      pointer-events: none !important;
-      z-index: 2147483647 !important;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-      user-select: none;
+      display: contents !important;
     }
 
     .kimino-wrapper {
@@ -67,6 +101,8 @@
       flex-direction: column;
       align-items: center;
       z-index: 2147483647 !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      user-select: none;
       transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
     }
 
@@ -336,9 +372,103 @@
       padding: 2px 6px;
       border-radius: 4px;
     }
+
+    /* 设置面板（毛玻璃，与皮肤同语言） */
+    .kimino-settings {
+      position: absolute;
+      bottom: 102%;
+      right: 0;
+      width: 250px;
+      background: rgba(28, 22, 44, 0.92);
+      backdrop-filter: blur(18px) saturate(130%);
+      border: 1px solid rgba(190, 160, 245, 0.35);
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(10, 6, 24, 0.6);
+      padding: 12px 14px;
+      color: #f1edfa;
+      z-index: 12;
+      margin-bottom: 12px;
+      font-size: 12px;
+      animation: kimino-bubble-pop 0.25s cubic-bezier(0.18, 0.9, 0.32, 1.2);
+    }
+
+    .kimino-settings-title {
+      font-weight: 600;
+      color: #d8b4fe;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .kg-set-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 5px 0;
+      color: #e9d5ff;
+    }
+
+    .kg-range {
+      flex: 1;
+      accent-color: #a78bfa;
+      height: 4px;
+      cursor: pointer;
+    }
+
+    .kg-val {
+      width: 38px;
+      text-align: right;
+      color: #c4b5fd;
+      font-size: 11px;
+    }
+
+    .kg-chips {
+      display: flex;
+      gap: 6px;
+    }
+
+    .kg-chip {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #c4b5fd;
+      border-radius: 8px;
+      padding: 3px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+
+    .kg-chip.kg-active {
+      background: rgba(192, 132, 252, 0.28);
+      border-color: #c084fc;
+      color: #fff;
+    }
+
+    .kg-reset-pos {
+      width: 100%;
+      margin-top: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #e9d5ff;
+      border-radius: 8px;
+      padding: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+    }
+
+    .kg-reset-pos:hover {
+      background: rgba(192, 132, 252, 0.25);
+    }
+
+    .kimino-settings input[type="checkbox"] {
+      accent-color: #a78bfa;
+      cursor: pointer;
+    }
   `;
 
   let currentCharacter = 'gemini-star-v1';
+  let customCharacterSrc = null; // 自定义形象 dataURL（覆盖所有表情帧）
   let soundEnabled = false;
   let bubbleVisible = true;
   let widgetScale = 200;
@@ -355,7 +485,7 @@
     if (!soundEnabled) return;
     try {
       const file = type === 'press' ? 'interaction-press.wav' : 'interaction-release.wav';
-      const soundUrl = chrome.runtime.getURL(`assets/audio/${file}`);
+      const soundUrl = api.getURL(`assets/audio/${file}`);
       const audio = new Audio(soundUrl);
       audio.volume = 0.45;
       audio.play().catch(() => {});
@@ -363,7 +493,9 @@
   }
 
   function getFrameUrl(pack, frame) {
-    return chrome.runtime.getURL(`assets/characters/${pack}/${frame}.png`);
+    // 自定义形象优先：覆盖所有表情帧（v1 自定义形象为单图方案）
+    if (customCharacterSrc) return customCharacterSrc;
+    return api.getURL(`assets/characters/${pack}/${frame}.png`);
   }
 
   function getBarGradient(pct) {
@@ -383,8 +515,8 @@
     };
 
     try {
-      const stored = await chrome.storage.local.get([
-        'enabled', 'character', 'soundEnabled', 'widgetScale', 'widgetPos', 'bubbleVisible'
+      const stored = await api.storageGet([
+        'enabled', 'character', 'soundEnabled', 'widgetScale', 'widgetPos', 'bubbleVisible', 'customCharacter'
       ]);
       config = { ...config, ...stored };
     } catch (e) {}
@@ -392,6 +524,7 @@
     if (config.enabled === false) return;
 
     currentCharacter = config.character || 'gemini-star-v1';
+    customCharacterSrc = config.customCharacter || null;
     soundEnabled = !!config.soundEnabled;
     widgetScale = config.widgetScale || 200;
     bubbleVisible = config.bubbleVisible !== false;
@@ -400,10 +533,29 @@
     if (!host) {
       host = document.createElement('div');
       host.id = 'kimino-companion-root';
+      // 内联 important 保险：:host 的 display:contents 优先级低于页面 #id 规则，
+      // 内联 important 可压过 Google 的一切普通规则，杜绝宿主被渲染成可见盒子
+      ['display:contents', 'background:transparent', 'background-color:transparent', 'border:none', 'box-shadow:none', 'width:0', 'height:0', 'overflow:visible']
+        .forEach((decl) => {
+          const [prop, ...rest] = decl.split(':');
+          try { host.style.setProperty(prop, rest.join(':'), 'important'); } catch (e) {}
+        });
       (document.body || document.documentElement).appendChild(host);
     }
 
-    const shadow = host.attachShadow({ mode: 'open' });
+    // 防御：宿主若已挂载 Shadow DOM（如扩展热重载残留），直接跳过重复挂载
+    if (host.shadowRoot) {
+      console.log('[星语喵伴] 桌宠挂件已存在，跳过重复注入喵～');
+      return;
+    }
+
+    let shadow;
+    try {
+      shadow = host.attachShadow({ mode: 'open' });
+    } catch (e) {
+      console.warn('[星语喵伴] Shadow DOM 挂载失败:', e);
+      return;
+    }
 
     const styleEl = document.createElement('style');
     styleEl.textContent = EMBEDDED_WIDGET_CSS;
@@ -425,7 +577,7 @@
       wrapper.style.top = 'auto';
     }
 
-    wrapper.innerHTML = `
+    setHTML(wrapper, `
       <div class="kimino-bubble" style="display: ${bubbleVisible ? 'block' : 'none'};">
         <div class="kimino-bubble-header">
           <div class="kimino-header-title">
@@ -433,7 +585,8 @@
             <span class="kimino-title-text">基米乃 · 额度审计喵</span>
           </div>
           <div class="kimino-header-actions">
-            <button class="kimino-btn-icon btn-sync-quota" title="点击打开设置同步最新官方额度">⚙️同步</button>
+            <button class="kimino-btn-icon btn-sync-quota" title="静默同步官方额度 (零弹窗)">🔄同步</button>
+            <button class="kimino-btn-icon btn-open-settings" title="设置面板">⚙️</button>
             <button class="kimino-btn-icon btn-toggle-bubble" title="收起气泡">✕</button>
           </div>
         </div>
@@ -489,7 +642,38 @@
         <div class="kimino-ear-glow glow-idle"></div>
         <img class="kimino-sprite" src="${getFrameUrl(currentCharacter, 'idle')}" alt="Kimino Cat Pet" style="width: ${widgetScale}px;">
       </div>
-    `;
+
+      <div class="kimino-settings" style="display: none;">
+        <div class="kimino-settings-title">⚙️ 基米乃设置面板</div>
+        <label class="kg-set-row"><span>桌宠挂件</span><input type="checkbox" class="kg-cfg" data-key="enabled"></label>
+        <label class="kg-set-row"><span>毛玻璃皮肤</span><input type="checkbox" class="kg-cfg" data-key="skinEnabled"></label>
+        <label class="kg-set-row"><span>台词气泡</span><input type="checkbox" class="kg-cfg" data-key="bubbleVisible"></label>
+        <label class="kg-set-row"><span>互动音效</span><input type="checkbox" class="kg-cfg" data-key="soundEnabled"></label>
+        <div class="kg-set-row"><span>桌宠大小</span><input type="range" class="kg-range" data-key="widgetScale" min="120" max="320" step="10"><span class="kg-val kg-val-scale"></span></div>
+        <div class="kg-set-row"><span>壁纸浓度</span><input type="range" class="kg-range" data-key="wallpaperOpacity" min="30" max="100" step="5"><span class="kg-val kg-val-opacity"></span></div>
+        <div class="kg-set-row"><span>形象</span>
+          <span class="kg-chips">
+            <button class="kg-chip" data-character="gemini-star-v1">星语喵</button>
+            <button class="kg-chip" data-character="lin-cat">林猫</button>
+          </span>
+        </div>
+        <div class="kg-set-row"><span>自定义壁纸</span>
+          <span class="kg-chips">
+            <button class="kg-chip kg-btn-wallpaper">选择图片</button>
+            <button class="kg-chip kg-def-wallpaper">默认</button>
+          </span>
+        </div>
+        <div class="kg-set-row"><span>自定义形象</span>
+          <span class="kg-chips">
+            <button class="kg-chip kg-btn-character">选择图片</button>
+            <button class="kg-chip kg-def-character">默认</button>
+          </span>
+        </div>
+        <input type="file" accept="image/*" class="kg-file-input kg-file-wallpaper" style="display:none">
+        <input type="file" accept="image/*" class="kg-file-input kg-file-character" style="display:none">
+        <button class="kg-reset-pos">复位桌宠位置</button>
+      </div>
+    `);
 
     shadow.appendChild(wrapper);
 
@@ -518,6 +702,12 @@
       currentFrame = frameName;
       spriteImg.src = getFrameUrl(currentCharacter, frameName);
     }
+
+    // 帧缺失兜底：某角色包缺帧时回落到 idle，避免桌宠裂图
+    spriteImg.addEventListener('error', () => {
+      const fallback = getFrameUrl(currentCharacter, 'idle');
+      if (spriteImg.src !== fallback) spriteImg.src = fallback;
+    });
 
     function startBlinkLoop() {
       if (blinkTimer) clearTimeout(blinkTimer);
@@ -585,11 +775,11 @@
 
       if (hasMoved) {
         const rect = wrapper.getBoundingClientRect();
-        chrome.storage.local.set({ widgetPos: { x: rect.left, y: rect.top } });
+        api.storageSet({ widgetPos: { x: rect.left, y: rect.top } });
       } else {
         bubbleVisible = !bubbleVisible;
         bubble.style.display = bubbleVisible ? 'block' : 'none';
-        chrome.storage.local.set({ bubbleVisible });
+        api.storageSet({ bubbleVisible });
 
         if (bubbleVisible) {
           dialogueEl.textContent = getDialogue('petting');
@@ -612,23 +802,167 @@
       e.stopPropagation();
       bubbleVisible = false;
       bubble.style.display = 'none';
-      chrome.storage.local.set({ bubbleVisible: false });
+      api.storageSet({ bubbleVisible: false });
     });
 
-    // 点击同步按钮：尝试触发左下角设置菜单打开限额，自动刮取
+    // 点击同步按钮：静默重放官方额度 RPC（零 UI），并辅以 DOM 嗅探兜底
     btnSyncQuota.addEventListener('click', (e) => {
       e.stopPropagation();
       playSound('press');
       btnSyncQuota.textContent = '嗅探中...';
-      const settingsBtn = document.querySelector('button[aria-label*="设置"], button[aria-label*="Settings"], .side-nav-footer button, [data-test-id="user-profile"]');
-      if (settingsBtn) {
-        settingsBtn.click();
-      }
-      setTimeout(() => {
-        if (window.__KIMINO_TRACKER__) window.__KIMINO_TRACKER__.scrapeRealQuotaFromDom();
-        btnSyncQuota.textContent = '⚙️同步';
-      }, 1000);
+      try {
+        if (window.__KIMINO_TRACKER__) {
+          window.__KIMINO_TRACKER__.requestQuotaRpcRefresh('widget', true);
+          window.__KIMINO_TRACKER__.sniffResetHintBar();
+          window.__KIMINO_TRACKER__.scrapeRealQuotaFromDom();
+        }
+      } catch (err) {}
+      setTimeout(() => { btnSyncQuota.textContent = '🔄同步'; }, 1500);
     });
+
+    // 图片文件 → 压缩 dataURL（壁纸 JPEG 压暗底、形象 PNG 保透明）
+  const fileToDataUrl = (file, opts) => new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const scale = Math.min(opts.maxW / img.width, opts.maxH / img.height, 1);
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const cv = document.createElement('canvas');
+            cv.width = w;
+            cv.height = h;
+            const ctx = cv.getContext('2d');
+            if (opts.type === 'image/jpeg') {
+              ctx.fillStyle = '#211e2d';
+              ctx.fillRect(0, 0, w, h);
+            }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(cv.toDataURL(opts.type, 0.85));
+          } catch (e) { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = reader.result;
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    } catch (e) { resolve(null); }
+  });
+
+  // ===== 设置面板（web 端可用功能迁移） =====
+    const settingsPanel = wrapper.querySelector('.kimino-settings');
+    const btnOpenSettings = wrapper.querySelector('.btn-open-settings');
+    const kgValScale = wrapper.querySelector('.kg-val-scale');
+    const kgValOpacity = wrapper.querySelector('.kg-val-opacity');
+
+    const syncSettingsUI = async () => {
+      try {
+        const st = await api.storageGet(['enabled', 'skinEnabled', 'bubbleVisible', 'soundEnabled', 'widgetScale', 'wallpaperOpacity', 'character']);
+        settingsPanel.querySelectorAll('.kg-cfg').forEach((cb) => {
+          const k = cb.dataset.key;
+          cb.checked = st[k] !== undefined ? !!st[k] : (k === 'enabled' || k === 'skinEnabled' || k === 'bubbleVisible');
+        });
+        const scale = st.widgetScale || 200;
+        const op = Math.round((st.wallpaperOpacity === undefined ? 0.88 : st.wallpaperOpacity) * 100);
+        const rScale = settingsPanel.querySelector('.kg-range[data-key="widgetScale"]');
+        const rOp = settingsPanel.querySelector('.kg-range[data-key="wallpaperOpacity"]');
+        if (rScale) { rScale.value = scale; if (kgValScale) kgValScale.textContent = scale + 'px'; }
+        if (rOp) { rOp.value = op; if (kgValOpacity) kgValOpacity.textContent = op + '%'; }
+        settingsPanel.querySelectorAll('.kg-chip').forEach((chip) => {
+          chip.classList.toggle('kg-active', chip.dataset.character === (st.character || 'gemini-star-v1'));
+        });
+      } catch (e) {}
+    };
+
+    if (btnOpenSettings) {
+      btnOpenSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        playSound('press');
+        const show = settingsPanel.style.display !== 'block';
+        settingsPanel.style.display = show ? 'block' : 'none';
+        if (show) syncSettingsUI();
+      });
+    }
+    if (settingsPanel) {
+      settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+      settingsPanel.querySelectorAll('.kg-cfg').forEach((cb) => {
+        cb.addEventListener('change', () => {
+          const payload = {};
+          payload[cb.dataset.key] = cb.checked;
+          api.storageSet(payload);
+        });
+      });
+      settingsPanel.querySelectorAll('.kg-range').forEach((rg) => {
+        rg.addEventListener('input', () => {
+          const key = rg.dataset.key;
+          const v = parseFloat(rg.value);
+          const payload = {};
+          payload[key] = key === 'wallpaperOpacity' ? v / 100 : v;
+          api.storageSet(payload);
+          if (key === 'widgetScale' && kgValScale) kgValScale.textContent = v + 'px';
+          if (key === 'wallpaperOpacity' && kgValOpacity) kgValOpacity.textContent = v + '%';
+        });
+      });
+      settingsPanel.querySelectorAll('.kg-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          playSound('press');
+          api.storageSet({ character: chip.dataset.character });
+          settingsPanel.querySelectorAll('.kg-chip').forEach((c2) => c2.classList.toggle('kg-active', c2 === chip));
+        });
+      });
+      const resetBtn = settingsPanel.querySelector('.kg-reset-pos');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+          playSound('press');
+          api.storageSet({ widgetPos: null });
+          wrapper.style.setProperty('left', 'auto', 'important');
+          wrapper.style.setProperty('top', 'auto', 'important');
+          wrapper.style.setProperty('right', '32px', 'important');
+          wrapper.style.setProperty('bottom', '32px', 'important');
+          resetBtn.textContent = '已复位喵～';
+          setTimeout(() => { resetBtn.textContent = '复位桌宠位置'; }, 1200);
+        });
+      }
+
+      // 自定义壁纸 / 自定义形象（文件 → canvas 压缩 → storage，onChanged 链路即时生效）
+      const bindFileFlow = (btnSel, inputSel, defSel, opts, key) => {
+        const btn = settingsPanel.querySelector(btnSel);
+        const input = settingsPanel.querySelector(inputSel);
+        const def = settingsPanel.querySelector(defSel);
+        if (btn && input) {
+          btn.addEventListener('click', () => { playSound('press'); input.click(); });
+          input.addEventListener('change', async () => {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            btn.textContent = '处理中...';
+            const dataUrl = await fileToDataUrl(file, opts);
+            btn.textContent = '选择图片';
+            if (dataUrl) {
+              const payload = {};
+              payload[key] = dataUrl;
+              api.storageSet(payload);
+            } else {
+              console.warn('[星语喵伴] 图片处理失败喵');
+            }
+            input.value = '';
+          });
+        }
+        if (def) {
+          def.addEventListener('click', () => {
+            playSound('press');
+            const payload = {};
+            payload[key] = null;
+            api.storageSet(payload);
+          });
+        }
+      };
+      bindFileFlow('.kg-btn-wallpaper', '.kg-file-wallpaper', '.kg-def-wallpaper',
+        { maxW: 1920, maxH: 1080, type: 'image/jpeg' }, 'customWallpaper');
+      bindFileFlow('.kg-btn-character', '.kg-file-character', '.kg-def-character',
+        { maxW: 640, maxH: 640, type: 'image/png' }, 'customCharacter');
+    }
 
     // 订阅追踪器数据
     if (window.__KIMINO_TRACKER__) {
@@ -701,10 +1035,14 @@
       });
     }
 
-    chrome.storage.onChanged.addListener((changes, area) => {
+    api.onChanged((changes, area) => {
       if (area === 'local') {
         if (changes.character) {
           currentCharacter = changes.character.newValue;
+          setFrame(baseFrame);
+        }
+        if (changes.customCharacter !== undefined) {
+          customCharacterSrc = changes.customCharacter.newValue || null;
           setFrame(baseFrame);
         }
         if (changes.soundEnabled !== undefined) {
@@ -714,18 +1052,60 @@
           widgetScale = changes.widgetScale.newValue;
           spriteImg.style.width = `${widgetScale}px`;
         }
+        if (changes.bubbleVisible !== undefined) {
+          bubbleVisible = !!changes.bubbleVisible.newValue;
+          bubble.style.display = bubbleVisible ? 'block' : 'none';
+        }
         if (changes.enabled !== undefined) {
-          host.style.display = changes.enabled.newValue ? 'block' : 'none';
+          // 宿主为 display:contents —— 开关须以 important 内联覆盖
+          host.style.setProperty('display', changes.enabled.newValue ? 'contents' : 'none', 'important');
         }
       }
     });
 
     console.log('[星语喵伴] 桌宠挂件注入完毕，基米乃已就位喵～🐾');
+
+    // 角落异物自诊断：左下角出现非桌宠的实底盒子时，向控制台输出其 DOM 链路
+    // （用户报告的"头像旁黑框"排查用；正常时静默）
+    setTimeout(() => {
+      try {
+        const H = window.innerHeight;
+        const pts = [[8, H - 8], [25, H - 20], [45, H - 35], [8, H - 45], [60, H - 55]];
+        const reported = new Set();
+        for (const [x, y] of pts) {
+          const el = document.elementFromPoint(x, y);
+          if (!el || el.closest('#kimino-companion-root')) continue;
+          let painted = null;
+          let e = el;
+          for (let i = 0; i < 8 && e; i++) {
+            const cs = getComputedStyle(e);
+            if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') { painted = e; break; }
+            e = e.parentElement;
+          }
+          if (!painted || reported.has(painted)) continue;
+          reported.add(painted);
+          const inSidenav = !!painted.closest('bard-sidenav, side-navigation-v2');
+          if (inSidenav && painted.tagName.toLowerCase() === 'bard-sidenav') continue; // 侧栏自身底色属正常
+          const chain = [];
+          let t = painted;
+          for (let i = 0; i < 8 && t; i++) {
+            const cls = (typeof t.className === 'string' && t.className.trim()) ? '.' + t.className.trim().split(/\s+/).slice(0, 4).join('.') : '';
+            chain.unshift(t.tagName.toLowerCase() + cls);
+            t = t.parentElement;
+          }
+          console.warn(`[星语喵伴] 角落异物诊断(${inSidenav ? '侧栏内' : '页面层'}):`,
+            chain.join(' ← '), '| bg=' + getComputedStyle(painted).backgroundColor,
+            '| size=' + Math.round(painted.getBoundingClientRect().width) + 'x' + Math.round(painted.getBoundingClientRect().height));
+        }
+      } catch (e) {}
+    }, 3000);
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initWidget);
+    document.addEventListener('DOMContentLoaded', () => {
+      initWidget().catch((e) => console.error('[星语喵伴] 桌宠挂件初始化失败:', e));
+    });
   } else {
-    initWidget();
+    initWidget().catch((e) => console.error('[星语喵伴] 桌宠挂件初始化失败:', e));
   }
 })();

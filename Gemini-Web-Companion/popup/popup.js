@@ -1,5 +1,19 @@
 // 星语喵伴 · Popup Logic
 document.addEventListener('DOMContentLoaded', async () => {
+  // 与 content script 同款双命名空间垫片 (Firefox: browser.* / Chromium: chrome.*)
+  const api = (typeof browser !== 'undefined' && browser && browser.runtime && browser.runtime.id)
+    ? browser
+    : (typeof chrome !== 'undefined' ? chrome : null);
+  const safeGet = async (keys) => {
+    try { return (await api.storage.local.get(keys)) || {}; } catch (e) { return {}; }
+  };
+  const safeSet = (obj) => {
+    try {
+      const outcome = api.storage.local.set(obj);
+      if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
+    } catch (e) {}
+  };
+
   const chkWidget = document.getElementById('chk-widget');
   const chkSkin = document.getElementById('chk-skin');
   const chkSound = document.getElementById('chk-sound');
@@ -12,8 +26,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnRefresh = document.getElementById('btn-refresh');
 
   let config = {};
-  try {
-    config = await chrome.storage.local.get([
+  if (api) {
+    config = await safeGet([
       'enabled',
       'skinEnabled',
       'soundEnabled',
@@ -21,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       'widgetScale',
       'argonMaxSafeTurns'
     ]);
-  } catch (e) {}
+  }
 
   chkWidget.checked = config.enabled !== false;
   chkSkin.checked = config.skinEnabled !== false;
@@ -41,21 +55,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   valTurns.textContent = `${currentTurns} 轮`;
 
   chkWidget.addEventListener('change', () => {
-    chrome.storage.local.set({ enabled: chkWidget.checked });
+    safeSet({ enabled: chkWidget.checked });
   });
 
   chkSkin.addEventListener('change', () => {
-    chrome.storage.local.set({ skinEnabled: chkSkin.checked });
+    safeSet({ skinEnabled: chkSkin.checked });
   });
 
   chkSound.addEventListener('change', () => {
-    chrome.storage.local.set({ soundEnabled: chkSound.checked });
+    safeSet({ soundEnabled: chkSound.checked });
   });
 
   radioCharacters.forEach(radio => {
     radio.addEventListener('change', () => {
       if (radio.checked) {
-        chrome.storage.local.set({ character: radio.value });
+        safeSet({ character: radio.value });
       }
     });
   });
@@ -63,27 +77,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   rangeScale.addEventListener('input', () => {
     const scale = parseInt(rangeScale.value, 10);
     valScale.textContent = `${scale}px`;
-    chrome.storage.local.set({ widgetScale: scale });
+    safeSet({ widgetScale: scale });
   });
 
   rangeTurns.addEventListener('input', () => {
     const turns = parseInt(rangeTurns.value, 10);
     valTurns.textContent = `${turns} 轮`;
-    chrome.storage.local.set({ argonMaxSafeTurns: turns });
+    safeSet({ argonMaxSafeTurns: turns });
   });
 
   btnResetPos.addEventListener('click', () => {
-    chrome.storage.local.remove('widgetPos', () => {
-      btnResetPos.textContent = '已复位！';
-      setTimeout(() => { btnResetPos.textContent = '复位至右下角 / Reset Pos'; }, 1200);
-    });
+    try {
+      const outcome = api.storage.local.remove('widgetPos');
+      if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
+    } catch (e) {}
+    btnResetPos.textContent = '已复位！';
+    setTimeout(() => { btnResetPos.textContent = '复位至右下角 / Reset Pos'; }, 1200);
   });
 
   btnRefresh.addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]?.id) {
-        chrome.tabs.reload(tabs[0].id);
-      }
-    });
+    try {
+      api.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          try {
+            const outcome = api.tabs.reload(tabs[0].id);
+            if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
+          } catch (e) {}
+        }
+      });
+    } catch (e) {}
   });
 });

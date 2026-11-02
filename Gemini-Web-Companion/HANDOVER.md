@@ -1,7 +1,45 @@
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v1.2.1-dev | 更新时间：2026-11-03
+> **文档版本**：v1.3.5 | 更新时间：2026-11-03
+
+### v1.3.5 增补（对齐终修 / 壁纸复活 / 自定义形象与壁纸）· 必读
+* **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
+* **水平对齐铁律**：band/composer/card 三者以**回复卡视口矩形**为基准（宽度 + `__kgOffsetX` relative 偏移）；测量前必须先 `removeProperty('max-width')`（否则量到残留内联值）；
+* **z 序铁律**：body 必须**透明**（不透明 body 背景会盖住负 z-index 的壁纸/基底层）；基底色画在 `#kimino-base-layer`（z -100000），壁纸层 z -99999 圆角内容列；
+* **自定义资源**：storage 键 `customWallpaper`（JPEG dataURL ≤1920×1080）/ `customCharacter`（PNG dataURL ≤640×640，覆盖所有表情帧），skin.js/widget.js 经 onChanged 即时切换，设 null 还原默认。
+
+### v1.3.4 增补（全毛玻璃 / 挖空圆角区 / 设置面板 / 滚动渐隐）
+* **宽度语义**：回复卡保持 Google 原生列宽（不强制 max-width），**Composer 药丸由 skin.js 拉宽至与回复等宽**（内联 width+居中）——不要再改回"拉宽回复"方向；
+* **挖空圆角区**：壁纸层几何由 `updatePaneGeometry()` 实测 `bard-sidenav` 右缘写入（radius 22 + 内侧描边），body 基底 `#211e2d`——壁纸只铺内容列，侧栏坐基底；
+* **Liquid Glass 带**：skin.js fixed 层 `#kimino-glass-band`（跟随 Composer 实测坐标），CSS 仅兜底样式；勿改回 `::before` 方案；
+* **滚动底色渐隐**：`applyFades()` 按滚动位置对卡片/气泡写内联渐变背景（文字清晰、blur 由 CSS 承担），rAF 节流 + scroller scroll 监听 + resize/15s 兜底；
+* **设置面板**：widget 气泡 header ⚙️ → Shadow DOM 面板（开关/滑条/形象/复位），全走 storage 即时生效；`enabled` 开关必须 `setProperty('display', 'contents'|'none', 'important')`（contents 宿主下普通赋值无效）。
+
+### v1.3.3 增补（卡片同列 / 侧栏渐变 / Liquid Glass）
+* **卡片对齐**：model-response 宽度由 skin.js 实测 user-query 列宽后**内联写入**（`max-width !important`），CSS 管 22px 圆角与居中——不要改回 CSS 写死宽度；
+* **侧栏选择器只许用 `bard-sidenav`**：`mat-nav-list` 宿主自带 `role="navigation"`、通知气泡是裸 `aside`——`[role="navigation"]` / 裸 `aside` 选择器都会误伤（渐变重复绘制 Bug 根因）；
+* **Liquid Glass 过渡带**：`input-container::before`（120px，blur16+mask 渐变+底部暗化），依赖 `input-container { position: relative }`——若 Google 改容器名，标注引擎的 composer 标记可平移承载。
+
+---
+
+## ⚠️ v1.3.2 表面标注引擎（最新架构，先读这段）
+**Google 会话级 A/B 分流会让类名漂移**——任何类名选择器都可能在部分用户会话失手（var() 解析失败 + 类名失手是 1.2.x~1.3.1 时代"我这边好的你那边坏"的两大根源）。现架构：
+1. **skin.js = 表面标注引擎**：按产品级语义锚点（`user-query`/`model-response`/`rich-textarea`/`bard-sidenav`）定位 → `climbToPainted` 向上爬到真正绘制背景的容器 → 打 `data-kg` 标记，`MutationObserver` + 15s 兜底轮询持续标注；
+2. **skin.css = 按标记渲染**：3.5 节 `[data-kg="..."]` 规则（字面量 token）与类名规则双保险并存；
+3. **幽灵色块侦探**：`aside[aria-label="Notifications"]`（通知 live-region 气泡，左下角 32×32）即"头像旁黑框"真身，skin.js 自动透明化（`data-kg="ghost"`）并输出链路到控制台；
+4. **禁止**：重新引入 var() token（部分用户环境解析失败）、全局通配穿透、大范围透明化。
+桌面 token 真源：`Antigravity-Dream-Skin/src/host/theme.cjs`（dark 分支）。
+
+---
+
+## ⚠️ v1.3.1 硬性规约（先读）
+**skin.css 已全面去 var 化**——用户实报其浏览器中 `var(--kg-*)` 解析失败导致所有玻璃面退化为全透明（透明化规则不含 var 所以照常生效）。所有色值已内联为字面量（token 对照表见 skin.css 头部注释），**禁止在新规则中重新引入 CSS 自定义属性**。桌面 token 唯一真源：`Antigravity-Dream-Skin/src/host/theme.cjs`（dark 分支）。
+**黑框排查**：widget.js 内置"角落异物自诊断"（初始化 3 秒后探测左下角，输出 `[星语喵伴] 角落异物诊断(...)` + DOM 链路）——用户再报黑框时，先要控制台日志再动手改样式。
+**主题已从"全透明穿透"反转为"Gemini 本体换肤"**：忠实复刻桌面端 Antigravity token（`--kg-*` 系列，见 skin.css 顶部），面板以不透明 `#211e2d` 为主、壁纸只从内容缝隙与 Composer 玻璃后透出。**改动皮肤时只允许：**
+1. 调整 `--kg-*` token 或已验证的顶层表面选择器；
+2. **禁止**再引入"子孙元素大清洗"、全局 `[class*=...]` 通配、大范围透明化——那是 1.2.x 被废弃的根因（选择器失手 = 生肉壁纸怼脸）。
+桌面 token 的唯一真源：`Antigravity-Dream-Skin/src/host/theme.cjs`（dark 分支）。
 
 ---
 
@@ -157,9 +195,33 @@ node Gemini-Web-Companion/scripts/build.js
 
 ## 4. 后续版本规划 (v1.3.0 RoadMap)
 
-1. [ ] **彻底攻克 Firefox / Zen Browser 的 CSP 与脚本加载死锁**；
-2. [ ] **精细化重构 `skin.css` 气泡层级**：彻底消除紫色大实体方块，实现 Antigravity 级别的高清透视与微光；
-3. [ ] **消除左下角 footer 小黑框**；
-4. [ ] **接入输入框上方提示条的自动嗅探**，告别繁琐的手动点开弹窗；
+1. [x] **彻底攻克 Firefox / Zen Browser 的 CSP 与脚本加载死锁**（v1.2.1 已完成：manifest 双模板拆分 + shim 垫片 + CSP 握手降级；额外查出并修复 .xpi 反斜杠条目名致命 Bug——Compress-Archive 违反 ZIP 规范导致 Firefox 静默加载失败，已改用 Node zlib 规范写入器）；
+2. [x] **精细化重构 `skin.css` 气泡层级**：彻底消除紫色大实体方块，实现 Antigravity 级别的高清透视与微光（v1.2.1：外层透明右对齐 + 内层小气泡 0.42 毛玻璃）；
+3. [x] **消除左下角 footer 小黑框**（v1.2.1：穿透 `bard-sidenav` footer/账号区全部子容器）；
+4. [x] **接入输入框上方提示条的自动嗅探**，告别繁琐的手动点开弹窗（v1.2.1：`sniffResetHintBar()` 中英文/相对/绝对时间解析 + 2s 节流 + 去重广播）；
 5. [ ] **桌宠动作扩展**：补充空闲时的“毛毛虫打滚缩进衣服”睡觉动画；
 6. [ ] **与桌面端 v0.2.12 安装流水线联动**：将生成的 `.xpi` 和 `.zip` 自动归档至 `dist/installers/`，实现 Catstella 全端一键打包。
+
+### v1.2.3 实装备注（2026-11-03 扩展实机部署会诊）
+* **Trusted Types**：gemini.google.com 开启 `require-trusted-types-for`，任何 MAIN world 裸 innerHTML 都会抛 `TrustedHTML`。widget.js 已用 `ttPolicy`/`setHTML` 安全壳（策略 → DOMParser 兜底），新增 DOM 操作必须走 `setHTML`。
+* **桌宠宿主**：`#kimino-companion-root` 现为 `display:contents` + **内联 important 八项保险**（`:host` 优先级低于页面 `#id` 规则，内联才能压过 Google 一切普通规则）+ skin.css `#kimino-companion-root` 双保险。改动桌宠布局只动 `.kimino-wrapper`。
+* **图片查看器**：遮罩真身是 `.cdk-overlay-backdrop.image-expansion-dialog-backdrop`（原生 0.9 纯黑），按钮非 `role=dialog` 命名——样式见 skin.css 第 6 节。
+* **/usage 路由**：使用 Meta 原子类（`x9f619` 系列）——skin.css 第 7 节按该命名空间定点换肤（section 实底/配额卡/升级横幅/gradient-strip）。
+* **MaZiqc 解析器（锚点式）**：扁平顺序映射会被噪声整数污染（实测 0%/66% → 2%/1%）。现按"同一对象内 时间串+百分比 成组"取最小命中分组：纯时钟→当前周期、含月日→每周限额。改动解析逻辑必须跑噪声混入单测（见 CHANGELOG 1.2.3）。
+* **额度 epoch**：`resetTextToEpoch()` 支持 "06:37"/"6:37 下午"/"11月3日23:37"，当前周期重置时间会驱动倒计时；重置时间按 IP 属地时区显示，epoch 换算用本地时区近似（跨时区用户倒计时可能偏差，已可接受）。
+
+### v1.2.2 实装备注（接手者必读 · 2026-11-03 实机勘察二次攻坚）
+* **内容脚本装载顺序**已变为 `shim.js → inject-bridge.js → tracker.js → skin.js → widget.js`，`shim.js` 提供 `window.KIMINO_API`（browser/chrome 双命名空间 + 永不 reject 的 storage 封装），所有模块均自带独立防崩壳，互不拖累；
+* **皮肤选择器已全部实机化**（ZCode 内置浏览器登录实测，勿再凭猜测改动）：
+  - 用户气泡真身 = `span.user-query-bubble-with-background`（原生 rgb(23,23,23)/radius 40px），外层 `user-query → span.user-query-container → user-query-content → div.user-query-container → .query-content → .query-bubble-with-status` 全链路原生透明；
+  - Composer 黑底真身 = `<input-area-v2>`（rgb(30,31,32)），底部横向黑带 = `<input-container>`（rgb(15,15,15)，992px 宽）**及其 `::before` 渐变迷雾** + `.autosuggest-scrim`；
+  - 侧边栏仅 `bard-sidenav` 自身有底色（rgb(31,31,31)），结构层全部原生透明；
+  - “用量限额”界面不是弹窗，是 SPA 路由 `https://gemini.google.com/usage`。
+* **额度实时刷新管线（v1.2.2 新增，替代常驻提示条方案）**：
+  - 官方双周期额度由 batchexecute RPC **`MaZiqc`** 承载（响应含 已使用%/重置时间/每周限额/日期），**每次应用启动都会发出**（无需进用量页）；
+  - Angular 在引导期捕获原始 `window.fetch` 引用，运行期补丁**无法**拦截它 —— 因此 `interceptor.js` 已注册为 **MV3 `world: "MAIN"` + `run_at: "document_start"`** 的独立 content script，先于 Angular 完成补丁，被动捕获 f.req 请求体与响应体；
+  - `tracker.js` 收到 `QUOTA_RPC_RAW` 后用自适应解析器（深度优先收集 0-100 整数与时间串，不绑定字段名）更新双周期额度；每 5 分钟 + 每轮对话结束（STREAM_COMPLETE，90s 间隔节流）+ 挂件同步按钮（强制）都会让 interceptor 用保存的原始 fetch 引用**静默重放** MaZiqc，全程零 UI；
+  - 提示条嗅探与弹窗 DOM 嗅探保留为兜底层；同源 iframe 幽灵加载 /usage 已实测被跨源隔离挡死，勿再尝试；
+  - 首次捕获的 MaZiqc 原始负载会打印到控制台（`_loggedRawOnce`），若 Google 改结构可用它校准自适应解析器。
+* **嗅探器现状**：`inject-bridge.js` 通过 `INTERCEPTOR_READY` postMessage 握手判断注入成败，CSP 拦截时置 `window.__KIMINO_BRIDGE_STATE__.status = 'csp-blocked'` 并降级——tracker 的提示条嗅探与弹窗嗅探**不依赖**拦截器，可 100% 独立工作；
+* **Composer 药丸防套娃机制**：`skin.css` 第 5 节用 `:where()` 压低裸化规则优先级，药丸只打 `input-area-v2`；裸化范围含 `input-container::before/::after` 渐变（接缝真凶）。
