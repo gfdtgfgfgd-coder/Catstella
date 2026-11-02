@@ -1,147 +1,151 @@
-# 🐱 Catstella · 主分支交接文档 (Branch: `main`)
-> **项目定位**：Antigravity 本地桌面端双插件套件（桌宠挂件 + 毛玻璃 Dream Skin）  
-> **适用受众**：接手 `main` 分支开发的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v0.3.0-dev | 更新时间：2026-11-03
+# 🐱 Catstella · 桌面端主分支交接与独立化改造方案 (Branch: `main`)
+> **项目定位**：具备独立运行能力、脱离反重力宿主依赖、支持双端适配与壁纸轮换的桌面猫娘套件  
+> **适用受众**：接手桌面端开发的马仔 / 协同 Agent / 开发者  
+> **文档版本**：v0.3.1-refactor | 更新时间：2026-11-03
 
 ---
 
-## 1. 架构总览与核心设计
+## 1. 战略目标与核心愿景
 
-本分支为 **Catstella (原 Antigravity-Star-Suite)** 的桌面核心主干，专为 Google Antigravity 本地 IDE (基于 Electron) 打造。包含两个**完全解耦、独立启动、独立配置**的原生级增强程序：
+当前 Catstella 桌面套件正处于从“单纯的宿主附加插件”向**“高独立性、稳定常驻、双端联动”**跃迁的关键阶段。
 
-```text
-d:\Catstella/
-├── Antigravity-Cat-Widget/    # 1. 桌面猫娘桌宠 (半身挂件、双周期额度、窗口吸附、音效、台词)
-├── Antigravity-Dream-Skin/    # 2. 毛玻璃宿主皮肤 (CDP 注入、星空壁纸、斜向微网格、代码保护区)
-├── shared/                   # 3. 共享基础库 (CDP 连接器、设置持久化、WebSocket 封装)
-├── tools/                    # 4. 原生构建工具 (C# 原生编译、启动脚本、单测与安装包构建)
-└── docs/                     # 5. 文档与资产说明 (包含本文档与安装说明)
-```
-
-### 核心特性矩阵
-
-| 组件 | 技术方案 | 核心依赖 | 职责边界 |
-| :--- | :--- | :--- | :--- |
-| **Cat Widget** | Electron 45.1.0 + Windows 原生 C# 辅助 | CDP (ws://127.0.0.1:\<port\>) + Win32 API | 读取宿主后台额度服务、无感跟随 Antigravity 窗口、左右下角磁吸、50+中文台词与点击互动 |
-| **Dream Skin** | Electron 控制面板 + CDP CSS 注入 | Chrome DevTools Protocol (`CSS.addRule` / `Runtime.evaluate`) | 注入全屏壁纸与毛玻璃滤镜、斜向微网格侧边栏、药丸输入框；退出/关闭时 100% 干净还原 |
-| **Native Helper** | .NET Framework C# (`tools/build-native.ps1`) | `user32.dll`, `dwmapi.dll` | 极低 CPU 占用监控前台窗口、位置、DPI 缩放与最小化/遮挡状态 |
-| **独立安装器** | C# SFX 自解压与启动守护 (`tools/installer/`) | .NET 4.x `csc.exe`, WinForms | 免 Node.js 独立安装、开机自启、Antigravity 进程联动唤醒 (`--watch`) |
+### 核心重构目标：
+1. **脱离反重力客户端强依赖（独立常驻）**：
+   - 借鉴 **`codex-maid-widget`** 与 **`DeepSeek-Balance-Whale-Widget`** 的成熟桌面经验；
+   - 当 Antigravity IDE 未启动时，桌宠依然作为**独立桌面挂件**常驻桌面，自由拖动、点击互动、台词、音效、摸头/打盹等功能完整可用；
+   - 当 Antigravity IDE 启动并置顶时，无缝切换为**宿主磁吸跟随模式 (Host-Follow)**；
+2. **彻底根治“用 `.bat` 重启后配置回退”与“壁纸无法自动切换”的深层缺陷**；
+3. **资产与配置大一统**：桌宠与皮肤的素材、台词库与状态机与 `Gemini-Web-Companion` 共享共荣。
 
 ---
 
-## 2. 核心机制与技术细节
+## 2. 🚨 关键 Bug 源码级根因深度剖析
 
-### 2.1 静默额度抓取机制 (Cat Widget)
-* **路径**：`Antigravity-Cat-Widget/src/quota-service.cjs` 与 `quota-cache.cjs`
-* **工作原理**：
-  1. 通过 Antigravity 宿主已开放的本地 CDP 端口（通常在 `settings-store` 或进程参数中探测），定位宿主内部已登录的 React 额度服务。
-  2. 提取 **Gemini 5 小时** 与 **每周 (Weekly)** 剩余比例及重置时间戳。
-  3. **不打开** Settings -> Models 页面，**不读取/序列化**任何用户 Token、Cookie 或 API Key。
-  4. 启动时按 `3s -> 6s -> 12s -> 24s -> 30s` 指数退避重试，连接成功后转为 30 秒定期轮询。
-  5. 响应具备生命周期防伪：停止轮询后的迟到响应不会覆盖新状态，切换宿主自动清空旧缓存。
-
-### 2.2 原生窗口吸附与跟随 (Host Following)
-* **路径**：`Antigravity-Cat-Widget/src/native-foreground-helper.cjs`
-* **工作原理**：
-  1. 编译后的 `native-tracker.exe` 轮询前台活跃窗口句柄与矩形坐标（支持负坐标多屏工作区）。
-  2. 当 Antigravity 在前台时，挂件置顶并吸附在窗口左右下角（内嵌 120 DIP 磁吸范围）；
-  3. 当 Antigravity 最小化或被其他应用完全遮挡时，挂件自动隐藏；切换到其他应用时取消置顶，绝不抢焦点。
-
-### 2.3 Dream Skin 无损注入与干净回滚
-* **路径**：`Antigravity-Dream-Skin/src/main.cjs` 与 `skin-injector.cjs`
-* **工作原理**：
-  1. 通过 CDP `DOM.enable` / `CSS.enable` 动态注入 `#antigravity-dream-wallpaper` 节点与微网格样式。
-  2. 托盘退出选择“退出并恢复原样”时，CDP 自动移除所有已注入样式表和节点，不残留垃圾。
-  3. **防眩光保护区**：代码编辑器（Monaco）、终端、下拉菜单保留暗色底色，绝不穿透导致文字不可读。
-
----
-
-## 3. 开发、编译与测试指南
-
-### 3.1 环境要求
-* Windows 10/11 x64
-* Node.js 22.x+
-* 已安装并登录的 Antigravity (实测兼容 2.28.0+)
-* 系统自带 .NET Framework 4.x (用于编译 C# 原生辅助工具)
-
-### 3.2 常用命令
-```powershell
-# 1. 编译 Windows 原生窗口跟随辅助程序
-npm run build:native
-
-# 2. 运行全套单元测试 (40 项全绿验收)
-npm.cmd test
-# 或者:
-node --test Antigravity-Cat-Widget/test/runtime.test.cjs Antigravity-Dream-Skin/test/runtime.test.cjs tools/source-hashes.test.cjs Antigravity-Cat-Widget/test/personality.test.cjs Antigravity-Cat-Widget/test/quota-cache.test.cjs
-
-# 3. 开发模式启动桌面猫娘桌宠 (指向本地源码)
-npm.cmd run start:widget
-
-# 4. 开发模式启动毛玻璃皮肤控制面板 (指向本地源码)
-npm.cmd run start:skin
-
-# 5. 构建独立 Windows 安装包 (v0.2.12 新特性)
-npm.cmd run build:installers
-```
-
-### 3.3 数据持久化路径
-* 挂件配置与数值日志账本：`%USERPROFILE%/.antigravity-cat-widget/`
-* 皮肤配置：`%USERPROFILE%/.antigravity-dream-skin/`
-* 原始宿主读取数据仅存在于内存，退出时不留痕。
-
----
-
-## 4. 🚨 原作者 v0.2.12 合并代码深度审计（“重启导致更改失效”逆天 Bug 根因剖析）
-
-在最新合入的原作者代码（commit `56f8b1e` 与 `fcd356b`）中，原作者引入了独立的 Windows 安装包打包机制 (`tools/build-installers.cjs` + `tools/installer/`)。用户在实机测试时发现：**“在桌宠安装文件夹里使用 .bat 文件重启桌宠和主题时，先前做的任何更改都会失效”**。
-
-经完整代码审计，此现象的底层成因与技术细节如下：
-
-### 4.1 核心根因分析
-1. **源码开发区 vs. 打包安装区的双重身分离（根本原因）**：
-   - 原作构建脚本 `build-installers.cjs` 会将当时的 `src/` 与 `assets/` 静态打包进 `payload.zip`，并生成安装程序；
-   - 用户安装后，程序被释放到 `%LOCALAPPDATA%\Programs\AntigravityStarSuite\Widget\resources\app\`；
-   - **如果开发者在 Git 源码目录 `d:\Catstella` 修改了代码或资源，而安装目录下的 `.bat` 启动的是已编译的 `StarWidget.exe`，该 EXE 永远只会读取安装目录下的静态快照，导致所有源码更改“看起来完全没生效”**！
-   - 反过来，如果开发者直接在安装目录 `resources/app/` 下热修改代码，一旦通过安装程序重新安装或运行了带解压逻辑的维护脚本，`SetupProgram.cs` 会以 `File.Create(file)` 无条件强行覆盖文件，瞬间抹平所有就地修改！
-2. **进程单例锁（Single Instance Lock）导致的假死与静默秒退**：
-   - `Antigravity-Cat-Widget/src/main/index.cjs` 第 10 行：
+### 2.1 缺陷 A：用 `.bat` 重启后设置面板回到了以前的样子（配置丢弃）
+经审计，该缺陷由两个致命点叠加导致：
+1. **`DreamSkinSettings.sanitize()` 显式吞噬字段**：
+   * **位置**：`Antigravity-Dream-Skin/src/domain/settings.cjs` 第 5 行：
      ```javascript
-     if(!app.requestSingleInstanceLock()) app.quit();
+     sanitize(v){
+       return {
+         ...DEFAULT_SETTINGS,
+         outputMode: v.outputMode === "glass" ? "glass" : "transparent",
+         enabled: bool(v.enabled, false),
+         positionX: finite(v.positionX, 50, 0, 100),
+         positionY: finite(v.positionY, 50, 0, 100),
+         zoom: finite(v.zoom, 1, 1, 2),
+         fit: ["cover", "contain", "adaptive"].includes(v.fit) ? v.fit : "adaptive",
+         scrim: finite(v.scrim, 12, 0, 60),
+         opacity: finite(v.opacity, 55, 0, 100),
+         protectEditor: true,
+         protectTerminal: true
+         // 致命 Bug：这里完全没有保留 v.wallpaperId 和其他扩展字段！
+       };
+     }
      ```
-   - 原作 v0.2.12 引入了常驻后台守护进程 `StartupSettings.exe --watch`（通过 Mutex `Local\StarSuiteStartupWidget` 监控 Antigravity 进程）。
-   - 如果用户通过旧的 `.bat` 脚本拉起桌宠，而前一个实例还没有退出完毕（或后台 `--watch` 守护进程持有了宿主锁），新实例在启动瞬间就会因拿不到 Single Instance Lock 而**直接 `app.quit()` 静默退出**！这给用户造成了“重启失败”或“设置回退”的假象。
-3. **额度缓存与状态机的主动清空设计**：
-   - 原作在 `README.md` 中明确声明了其设计哲学：“**重启不从文件恢复账户额度，切换宿主目标清空缓存**”；
-   - 每次挂件进程重启，内存中的额度即刻重置为 `null`（显示“未知”），必须等待 CDP 重新探测宿主、发送后台服务请求并成功解析后才会亮出进度条。如果在未开启 Antigravity 或 CDP 尚未握手时重启，额度条会直接归零，容易被误以为是更改丢失。
-
-### 4.2 原作者新代码审计：哪些可用？哪些必改？
-
-#### ✅ 可充分利用的优秀成果（Keep & Leverage）
-* **免 Node.js 原生自解压安装包架构 (`build-installers.cjs` + `SetupProgram.cs`)**：
-  * 利用 Windows 自带的 `csc.exe` 编译 C# 代码，直接把 Zip 压缩流作为嵌入资源 (`/resource:payload.zip`) 打进安装器 EXE，极其轻巧，无需引入 NSIS、InnoSetup 等繁重第三方打包工具。
-* **低功耗宿主联动守护 (`StartupSettings.cs --watch`)**：
-  * 每 2 秒检测一次是否有当前 Windows 会话的 `Antigravity` 进程运行，只在“从无到有”的瞬态边沿拉起桌宠和壁纸，非常节约资源。
-* **标准的 Windows 注册表卸载流 (`Software\Microsoft\Windows\CurrentVersion\Uninstall`)**：
-  * 自动注册控制面板卸载项，卸载时安全保留用户目录 `%USERPROFILE%/.antigravity-cat-widget`。
-
-#### ❌ 必须大修与改造的缺陷（Refactor & Fix）
-1. **统一品牌重构（Catstella 彻底去重命名）**：
-   * 原作者代码中大量硬编码了 `AntigravityStarSuite`、`StarWidget.exe`、`DreamSkin.exe`、`星语桌宠挂件`、`织梦壁纸皮肤`；
-   * 需全面重命名为 `Catstella`、`Catstella-Widget.exe`、`Catstella-DreamSkin.exe`，并更新注册表项键名。
-2. **开发模式与生产安装模式严格隔离**：
-   * 必须在根目录下提供专门的开发热重载脚本（如 `tools/dev-restart.cmd` 或通过 npm script），明确注入 `--dev` 或直接调用 `node tools/launch.cjs widget`，坚决不调用已安装的外部静态 EXE！
-3. **额度缓存优雅降级（避免一重启就显示“未知”）**：
-   * 在 `quota-cache.cjs` 中加入带时间戳的轻量级本地持久化（`cachedAt`）。重启后优先展示上一轮有效额度（打上“缓存”微标），并在后台静默拉取成功后无缝替换，彻底消除用户的“数据丢失恐慌”。
-4. **将 Web Companion 整合进发布打包管线**：
-   * 目前 `build-installers.cjs` 只管桌宠和皮肤，后续应将 `Gemini-Web-Companion/dist/` 下的 `.xpi` 和 `.zip` 一并归整到 `dist/installers/` 发布流中，形成一键全家桶。
+   * **后果**：无论用户在界面上如何选择新壁纸或扩展设置，只要触发保存或重启，`sanitize` 就会直接把 `wallpaperId` 抹杀，强制退回 `DEFAULT_SETTINGS` 默认值！
+2. **源码工作区 vs. 安装解压区冲突**：
+   * 原作者在 v0.2.12 中生成的独立安装器将程序解压在 `%LOCALAPPDATA%\Programs\AntigravityStarSuite\`，如果 `.bat` 启动的是该目录下的 EXE，它读取的是打包时的冻结快照，根本不读取当前 Git 工作区的新代码！
 
 ---
 
-## 5. 主分支后续交接待办事项 (To-Do List)
+### 2.2 缺陷 B：自动切换壁纸失效（单一路径硬编码 + SHA256 强校验死锁）
+* **位置**：`Antigravity-Dream-Skin/src/domain/theme-loader.cjs` 第 3 行与第 10-11 行：
+  ```javascript
+  this.wallpaperPackDir = path.join(this.rootDir, "assets/wallpapers/gemini-character-sheet-v1");
+  ...
+  const hash = crypto.createHash("sha256").update(b).digest("hex");
+  if (hash !== this.manifest.sha256) throw new Error("壁纸校验失败，原文件可能被更改");
+  ```
+* **死锁根因**：
+  1. **目录写死**：壁纸加载器直接把目录定死在 `gemini-character-sheet-v1`，根本没有多壁纸包扫描逻辑；
+  2. **哈希硬校验导致崩溃**：作者加入了强校验 `hash !== this.manifest.sha256`。只要用户或程序试图替换图片、或者放入新壁纸，loader 直接抛出异常崩溃，导致所谓“自动切换壁纸”完全沦为空谈！
 
-接手马仔请按以下次序推进：
+---
 
-1. [ ] **重命名与品牌对齐**：修改 `tools/installer/StartupSettings.cs` 与 `SetupProgram.cs` 中的产品名称与注册表键值，全面对齐 `Catstella`。
-2. [ ] **增加优雅重启脚本**：在根目录增加安全的 `dev-restart.ps1`，负责：优雅关闭旧 Electron 实例 -> 等待锁释放 -> 重新加载本地最新源码，解决用户抱怨的重启回退问题。
-3. [ ] **额度持久化缓冲**：改造 `HostQuotaAdapter`，使其支持退出前保存最后一次有效额度至本地 `last-known-quota.json`，启动时先读缓存再后台重试。
-4. [ ] **资产管线共享 (Asset Pipeline)**：将角色包（`lin-cat`、`gemini-star-v1`）与台词库从桌面端向 `Gemini-Web-Companion` 做软链接或构建期同步，消除素材分散。
+## 3. 💡 借鉴开源参考项目的重构蓝图
+
+### 3.1 借鉴 `codex-maid-widget`（桌面独立生态与素材包体系）
+* **无宿主独立桌面模式 (Standalone Mode)**：
+  * 在没有 IDE 连接时，桌宠进入“休闲挂机/巡逻”状态，保持呼吸、台词吐槽、点击音效与右键菜单；
+  * 配额条在断开宿主时，展示“历史缓存配额”或展示今日单日使用量估算，绝不强制隐藏或闪退；
+* **插件化壁纸与角色包目录结构**：
+  * 改造 `assets/wallpapers/`，支持用户自建子文件夹（如 `wallpapers/star-sky/`、`wallpapers/cyberpunk/`），每个文件夹放入图片即可自动识别，彻底废弃脆弱的硬编码 SHA256 校验！
+
+### 3.2 借鉴 `DeepSeek-Balance-Whale-Widget`（弹性物理回弹与优雅托盘）
+* **物理弹簧防穿透**：保留并优化原有的 120 DIP 屏幕边缘磁吸，支持无宿主状态下的全屏幕四角自动停靠；
+* **优雅单例生命周期管理**：在启动时先通过 IPC 发送 `--quit`，等待互斥锁释放后再平滑拉起，杜绝直接暴力 `taskkill` 造成的配置写入半截损坏。
+
+---
+
+## 4. 🛠️ 改造实施方案 (Refactoring Roadmap)
+
+### 阶段 1：修复设置持久化与壁纸管理核心
+1. **重构 `DreamSkinSettings.sanitize()`**：
+   - 保留传入的 `wallpaperId`，并允许动态扩展字段（如 `autoRotateInterval`、`customWallpaperPath` 等）；
+2. **重构 `theme-loader.cjs` 为 `WallpaperManager`**：
+   - 动态扫描 `assets/wallpapers/` 下的所有可用子目录；
+   - 移除单一壁纸哈希强校验（改为仅校验图片格式为 PNG/JPG/WebP 是否有效且尺寸可读）；
+   - 新增定时切换机制：支持 `关闭` / `每 15 分钟` / `每 1 小时` / `每次启动` 自动轮转壁纸包。
+
+### 阶段 2：挂件双模态常驻架构 (Dual Operating Modes)
+1. **改造 `Antigravity-Cat-Widget/src/main/index.cjs`**：
+   - 新增配置项 `settings.get("standaloneDesktopMode")`（默认 `true`）；
+   - 当 `hostPlacement` 找不到 Antigravity 宿主窗口时：
+     - 若 `hostWindowOnly === true`，维持原样隐藏；
+     - 若为独立桌面模式，挂件不隐藏，平滑退回桌面右下角（或用户最后拖放的独立坐标），进入 `idle` 或 `sleep` 待机动画；
+2. **配额断连展示缓冲**：
+   - 宿主断连时，配额条保留最后一次有效抓取记录，并打上“离线缓存”微标，待 Antigravity 重新唤醒后无缝静默刷新。
+
+### 阶段 3：安全开发与重启脚本 (`dev-restart.ps1` / `restart.cmd`)
+* 废弃原作者容易引起混淆的静态安装包启动命令，在根目录提供标准的：
+  ```powershell
+  # 优雅平滑重启桌宠（针对当前 Git 源码工作区，不调用外部静态安装包）
+  npm run restart:widget
+  npm run restart:skin
+  ```
+
+---
+
+## 5. ⛔ NEGATIVE PROMPT (马仔负面禁令 · 严格遵守！)
+
+在执行重构与编码时，**绝对禁止**出现以下行为：
+
+1. 🚫 **严禁在 `sanitize()` 过程中吞噬或丢弃未显式声明的合法字段**：所有传入设置必须遵循先合并、再校验已知项、保留未污染扩展项的原则，绝不能写死覆盖；
+2. 🚫 **严禁在 `theme-loader.cjs` 或壁纸逻辑中写死单一路径或死板的单文件 SHA256 校验**：换壁纸是核心自由度，绝不可因哈希不符直接抛出异常导致白屏；
+3. 🚫 **严禁在未检测到反重力宿主时让挂件直接闪退、崩溃或强行销毁**：必须优雅退守到 Standalone 桌面待机模式；
+4. 🚫 **严禁直接修改或强依赖打包后的 `%LOCALAPPDATA%` 外部安装目录进行调试**：所有改动必须严格落地于 Git 源码仓库 (`d:\Catstella`)；
+5. 🚫 **严禁使用暴力 `taskkill /f` 进行无参数强杀重启**：必须使用优雅 IPC 或等待单例锁释放，防止中断 `writeJson` 原子写入导致 `settings.json` 变成空文件；
+6. 🚫 **严禁破坏现有的 40 项单元测试**：修改 `settings.cjs` 或 `theme-loader.cjs` 时，运行 `npm.cmd test` 必须保持 40 项全绿验收。
+
+---
+
+## 6. 🚀 丢给马仔的执行指令 (Prompt Template)
+
+可以直接将以下 Prompt 复制给新马仔开始执行：
+
+```markdown
+你现在负责推进 Catstella 桌面端主分支 (`main`) 的独立化与核心缺陷改造。
+工作目录为 `d:\Catstella`。
+
+请先完整研读设计交接文档：
+👉 `docs/HANDOVER_MAIN_DESKTOP.md`（重点关注第 2 节 Bug 根因、第 3 节参考借鉴、以及第 5 节 Negative Prompt 负面禁令）
+
+请按序攻坚以下三项任务：
+
+### 任务 1：修复设置持久化丢弃与壁纸切换死锁
+1. 修改 `Antigravity-Dream-Skin/src/domain/settings.cjs`：在 `sanitize()` 中必须完整保留 `wallpaperId` 及扩展字段，彻底解决重启后设置面板回退默认的缺陷；
+2. 重构 `Antigravity-Dream-Skin/src/domain/theme-loader.cjs`：
+   - 废除硬编码的单一路径 `gemini-character-sheet-v1`；
+   - 废除导致自定义壁纸崩溃的单文件 SHA256 强哈希校验；
+   - 支持动态读取 `assets/wallpapers/` 下的所有壁纸包，并支持在控制面板中自由选择与切换壁纸。
+
+### 任务 2：实现脱离宿主的“独立桌面常驻模式”（参考 codex-maid / dsh-whale）
+1. 改造 `Antigravity-Cat-Widget/src/main/index.cjs` 中的宿主可见性状态机：
+   - 当未开启 Antigravity 客户端时，挂件不退场，安全降级为独立的桌面悬浮桌宠模式，保持拖动、点击音效、傲娇台词与表情动画全功能运作；
+   - 当 Antigravity 宿主开启并置顶时，无缝切换为贴边跟随模式。
+
+### 任务 3：编写安全的源码热重启脚本与单元测试验证
+1. 在 `tools/` 与 `package.json` 中编写 `npm run restart:widget` 与 `npm run restart:skin`，实现先优雅通知退出、等待单例锁释放、再基于当前源码安全重载，杜绝修改失效；
+2. 运行 `npm.cmd test`，确保 40 项既有测试 100% 通过（如因废除 SHA256 导致测试断言变动，需同步重构测试用例以符合动态多壁纸架构）。
+```
