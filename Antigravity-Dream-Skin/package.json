@@ -1,6 +1,6 @@
 {
   "name": "antigravity-dream-skin",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "Static character sheet wallpaper engine & protected surface theme loader for Google Antigravity",
   "main": "src/main/index.cjs",
   "scripts": {

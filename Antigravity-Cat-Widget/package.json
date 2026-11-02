@@ -1,6 +1,6 @@
 {
   "name": "antigravity-cat-widget",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "Desktop pet companion and quota monitoring widget for Google Antigravity",
   "main": "src/main/index.cjs",
   "scripts": {

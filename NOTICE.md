@@ -1,7 +1,7 @@
 # Third-party notices / 来源说明
 
 - **ws 8.22.0**：`shared/vendor/ws/` 保留 npm 原包及 MIT LICENSE。
-- **Electron 45.1.0**：开发时由 npm 安装，不包含在源码仓库。重新分发运行时须保留 Electron LICENSE 和 Chromium 第三方通知。
+- **Electron 45.1.0**：开发时由 npm 安装，不包含在源码仓库。安装包已包含 Electron LICENSE 和 Chromium 第三方通知；源码仓库不存放运行时。
 - **Codex Maid Widget 0.3.51**：https://github.com/Feeesack/codex-maid-widget 。公开版复用其四套八段可记录许可的互动音效，原始字节不改。许可、来源和上游清单在 `Antigravity-Cat-Widget/assets/audio/codex-maid-widget/upstream/`。
 - **Kenney Interface Sounds / Impact Sounds**：https://kenney.nl/assets/interface-sounds 、https://kenney.nl/assets/impact-sounds 。相关音效为 CC0，原始通知随音效保留。
 - **上游原创合成音效**：遵循 Codex Maid Widget MIT，版权通知完整保留。
