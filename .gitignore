@@ -1,6 +1,7 @@
 node_modules/
 runtime/
 dist/
+tools/vendor/
 evidence/
 tools/local-integration/
 *.exe

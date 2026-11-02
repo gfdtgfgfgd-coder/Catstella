@@ -40,7 +40,7 @@ test('background query extracts Gemini only and never opens UI or serializes cre
   return {response:{groups:[{displayName:'Gemini Models',buckets:[{bucketId:'gemini-5h',remaining:{case:'remainingFraction',value:0}},{bucketId:'gemini-weekly',remaining:{case:'remainingFraction',value:.75}},{bucketId:'other',remaining:{case:'remainingFraction',value:1}}]}]},secret:'must not leave host'};
  }}}}}}};
  const out=await vm.runInNewContext('('+queryHostQuota.toString()+')(()=>{throw Error("unexpected cache fallback")})',{document:{querySelectorAll:selector=>{assert.equal(selector,'body *');return [el];}}});
- assert.equal(calls,1);assert.equal(out.fiveHour,0);assert.equal(out.weekly,75);assert.equal(JSON.stringify(out).includes('secret'),false);
+ assert.equal(calls,1);assert.equal(out.fiveHour,0);assert.equal(out.weekly,75);assert.equal(JSON.stringify(out).includes('secret'),false);;assert.equal(out.cacheAvailable,true,'service path must flag cacheAvailable or the adapter discards the sample')
 });
 test('background quota query propagates service failures instead of claiming fresh data',async()=>{
  const {queryHostQuota}=require('../src/adapters/host-quota.cjs');const previous=global.document;
@@ -64,4 +64,49 @@ test('late response after stop cannot overwrite or publish quota',async()=>{
 test('stopping inside change listener cannot leave a scheduled poll',async()=>{
  let schedules=0;class Client{async evaluate(){return {cacheAvailable:true,fiveHour:100};}close(){}}
  const a=new HostQuotaAdapter({discover:async()=>({target:{webSocketDebuggerUrl:'ws://127.0.0.1/test'}}),Client,setTimer:()=>schedules++,clearTimer:()=>{}});a.once('change',()=>a.stop());a.start();while(a.busy)await new Promise(r=>setImmediate(r));assert.equal(schedules,0);
+});
+test('reset descriptions and Claude/GPT channel parse from the same cache',()=>{
+ const vm=require('node:vm'),{readHostQuota}=require('../src/adapters/host-quota.cjs');
+ const sample=vm.runInNewContext('('+readHostQuota.toString()+')()',{
+  nY:[
+   {displayName:'Gemini Models',buckets:[{bucketId:'gemini-5h',remaining:{case:'remainingFraction',value:.5},description:'Resets in 2 hours, 5 minutes.'},{bucketId:'gemini-weekly',remaining:{case:'remainingFraction',value:1},description:'Resets in 3 days.'}]},
+   {displayName:'Claude & GPT Models',buckets:[{bucketId:'claude-5h',remaining:{case:'remainingFraction',value:.25},description:'Resets in 30 minutes.'},{bucketId:'gpt-weekly',remaining:{case:'remainingFraction',value:.9},description:''}]},
+   {displayName:'Claude & GPT Models',buckets:[{bucketId:'claude-5h',remaining:{case:'remainingFraction',value:.1},description:'later duplicate wins nothing'}]}
+  ],mFb:1000,jFb:()=>{},
+ });
+ assert.equal(sample.fiveHour,50);assert.equal(sample.fiveHourReset,"2小时5分钟后重置");
+ assert.equal(sample.weekly,100);assert.equal(sample.weeklyReset,"满额");
+ assert.equal(sample.claudeGpt.fiveHour,25);assert.equal(sample.claudeGpt.fiveHourReset,"30分钟后重置");
+ assert.equal(sample.claudeGpt.weekly,90);
+});
+test('model and thinking info rides along the quota sample and survives stale ticks',async()=>{
+ let sample={cacheAvailable:true,fiveHour:80,weekly:80,modelInfo:{modelName:'Gemini 3 Pro',thinking:'High',fullText:'Gemini 3 Pro High'},claudeGpt:{fiveHour:10,weekly:20,fiveHourReset:'',weeklyReset:''}};
+ class Client{async evaluate(){return sample;}close(){}}
+ const a=new HostQuotaAdapter({discover:async()=>({target:{webSocketDebuggerUrl:'ws://127.0.0.1/m'}}),Client});a.active=true;
+ await a.tick();assert.equal(a.snapshot.modelInfo.modelName,'Gemini 3 Pro');assert.equal(a.snapshot.modelInfo.thinking,'High');
+ assert.equal(a.snapshot.claudeGpt.fiveHour,10);assert.equal(a.snapshot.claudeGpt.weekly,20);
+ assert.equal(a.snapshot.status,'ready');
+ sample={fiveHour:null,weekly:null};await a.tick();
+ assert.equal(a.snapshot.modelInfo.modelName,'Gemini 3 Pro');
+ assert.equal(a.snapshot.claudeGpt.fiveHour,10);
+ assert.equal(a.snapshot.cached,true);a.stop();
+});
+test('host switch clears model info and claude channel along with quota',async()=>{
+ let id='ws://127.0.0.1:1/one';
+ const first={cacheAvailable:true,fiveHour:50,weekly:60,modelInfo:{modelName:'Gemini 3 Pro',thinking:'Low',fullText:'x'},claudeGpt:{fiveHour:30,weekly:40,fiveHourReset:'',weeklyReset:''}};
+ const second={cacheAvailable:true,fiveHour:70,weekly:80};
+ class Client{async evaluate(){return id.endsWith('one')?first:second;}close(){}}
+ const a=new HostQuotaAdapter({discover:async()=>({target:{webSocketDebuggerUrl:id}}),Client});a.active=true;
+ await a.tick();assert.equal(a.snapshot.modelInfo.modelName,'Gemini 3 Pro');assert.equal(a.snapshot.claudeGpt.fiveHour,30);
+ id='ws://127.0.0.1:1/two';await a.tick();
+ assert.equal(a.snapshot.modelInfo,null);assert.equal(a.snapshot.claudeGpt.fiveHour,null);assert.equal(a.snapshot.weekly,80);a.stop();
+});
+test('parseResetTime converts English refresh text and caps full quota',()=>{
+ const {parseResetTime}=require('../src/adapters/host-quota.cjs');
+ assert.equal(parseResetTime('Resets in 2 hours, 5 minutes.',.5),"2小时5分钟后重置");
+ assert.equal(parseResetTime('Resets in 30 minutes.',.5),"30分钟后重置");
+ assert.equal(parseResetTime('Resets in 3 days.',.5),"3天后重置");
+ assert.equal(parseResetTime('anything',1),"满额");
+ assert.equal(parseResetTime('',.5),"");
+ assert.equal(parseResetTime(undefined,.5),"");
 });

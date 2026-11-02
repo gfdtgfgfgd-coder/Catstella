@@ -3,6 +3,9 @@ const path=require("node:path"),os=require("node:os");
 const {SettingsManager}=require("../domain/settings.cjs"),{UsageLedger}=require("../domain/ledger.cjs"),{WidgetStateMachine}=require("../domain/state-machine.cjs"),{TranscriptAdapter}=require("../adapters/transcript-adapter.cjs"),{AudioManager}=require("../domain/audio-manager.cjs");
 const {HostQuotaAdapter}=require("../adapters/host-quota.cjs");
 const {ForegroundMonitor,hostPlacement,characterPlacement,snapToEdges}=require("../domain/host-visibility.cjs");
+// 星语皮肤并入同一实例：设置/壁纸/宿主主题化全部由挂件主进程托管，全局只保留一个托盘图标。
+const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs");
+const skinDataDir=path.join(os.homedir(),".antigravity-dream-skin");
 const dataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11)||path.join(os.homedir(),".antigravity-cat-widget");
 app.setPath("userData",path.join(dataDir,"runtime"));app.setName("喵言喵语桌宠");
 // Transparent Chromium surfaces can stop presenting after GPU/desktop transitions.
@@ -17,12 +20,86 @@ else{
  const dialogue=require("../../assets/dialogue/zh-CN.json");
  const running=new Set();
  const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(),audio=new AudioManager();
- const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,settings:settings.getAll(),displayScale:displayScale||settings.get("scale"),visibility:{supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
+ const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
+ const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
+ const skinController=new HostController(skinManager,()=>{publish();updateMenu();});
+ const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版基米乃","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
+ let cachedCharacterPacks=null,cachedWallpapers=null,lastPackScan=0,lastWallScan=0;
+ const getCharacterPacks=()=>{
+  const now=Date.now();if(cachedCharacterPacks&&now-lastPackScan<15000)return cachedCharacterPacks;
+  try{
+   const fs=require("node:fs"),packsDir=path.join(__dirname,"../../assets/character-packs");
+   if(!fs.existsSync(packsDir))return cachedCharacterPacks=[];
+   const dirs=fs.readdirSync(packsDir,{withFileTypes:true}).filter(d=>d.isDirectory());
+   cachedCharacterPacks=dirs.map(d=>{
+    const manifestPath=path.join(packsDir,d.name,"manifest.json");let manifest={};
+    try{manifest=JSON.parse(fs.readFileSync(manifestPath,"utf8"));}catch{}
+    const idleFrame=path.join(packsDir,d.name,manifest.frames?.idle?.src||"frames/idle.png");
+    let preview="";try{if(fs.existsSync(idleFrame))preview=nativeImage.createFromPath(idleFrame).resize({width:160}).toDataURL();}catch{}
+    return{id:d.name,name:manifest.name||d.name,description:manifest.description||(d.name==="lin-cat"?"居家水母冲锋衣 · 猫猫领口":"星空魔女礼装 · 异色瞳"),preview};
+   });
+   lastPackScan=now;return cachedCharacterPacks;
+  }catch{return cachedCharacterPacks=[];}
+ };
+ const getWallpapers=()=>{
+  const now=Date.now();if(cachedWallpapers&&now-lastWallScan<15000)return cachedWallpapers;
+  try{
+   const fs=require("node:fs");
+   cachedWallpapers=skinManager.listPacks(true).filter(pack=>pack.file).map(pack=>{
+    let preview="";
+    try{preview=nativeImage.createFromPath(pack.file).resize({width:280}).toDataURL();}catch{}
+    const fileName=path.basename(pack.file);
+    return{id:pack.id,fileName,filePath:pack.file,title:WALLPAPER_TITLES[fileName]||pack.name,preview};
+   });
+   lastWallScan=now;return cachedWallpapers;
+  }catch{return cachedWallpapers=[];}
+ };
+ const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),displayScale:displayScale||settings.get("scale"),visibility:{supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
  const send=(channel,data)=>{for(const w of [win,panel])if(w&&!w.isDestroyed())w.webContents.send(channel,data);};
  const publish=()=>send("widget:snapshot",snapshot());
  function syncQuotaState(){if(["idle","warning"].includes(sm.persistentState))sm.setPersistentState((settings.get("manualQuota")?[settings.get("manualPercent"),settings.get("manualWeeklyPercent")]:[quotaAdapter.snapshot.fiveHour,quotaAdapter.snapshot.weekly]).some(v=>typeof v==="number"&&v<=20)?"warning":"idle");}
+ // 壁纸轮播（分钟级，上游 slideshow 语义）与旧字段一次性迁移。
+ let slideshowTimer=null;
+ function rotateWallpaper(){
+  const next=skinManager.nextId(skinSettings.get("wallpaperId"));
+  const pack=next?skinManager.listPacks().find(p=>p.id===next):null;
+  if(!next||next===skinSettings.get("wallpaperId"))return;
+  skinSettings.update({wallpaperId:next,wallpaperFile:pack?.file||""});
+  skinController.update(skinSettings.getAll());
+ }
+ function scheduleSlideshow(){
+  if(slideshowTimer){clearInterval(slideshowTimer);slideshowTimer=null;}
+  if(skinSettings.get("slideshow")!==false){
+   const minutes=Number(skinSettings.get("slideshowIntervalMinutes"))||5;
+   slideshowTimer=setInterval(rotateWallpaper,Math.max(1,Math.min(60,minutes))*60000);
+  }
+ }
+ function migrateLegacyDreamSettings(){
+  if(skinSettings.get("legacyMigrated")!==true){
+   const patch=legacyRotatePatch(skinSettings.getAll());
+   if(patch)skinSettings.update(patch);
+   skinSettings.update({legacyMigrated:true});
+  }
+  const packs=skinManager.listPacks(true).filter(p=>p.file);
+  const file=skinSettings.get("wallpaperFile"),currentId=skinSettings.get("wallpaperId");
+  const patch={};
+  if(!file&&currentId){const pack=packs.find(p=>p.id===currentId);if(pack)patch.wallpaperFile=pack.file;}
+  if(typeof file==="string"&&file){const pack=packs.find(p=>p.file&&path.resolve(p.file)===path.resolve(file));if(pack&&pack.id!==currentId)patch.wallpaperId=pack.id;}
+  if(Object.keys(patch).length)skinSettings.update(patch);
+ }
  function bounds(size=settings.get("scale")){return{width:Math.max(360,size+80),height:Math.round(size*1146/1372+340)};}
  function safePosition(x,y,w,h){const area=screen.getDisplayNearestPoint({x:Number.isFinite(x)?x:screen.getPrimaryDisplay().workArea.x,y:Number.isFinite(y)?y:0}).workArea;return{x:Math.round(Number.isFinite(x)?Math.max(area.x,Math.min(area.x+area.width-w,x)):area.x+area.width-w-18),y:Math.round(Number.isFinite(y)?Math.max(area.y,Math.min(area.y+area.height-h,y)):area.y+area.height-h-18)};}
+ // 宿主消失时优雅退守：恢复独立桌面尺寸与位置（用户最后的自由坐标，缺省右下角），绝不闪退或强行隐藏。
+ function degradeToStandalone(){
+  if(!win||win.isDestroyed())return;
+  hostArea=null;hostLayout=null;displayScale=settings.get("scale");artShift=0;dockSide="";
+  const dim=bounds(),pos=safePosition(settings.get("x"),settings.get("y"),dim.width,dim.height);
+  win.setBounds({...pos,...dim});
+  win.setAlwaysOnTop(settings.get("alwaysOnTop"));
+  if(!win.isVisible())win.showInactive();
+  win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
+  updateMenu();
+ }
  function syncVisibility(){
   if(!win||win.isDestroyed())return;
   if(!settings.get("hostWindowOnly")){
@@ -35,15 +112,22 @@ else{
   if(state.bounds)state={...state,bounds:screen.screenToDipRect(null,state.bounds)};
   const placement=hostPlacement(state,settings.get("scale"),settings.get("hostOffsetX"),settings.get("hostOffsetY"),settings.get("hostDock"));
 
-  // Hide widget when host is unavailable (hidden/minimized/too small)
+  // Host unavailable (hidden/minimized/too small): never crash or force-hide.
+  // Standalone mode degrades gracefully to a free-floating desktop pet.
   if(!placement){
+   const wasFollowing=!!hostArea;
    hostArea=null;hostLayout=null;
    if(drag){drag=null;sm.handlePointerUp();}
+   if(settings.get("standaloneDesktopMode")){
+    if(wasFollowing||!win.isVisible())degradeToStandalone();
+    publish();return;
+   }
    if(win.isVisible())win.hide();
    return;
   }
 
   // Host is available - show widget and update position
+  win.setAlwaysOnTop(false);
   hostArea=state.bounds;displayScale=placement.scale;artShift=placement.artShift;
   dockSide=Math.abs(placement.visualX-hostArea.x)<2?"left":Math.abs(placement.visualX+displayScale-hostArea.x-hostArea.width)<2?"right":"";
   facing=placement.visualX+displayScale/2<hostArea.x+hostArea.width/2?"left":"right";
@@ -72,15 +156,28 @@ else{
   if(settings.get("hostWindowOnly"))foreground.start(win.getNativeWindowHandle());
   // The widget must enter the visible state exactly once. From then on the native
   // helper controls z-order without hiding or moving the surface off-screen.
-  if(!win.isVisible())win.showInactive();
+  if(!win.isVisible()){win.show();win.setAlwaysOnTop(true,"screen-saver");win.moveTop();}
   syncVisibility();
   win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
  }
  function apply(partial){
-  const allowed=["scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","snap","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","easterEggs"];
+  const allowed=["characterPack","scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","snap","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","standaloneDesktopMode","clickCatAction","easterEggs"];
   const oldScale=settings.get("scale"),oldHostOnly=settings.get("hostWindowOnly");
   if(!oldHostOnly&&partial?.hostWindowOnly===true&&win){const pos=win.getBounds();settings.update({x:pos.x,y:pos.y});}
   settings.update(Object.fromEntries(Object.entries(partial||{}).filter(([k])=>allowed.includes(k))));
+  if(partial?.dreamSkin&&typeof partial.dreamSkin==="object"&&!Array.isArray(partial.dreamSkin)){
+   const dream={...partial.dreamSkin};
+   // 壁纸画廊走 wallpaperFile 选择；同步解析为壁纸包 id 供主题负载使用。
+   if(typeof dream.wallpaperFile==="string"&&dream.wallpaperFile){
+    const pack=skinManager.listPacks().find(p=>p.file&&path.resolve(p.file)===path.resolve(dream.wallpaperFile));
+    if(pack)dream.wallpaperId=pack.id;
+   }
+   delete dream.legacyMigrated;
+   skinSettings.update(dream);
+   cachedWallpapers=null;lastWallScan=0;
+   skinController.update(skinSettings.getAll());
+   scheduleSlideshow();
+  }
   syncQuotaState();
   if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());else foreground.stop();
   if(win){if(!settings.get("hostWindowOnly")&&(settings.get("scale")!==oldScale||oldHostOnly)){const old=win.getBounds(),dim=bounds();const pos=oldHostOnly?safePosition(settings.get("x"),settings.get("y"),dim.width,dim.height):safePosition(old.x+old.width-dim.width,old.y+old.height-dim.height,dim.width,dim.height);win.setBounds({...pos,...dim});}win.setAlwaysOnTop(!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"));win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});syncVisibility();}
@@ -88,15 +185,19 @@ else{
  }
  function openSettings(){
   if(panel&&!panel.isDestroyed()){panel.show();panel.focus();return;}
-  panel=new BrowserWindow({width:540,height:740,minWidth:480,minHeight:600,autoHideMenuBar:true,title:"喵言喵语 · 设置",backgroundColor:"#f6f4fb",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  // 无边框自绘标题栏设置中心（用户 fork 设计）：拖拽区 + 最小化/关闭按钮。
+  panel=new BrowserWindow({width:620,height:820,minWidth:500,minHeight:640,frame:false,transparent:true,hasShadow:true,resizable:true,autoHideMenuBar:true,title:"喵言喵语 · 设置中心",backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   panel.loadFile(path.join(__dirname,"../renderer/settings.html"));panel.on("closed",()=>panel=null);
  }
  function reset(){if(settings.get("hostWindowOnly")){settings.update({hostOffsetX:18,hostOffsetY:18,hostDock:""});syncVisibility();publish();return;}const dim=bounds(),pos=safePosition(null,null,dim.width,dim.height);win.setBounds({...pos,...dim});settings.update(pos);show();}
- function recall(){show();if(settings.get("hostWindowOnly")&&!win.isVisible())openSettings();}
+ function recall(){show();win?.show();win?.setAlwaysOnTop(true,"screen-saver");win?.moveTop();if(settings.get("hostWindowOnly")&&!win?.isVisible())openSettings();}
  function updateMenu(){
   if(!tray)return;
-  tray.setContextMenu(Menu.buildFromTemplate([{label:"喵言喵语 · Gemini 桌宠",enabled:false},{label:"显示 / 唤回挂件",click:recall},{label:"重启挂件",click:()=>{app.relaunch();app.quit();}},{label:"设置与数据来源",click:openSettings},{type:"separator"},
+  tray.setContextMenu(Menu.buildFromTemplate([{label:"喵言喵语 · 星语套件",enabled:false},{label:"显示 / 唤回挂件",click:recall},{label:"重启套件",click:()=>{app.relaunch();app.quit();}},{label:"统一设置中心",click:openSettings},{type:"separator"},
+  {label:"应用到 Antigravity（皮肤）",type:"checkbox",checked:skinSettings.get("enabled")===true,click:()=>{skinSettings.update({enabled:skinSettings.get("enabled")!==true});skinController.update(skinSettings.getAll());publish();}},
+  {label:"切换下一张壁纸",click:()=>{rotateWallpaper();publish();}},{type:"separator"},
   {label:"仅在 Antigravity 窗口内显示",type:"checkbox",checked:settings.get("hostWindowOnly"),click:()=>apply({hostWindowOnly:!settings.get("hostWindowOnly")})},
+  {label:"无宿主时退守桌面显示",type:"checkbox",enabled:settings.get("hostWindowOnly"),checked:settings.get("hostWindowOnly")&&settings.get("standaloneDesktopMode"),click:()=>apply({standaloneDesktopMode:!settings.get("standaloneDesktopMode")})},
   {label:"显示气泡",type:"checkbox",checked:settings.get("bubbleOn"),click:()=>apply({bubbleOn:!settings.get("bubbleOn")})},
   {label:"桌面模式始终置顶",type:"checkbox",enabled:!settings.get("hostWindowOnly"),checked:!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"),click:()=>apply({alwaysOnTop:!settings.get("alwaysOnTop")})},
   {label:"鼠标穿透 · Ctrl+Alt+Shift+G 恢复",type:"checkbox",checked:settings.get("clickThrough"),click:()=>apply({clickThrough:!settings.get("clickThrough")})},
@@ -120,14 +221,35 @@ else{
  ipcMain.on("widget:command",(e,command)=>{
   if(!trusted(e))return;
   if(command==="settings")openSettings();
+  else if(command==="settings-close")panel?.close();
+  else if(command==="settings-minimize")panel?.minimize();
+  else if(command==="refresh-state"||command==="refresh"){
+   cachedCharacterPacks=null;lastPackScan=0;cachedWallpapers=null;lastWallScan=0;
+   win?.webContents.session.clearCache();
+   win?.webContents.reloadIgnoringCache();
+   quotaAdapter.tick();
+   publish();
+   if(panel&&!panel.isDestroyed())panel.webContents.send("widget:snapshot",snapshot());
+  }
+  else if(command==="open-character-dir"){
+   const dir=path.join(__dirname,"../../assets/character-packs");
+   require("node:fs").mkdirSync(dir,{recursive:true});
+   shell.openPath(dir);
+  }
+  else if(command==="open-wallpaper-dir"){
+   const dir=path.join(skinDataDir,"wallpapers");
+   require("node:fs").mkdirSync(dir,{recursive:true});
+   shell.openPath(dir);
+  }
+  else if(command==="next-wallpaper"){rotateWallpaper();publish();}
   else if(command==="menu")tray?.popUpContextMenu();
   else if(command==="quit")app.quit();
   else if(command==="reset")reset();
   else if(command==="dock-left")dock("left");else if(command==="dock-right")dock("right");
   else if(command==="show-bubble")apply({bubbleOn:true});
   else if(command==="preview-reaction")send("widget:reaction",{});
+  else if(command&&command.startsWith("preview-reaction"))send("widget:reaction",command.includes(":")?command.split(":")[1]:{});
   else if(command==="quota-refresh")quotaAdapter.openNativeQuota().catch(()=>{});
-  else if(command==="refresh"){adapter.scan();quotaAdapter.tick();publish();}
  });
  function dragMove(point){
   if(!drag||!win)return;const p=point||drag.last,dx=p.x-drag.point.x,dy=p.y-drag.point.y;
@@ -177,10 +299,20 @@ else{
  adapter.on("turnRunning",s=>{if(!s.historical){running.add(s.sessionId+":"+s.stepIndex);sm.setPersistentState("thinking");}});
  adapter.on("turnError",s=>{running.delete(s.sessionId+":"+s.stepIndex);if(!s.historical)sm.setPersistentState("error");});
  adapter.on("status",status=>{source=status;if(!status.online)sm.setPersistentState("offline");else if(sm.persistentState==="offline")sm.setPersistentState(running.size?"thinking":"idle");syncQuotaState();publish();});
- app.on("second-instance",(_event,args)=>{if(args.includes("--quit"))app.quit();else if(!args.includes("--background"))recall();});
+ app.on("second-instance",(_event,args)=>{
+  if(args.includes("--quit")){app.quit();return;}
+  if(args.includes("--settings")){openSettings();return;}
+  if(args.includes("--enable")||args.includes("--disable")){skinSettings.update({enabled:args.includes("--enable")});skinController.update(skinSettings.getAll());publish();}
+  if(!args.includes("--background"))recall();
+ });
  app.whenReady().then(()=>{
-  createWindow();tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"../../assets/character-packs/gemini-star-v1/frames/idle.png")).resize({width:24,height:24}));
-  tray.setToolTip("喵言喵语 · Antigravity");tray.on("double-click",recall);updateMenu();
+  createWindow();
+  if(process.argv.includes("--settings"))openSettings();
+  try{tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"../../assets/character-packs/gemini-star-v1/frames/idle.png")).resize({width:24,height:24}));
+  tray.setToolTip("喵言喵语 · 星语套件");tray.on("double-click",recall);updateMenu();}catch(error){recoveryLog("tray-init-failed "+error.message);}
+  migrateLegacyDreamSettings();
+  skinController.start(skinSettings.getAll());
+  scheduleSlideshow();
   globalShortcut.register("CommandOrControl+Alt+G",recall);globalShortcut.register("CommandOrControl+Alt+Shift+G",()=>{apply({clickThrough:false});recall();});
   if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
   audio.setEnabled(settings.get("sound"));audio.setVolume(settings.get("volume"));audio.setPreset(settings.get("soundSet"));adapter.start();quotaAdapter.start();
@@ -216,7 +348,7 @@ else{
   screen.on("display-removed",reset);
   screen.on("display-metrics-changed",()=>{if(settings.get("hostWindowOnly")){syncVisibility();publish();}});
  });
- app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(dragTimer);foreground.stop();adapter.stop();quotaAdapter.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
+ app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(dragTimer);if(slideshowTimer)clearInterval(slideshowTimer);foreground.stop();adapter.stop();quotaAdapter.stop();skinController.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
  app.on("window-all-closed",()=>{if(!tray)app.quit();});
 }
 

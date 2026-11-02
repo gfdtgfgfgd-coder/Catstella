@@ -71,3 +71,13 @@ test("oversized log lines cannot turn their tail into a model event; rotated cur
  let status;a.on("status",value=>status=value);a.filePath=dir;a.scan();
  assert.equal(status.online,false);assert.equal(status.files,0);
 });
+test("upstream click settings survive sanitize with normalized types",()=>{
+ const file=path.join(tmp(),"settings.json"),s=new SettingsManager(file);
+ s.update({clickCatAction:"talk"});
+ assert.equal(new SettingsManager(file).get("clickCatAction"),"talk");
+ s.update({clickCatAction:false,bubblePage:"claudeGpt"});
+ assert.equal(s.get("clickCatAction"),false);
+ assert.equal(s.get("bubblePage"),"claudeGpt");
+ s.update({bubblePage:"bogus"});
+ assert.equal(s.get("bubblePage"),"quota");
+});

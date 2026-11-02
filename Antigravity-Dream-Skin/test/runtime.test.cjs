@@ -1,22 +1,51 @@
 const{test}=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),os=require("node:os"),path=require("node:path");
-const{DreamSkinSettings}=require("../src/domain/settings.cjs"),{DreamSkinThemeLoader}=require("../src/domain/theme-loader.cjs");
+const{DreamSkinSettings,legacyRotatePatch}=require("../src/domain/settings.cjs"),{DreamSkinThemeLoader}=require("../src/domain/theme-loader.cjs");
 test("output glass mode persists, validates and reaches host payload",()=>{
  const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),"dream-output-")),"settings.json"),s=new DreamSkinSettings(file);
  assert.equal(s.get("outputMode"),"transparent");s.update({outputMode:"glass"});assert.equal(new DreamSkinSettings(file).get("outputMode"),"glass");
  assert.equal(new DreamSkinThemeLoader().payload(s.getAll()).outputMode,"glass");s.update({outputMode:"invalid"});assert.equal(s.get("outputMode"),"transparent");
 });
-test("missing or corrupt wallpaper resources leave the loader available for recovery",()=>{
+const TINY_PNG=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==","base64");
+test("missing or corrupt wallpaper resources degrade gracefully and stay recoverable",()=>{
  const rootDir=fs.mkdtempSync(path.join(os.tmpdir(),"dream-missing-"));
- const loader=new DreamSkinThemeLoader({rootDir});
- assert.throws(()=>loader.verifyIntegrity(),/清单缺失或损坏/);
- fs.mkdirSync(loader.wallpaperPackDir,{recursive:true});
- fs.writeFileSync(path.join(loader.wallpaperPackDir,"manifest.json"),JSON.stringify({file:"wallpaper.png",sha256:"invalid"}));
- assert.throws(()=>loader.verifyIntegrity(),/图片无法读取/);
- fs.writeFileSync(path.join(loader.wallpaperPackDir,"wallpaper.png"),"damaged");
- assert.throws(()=>loader.verifyIntegrity(),/校验失败/);
+ const manager=new DreamSkinThemeLoader({rootDir});
+ assert.throws(()=>manager.verifyIntegrity(),/未找到可用壁纸包/);
+ const packDir=path.join(rootDir,"assets/wallpapers/broken");
+ fs.mkdirSync(packDir,{recursive:true});
+ fs.writeFileSync(path.join(packDir,"wallpaper.png"),"damaged");
+ assert.throws(()=>manager.verifyIntegrity("broken"),/壁纸包不可用/);
+ fs.writeFileSync(path.join(packDir,"wallpaper.png"),TINY_PNG);
+ const pack=manager.verifyIntegrity("broken");
+ assert.equal(pack.verified,true);assert.equal(pack.width,1);assert.equal(pack.height,1);
 });
 test("disabled by default, zero scrim survives reload, protection cannot be disabled",()=>{const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),"dream-test-")),"settings.json"),s=new DreamSkinSettings(file);assert.equal(s.get("enabled"),false);s.update({scrim:0,fit:"cover",protectEditor:false});assert.equal(new DreamSkinSettings(file).get("scrim"),0);assert.equal(s.get("protectEditor"),true);});
-test("wallpaper hash and safe path verified, payload contains original image",()=>{const l=new DreamSkinThemeLoader(),v=l.verifyIntegrity();assert.equal(v.width,1672);assert.equal(v.height,941);assert(l.payload({scrim:0,fit:"contain"}).image.startsWith("data:image/png;base64,"));assert.equal(l.payload({scrim:0}).scrim,0);l.manifest.file="../escape.png";assert.throws(()=>l.verifyIntegrity(),/无效壁纸路径/);});
+test("wallpaper packs are scanned dynamically, traversal paths are rejected, payload keeps the original image",()=>{
+ const manager=new DreamSkinThemeLoader();
+ assert(manager.listPacks(true).some(pack=>pack.id==="gemini-character-sheet-v1"));
+ const verified=manager.verifyIntegrity("gemini-character-sheet-v1");
+ assert.equal(verified.width,1672);assert.equal(verified.height,941);assert.equal(verified.verified,true);
+ assert(manager.payload({scrim:0,fit:"contain",wallpaperId:"gemini-character-sheet-v1"}).image.startsWith("data:image/png;base64,"));
+ assert.equal(manager.payload({scrim:0,wallpaperId:"gemini-character-sheet-v1"}).scrim,0);
+ const rootDir=fs.mkdtempSync(path.join(os.tmpdir(),"dream-escape-"));
+ const escapeDir=path.join(rootDir,"assets/wallpapers/escape");
+ fs.mkdirSync(escapeDir,{recursive:true});
+ fs.writeFileSync(path.join(escapeDir,"manifest.json"),JSON.stringify({file:"../escape.png"}));
+ const hostile=new DreamSkinThemeLoader({rootDir});
+ assert.throws(()=>hostile.verifyIntegrity(),/无效壁纸路径/);
+});
+test("wallpaperId and extension fields survive sanitize, reload and known-field validation",()=>{
+ const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),"dream-keep-")),"settings.json");
+ const s=new DreamSkinSettings(file);
+ s.update({wallpaperId:"star-sky",customWallpaperPath:"D:/walls/x.png",fit:"cover"});
+ const restored=new DreamSkinSettings(file);
+ assert.equal(restored.get("wallpaperId"),"star-sky");
+ assert.equal(restored.get("customWallpaperPath"),"D:/walls/x.png");
+ s.update({wallpaperId:42,zoom:9,autoRotate:"15m"});
+ assert.equal(s.get("wallpaperId"),"gemini-character-sheet-v1");
+ assert.equal(s.get("zoom"),2);
+ assert.equal(s.get("autoRotate"),"15m");
+ assert.equal(s.get("slideshow"),true);
+});
 
 const {HostController}=require("../src/domain/host-controller.cjs");
 function fixture(){
@@ -105,4 +134,28 @@ test('wallpaper positioning and zoom survive restart and clamp invalid ranges',(
  s.update({positionX:12,positionY:73,zoom:1.4});const restored=new DreamSkinSettings(file);assert.equal(restored.get('positionX'),12);assert.equal(restored.get('positionY'),73);assert.equal(restored.get('zoom'),1.4);
  s.update({positionX:-1,positionY:999,zoom:99});assert.equal(s.get('positionX'),0);assert.equal(s.get('positionY'),100);assert.equal(s.get('zoom'),2);
  const payload=new DreamSkinThemeLoader().payload(restored.getAll());assert.equal(payload.positionX,12);assert.equal(payload.positionY,73);assert.equal(payload.zoom,1.4);
+});
+const TINY_JPEG=Buffer.from([0xFF,0xD8,0xFF,0xC0,0x00,0x11,0x08,0x00,0x01,0x00,0x01,0x03,0x01,0x22,0x00,0x02,0x11,0x01,0x03,0x11,0x01,0xFF,0xD9,0x00,0x00]);
+test("user wallpaper directory files register as packs and reach the payload",()=>{
+ const rootDir=fs.mkdtempSync(path.join(os.tmpdir(),"dream-user-")),userDir=path.join(rootDir,"walls");
+ fs.mkdirSync(userDir,{recursive:true});
+ fs.writeFileSync(path.join(userDir,"legacy-wall.jpg"),TINY_JPEG);
+ fs.writeFileSync(path.join(userDir,"broken.jpg"),"damaged");
+ const manager=new DreamSkinThemeLoader({rootDir,userDir});
+ const packs=manager.listPacks(true);
+ const pack=packs.find(p=>p.id==="legacy-wall");
+ assert(pack&&pack.file);assert.equal(pack.width,1);assert.equal(pack.height,1);
+ assert(pack.previewUrl.startsWith("file:"));
+ assert(packs.find(p=>p.id==="broken")?.error);
+ const payload=manager.payload({wallpaperId:"legacy-wall",scrim:0,fit:"contain"});
+ assert(payload.image.startsWith("data:image/jpeg;base64,"));
+ assert.equal(manager.verifyIntegrity("legacy-wall").verified,true);
+});
+test("legacy autoRotate fields migrate to the slideshow single source",()=>{
+ assert.deepEqual(legacyRotatePatch({autoRotate:"off"}),{slideshow:false});
+ assert.deepEqual(legacyRotatePatch({autoRotate:"15m"}),{slideshow:true,slideshowIntervalMinutes:15});
+ assert.deepEqual(legacyRotatePatch({autoRotate:"1h"}),{slideshow:true,slideshowIntervalMinutes:60});
+ assert.equal(legacyRotatePatch({autoRotate:"boot"}),null);
+ assert.equal(legacyRotatePatch({}),null);
+ assert.equal(legacyRotatePatch(null),null);
 });

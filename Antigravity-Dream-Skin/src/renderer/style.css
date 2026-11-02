@@ -3,3 +3,4 @@
 .stage>img[hidden]{display:none}
 
 .stage{aspect-ratio:4/3;touch-action:none;cursor:grab;user-select:none}.stage[data-dragging=true]{cursor:grabbing}.stage>img{position:absolute;max-width:none;pointer-events:none;user-select:none}.stage .welcome,.stage .work,.stage .preview-tag{pointer-events:none}#center{float:right;padding:1px 6px}
+label{display:block;margin:9px 0;font-size:11px;color:#8b7a9e}select{width:100%;margin-top:5px;font:inherit;font-size:11px;padding:7px 8px;border:1px solid #ddd3e9;border-radius:9px;background:#fff;color:#6b5b7a}select:disabled{color:#b3a6c2;background:#f3eef8}#rotate{margin-top:9px}

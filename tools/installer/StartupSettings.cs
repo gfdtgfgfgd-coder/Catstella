@@ -5,9 +5,11 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-internal static class StartupSettings {
+internal static partial class StartupSettings {
 #if WIDGET
  public const string Kind="Widget", Title="星语桌宠挂件", AppExe="StarWidget.exe";
+#elif SUITE
+ public const string Kind="Suite", Title="星语套件", AppExe="StarSuite.exe";
 #else
  public const string Kind="Skin", Title="织梦壁纸皮肤", AppExe="DreamSkin.exe";
 #endif
@@ -42,15 +44,28 @@ internal static class StartupSettings {
    }
   }
  }
- public static void CreateShortcut(string file,string target,string arguments){
-  Directory.CreateDirectory(Path.GetDirectoryName(file));Type t=Type.GetTypeFromProgID("WScript.Shell");dynamic shell=Activator.CreateInstance(t);dynamic lnk=shell.CreateShortcut(file);lnk.TargetPath=target;lnk.Arguments=arguments;lnk.WorkingDirectory=Root;lnk.IconLocation=Path.Combine(Root,AppExe)+",0";lnk.Save();
+ public static void CreateShortcut(string file,string target,string arguments,string icon=""){
+  Directory.CreateDirectory(Path.GetDirectoryName(file));Type t=Type.GetTypeFromProgID("WScript.Shell");dynamic shell=Activator.CreateInstance(t);dynamic lnk=shell.CreateShortcut(file);lnk.TargetPath=target;lnk.Arguments=arguments;lnk.WorkingDirectory=Root;lnk.IconLocation=icon.Length>0?icon+",0":Path.Combine(Root,AppExe)+",0";lnk.Save();
  }
  static string Programs {get{return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs),"Antigravity Star Suite",Title);}}
  public static void Shortcuts(bool create){
   string exe=Path.Combine(Root,AppExe),manager=Path.Combine(Root,"StartupSettings.exe");
-  string[] paths={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Title+".lnk"),Path.Combine(Programs,Title+".lnk"),Path.Combine(Programs,"启动设置.lnk"),Path.Combine(Programs,"卸载.lnk")};
-  if(create){CreateShortcut(paths[0],exe,"");CreateShortcut(paths[1],exe,"");CreateShortcut(paths[2],manager,"");CreateShortcut(paths[3],manager,"--uninstall");}
-  else foreach(var file in paths)if(File.Exists(file))try{dynamic shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic lnk=shell.CreateShortcut(file);if(String.Equals((string)lnk.TargetPath,exe,StringComparison.OrdinalIgnoreCase)||String.Equals((string)lnk.TargetPath,manager,StringComparison.OrdinalIgnoreCase))File.Delete(file);}catch{}
+  if(Kind=="Suite"){
+   // 统一套件：开始菜单只保留 启动 / 设置 / 卸载 三项，图标分别取猫娘 默认 / 得意 / 委屈 表情。
+   string icons=Path.Combine(Root,"icons");
+   string launchIcon=Path.Combine(icons,"launch.ico"),settingsIcon=Path.Combine(icons,"settings.ico"),uninstallIcon=Path.Combine(icons,"uninstall.ico");
+   string[] paths={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Title+".lnk"),Path.Combine(Programs,"启动.lnk"),Path.Combine(Programs,"设置.lnk"),Path.Combine(Programs,"卸载.lnk")};
+   if(create){
+    CreateShortcut(paths[0],exe,"",launchIcon);
+    CreateShortcut(paths[1],exe,"",launchIcon);
+    CreateShortcut(paths[2],exe,"--settings",settingsIcon);
+    CreateShortcut(paths[3],manager,"--uninstall",uninstallIcon);
+   }else foreach(var file in paths)if(File.Exists(file))try{dynamic shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic lnk=shell.CreateShortcut(file);if(String.Equals((string)lnk.TargetPath,exe,StringComparison.OrdinalIgnoreCase)||String.Equals((string)lnk.TargetPath,manager,StringComparison.OrdinalIgnoreCase))File.Delete(file);}catch{}
+   return;
+  }
+  string[] legacyPaths={Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Title+".lnk"),Path.Combine(Programs,Title+".lnk"),Path.Combine(Programs,"启动设置.lnk"),Path.Combine(Programs,"卸载.lnk")};
+  if(create){CreateShortcut(legacyPaths[0],exe,"");CreateShortcut(legacyPaths[1],exe,"");CreateShortcut(legacyPaths[2],manager,"");CreateShortcut(legacyPaths[3],manager,"--uninstall");}
+  else foreach(var file in legacyPaths)if(File.Exists(file))try{dynamic shell=Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell"));dynamic lnk=shell.CreateShortcut(file);if(String.Equals((string)lnk.TargetPath,exe,StringComparison.OrdinalIgnoreCase)||String.Equals((string)lnk.TargetPath,manager,StringComparison.OrdinalIgnoreCase))File.Delete(file);}catch{}
  }
  public static string UninstallKey {get{return "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\AntigravityStarSuite"+Kind;}}
  static void Uninstall(){

@@ -37,7 +37,7 @@ internal static class SetupProgram {
   if(sandbox)return;
   StartupSettings.Shortcuts(true);StartupSettings.SetFlags(auto,link);
   using(var r=Registry.CurrentUser.CreateSubKey(StartupSettings.UninstallKey)){
-   r.SetValue("DisplayName",StartupSettings.Title);r.SetValue("DisplayVersion","0.2.12");r.SetValue("Publisher","Antigravity Star Suite community");r.SetValue("InstallLocation",root);r.SetValue("DisplayIcon",Path.Combine(root,StartupSettings.AppExe));r.SetValue("UninstallString",StartupSettings.Quote(Path.Combine(root,"StartupSettings.exe"))+" --uninstall");r.SetValue("NoModify",1);r.SetValue("NoRepair",1);
+   r.SetValue("DisplayName",StartupSettings.Title);r.SetValue("DisplayVersion",StartupSettings.BuildVersion);r.SetValue("Publisher","Antigravity Star Suite community");r.SetValue("InstallLocation",root);r.SetValue("DisplayIcon",Path.Combine(root,StartupSettings.AppExe));r.SetValue("UninstallString",StartupSettings.Quote(Path.Combine(root,"StartupSettings.exe"))+" --uninstall");r.SetValue("NoModify",1);r.SetValue("NoRepair",1);
   }
   if(auto||link)Process.Start(new ProcessStartInfo(Path.Combine(root,"StartupSettings.exe"),"--watch"){UseShellExecute=false,CreateNoWindow=true});
  }

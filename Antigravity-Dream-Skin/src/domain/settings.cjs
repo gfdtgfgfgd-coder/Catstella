@@ -1,9 +1,18 @@
 const os=require("node:os"),path=require("node:path"),{readJson,writeJson,finite,bool}=require("../../../shared/storage.cjs");
-const DEFAULT_SETTINGS={enabled:false,outputMode:"transparent",positionX:50,positionY:50,zoom:1,fit:"adaptive",scrim:12,opacity:55,wallpaperId:"gemini-character-sheet-v1",protectEditor:true,protectTerminal:true};
+const DEFAULT_SETTINGS={enabled:false,outputMode:"transparent",positionX:50,positionY:50,zoom:1,fit:"adaptive",scrim:12,opacity:55,wallpaperId:"gemini-character-sheet-v1",wallpaperFile:"",slideshow:true,slideshowIntervalMinutes:5,protectEditor:true,protectTerminal:true};
 class DreamSkinSettings{
  constructor(file=path.join(os.homedir(),".antigravity-dream-skin/settings.json")){this.filePath=file;this.data=this.sanitize(readJson(file,DEFAULT_SETTINGS));}
- sanitize(v){return{...DEFAULT_SETTINGS,outputMode:v.outputMode==="glass"?"glass":"transparent",enabled:bool(v.enabled,false),positionX:finite(v.positionX,50,0,100),positionY:finite(v.positionY,50,0,100),zoom:finite(v.zoom,1,1,2),fit:["cover","contain","adaptive"].includes(v.fit)?v.fit:"adaptive",scrim:finite(v.scrim,12,0,60),opacity:finite(v.opacity,55,0,100),protectEditor:true,protectTerminal:true};}
+ // 先合并入参、再逐项校验已知字段、保留未污染的扩展字段——绝不丢弃合法配置（含 autoRotate 等旧字段）。
+ sanitize(v){const s={...DEFAULT_SETTINGS,...(v&&typeof v==="object"&&!Array.isArray(v)?v:{})};s.outputMode=v?.outputMode==="glass"?"glass":"transparent";s.enabled=bool(v?.enabled,false);s.positionX=finite(v?.positionX,50,0,100);s.positionY=finite(v?.positionY,50,0,100);s.zoom=finite(v?.zoom,1,1,2);s.fit=["cover","contain","adaptive"].includes(v?.fit)?v.fit:"adaptive";s.scrim=finite(v?.scrim,12,0,60);s.opacity=finite(v?.opacity,55,0,100);s.wallpaperId=typeof v?.wallpaperId==="string"&&v.wallpaperId.trim()?v.wallpaperId:DEFAULT_SETTINGS.wallpaperId;s.wallpaperFile=typeof v?.wallpaperFile==="string"?v.wallpaperFile:"";s.slideshow=bool(v?.slideshow,true);s.slideshowIntervalMinutes=finite(v?.slideshowIntervalMinutes,5,1,60);s.protectEditor=true;s.protectTerminal=true;return s;}
  update(v){this.data=this.sanitize({...this.data,...v});writeJson(this.filePath,this.data);return this.getAll();}
  get(k){return this.data[k];}getAll(){return{...this.data};}
 }
-module.exports={DreamSkinSettings,DEFAULT_SETTINGS};
+// 旧版兼容：autoRotate(off|15m|1h) → slideshow+slideshowIntervalMinutes 单一真源；boot 无法精确映射，交由默认轮播。
+function legacyRotatePatch(data){
+ if(!data||typeof data.autoRotate!=="string")return null;
+ if(data.autoRotate==="off")return{slideshow:false};
+ if(data.autoRotate==="15m")return{slideshow:true,slideshowIntervalMinutes:15};
+ if(data.autoRotate==="1h")return{slideshow:true,slideshowIntervalMinutes:60};
+ return null;
+}
+module.exports={DreamSkinSettings,DEFAULT_SETTINGS,legacyRotatePatch};
