@@ -100,13 +100,21 @@
       this.sessionData.thinkingTokensEst = Math.round(this.sessionData.thinkingChars * 0.7);
       this.sessionData.totalTokensEst = this.sessionData.promptTokensEst + this.sessionData.outputTokensEst + this.sessionData.thinkingTokensEst;
 
-      // 如果有官方真实配额数据，以官方真实当前用量为主！
-      if (typeof this.sessionData.realQuota.currentUsagePercent === 'number') {
-        this.sessionData.fatiguePercent = this.sessionData.realQuota.currentUsagePercent;
+      // 额度显示语义（v1.3.7）：官方 MaZiqc 数据权威，但 5h 窗口初期官方恒为 0%
+      // （四舍五入滞后），会话估算更能实时反映消耗 —— 取两者较大值驱动用量条，
+      // 并记录 displaySource 供挂件标注来源；官方重置时间始终照常显示。
+      const official = this.sessionData.realQuota.currentUsagePercent;
+      const turnRatio = this.sessionData.turns / Math.max(1, this.config.argonMaxSafeTurns);
+      const tokenRatio = this.sessionData.totalTokensEst / Math.max(1, this.config.argonMaxSafeTokens);
+      const estimate = Math.min(99, Math.round(Math.max(turnRatio, tokenRatio) * 100));
+      if (typeof official === 'number') {
+        this.sessionData.fatiguePercent = this.sessionData.turns > 0
+          ? Math.max(official, estimate)
+          : official;
+        this.sessionData.realQuota.displaySource = estimate > official && this.sessionData.turns > 0 ? 'session' : 'official';
       } else {
-        const turnRatio = this.sessionData.turns / Math.max(1, this.config.argonMaxSafeTurns);
-        const tokenRatio = this.sessionData.totalTokensEst / Math.max(1, this.config.argonMaxSafeTokens);
-        this.sessionData.fatiguePercent = Math.min(99, Math.round(Math.max(turnRatio, tokenRatio) * 100));
+        this.sessionData.fatiguePercent = estimate;
+        this.sessionData.realQuota.displaySource = 'estimate';
       }
 
       if (this.sessionData.rateLimited || this.sessionData.fatiguePercent >= 100) {

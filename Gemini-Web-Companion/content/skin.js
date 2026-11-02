@@ -64,11 +64,40 @@
     }
   };
 
+  // 画廊清单（构建期生成 assets/manifest.json；skin 侧用于解析内置壁纸 id → src）
+  let kgManifestPromise = null;
+  const loadGalleryManifest = () => {
+    if (!kgManifestPromise) {
+      kgManifestPromise = fetch(api.getURL('assets/manifest.json'))
+        .then((r) => r.json())
+        .catch(() => ({ wallpapers: [], characters: [] }));
+    }
+    return kgManifestPromise;
+  };
+
   const loadAndApply = async () => {
-    const res = await api.storageGet(['skinEnabled', 'wallpaperOpacity', 'customWallpaper']);
+    const res = await api.storageGet([
+      'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper'
+    ]);
     const isEnabled = res ? res.skinEnabled !== false : true;
     const opacity = res && typeof res.wallpaperOpacity === 'number' ? res.wallpaperOpacity : 0.88;
-    wallpaperSrc = (res && res.customWallpaper) || null;
+
+    // 壁纸解析优先级：custom:<id>（画廊上传）→ 内置 manifest id → 旧版单图 customWallpaper → 默认
+    let src = null;
+    const wid = res.wallpaperId || '';
+    if (wid.startsWith('custom:')) {
+      const c = (res.customWallpapers || []).find((x) => x.id === wid);
+      if (c) src = c.dataUrl;
+    } else if (wid) {
+      try {
+        const man = await loadGalleryManifest();
+        const w = (man.wallpapers || []).find((x) => x.id === wid);
+        if (w) src = api.getURL(w.src);
+      } catch (e) {}
+    }
+    if (!src && res.customWallpaper) src = res.customWallpaper; // 旧版单图迁移兜底
+    wallpaperSrc = src; // null → getWallpaperUrl 回落默认
+
     applySkin(isEnabled, opacity);
   };
 
@@ -124,37 +153,47 @@
         if (bubble) mark(bubble, 'bubble');
       });
 
-      // 3) 列宽统一：以回复卡自然宽度为基准（Google 原生即统一列宽），
-      //    Composer 药丸拉宽到与回复等宽（受限内容列容器宽），居中对齐。
-      //    卡片不再强制 max-width（v1.3.3 的"拉宽回复"方向已废弃）。
-      //    ⚠️ 先清除卡片上的旧内联 max-width，再测自然宽度（否则量到残留值）
+      // 3) 列宽统一（v1.3.6 语义）：
+      //    - Composer 恢复 Google 原生宽度（v1.3.4 的拉宽被用户否决，清除全部内联残留）
+      //    - 回复卡收窄到"原生对话列"宽度（以 user-query 容器实测为准），居中，
+      //      让界面观感 = 换了风格的原生 Gemini
+      let columnWidth = 720;
+      const uqEl = document.querySelector('user-query');
+      if (uqEl) {
+        const w = uqEl.getBoundingClientRect().width;
+        if (w >= 480 && w <= 880) columnWidth = Math.round(w);
+      } else {
+        const rtEl0 = document.querySelector('rich-textarea');
+        const pill0 = rtEl0 && rtEl0.closest('input-area-v2');
+        if (pill0) {
+          const w = pill0.getBoundingClientRect().width + 48;
+          if (w >= 520 && w <= 880) columnWidth = Math.round(w);
+        }
+      }
       document.querySelectorAll('model-response').forEach((mr) => {
         mark(mr, 'card');
-        try { mr.style.removeProperty('max-width'); } catch (e) {}
+        // ⚠️ 防跳滚：宽度值不变时跳过写入（滚动锚定被 Google 禁用，
+        // 任何布局写入都会造成滚动位置跳动）；残留值清理与写入同循环完成
+        if (mr.__kgLastMaxW !== columnWidth) {
+          mr.__kgLastMaxW = columnWidth;
+          try { mr.style.setProperty('max-width', columnWidth + 'px', 'important'); } catch (e) {}
+        }
       });
-      const firstCard = document.querySelector('model-response');
-      if (firstCard) replyWidth = firstCard.getBoundingClientRect().width;
+      // Composer：清除 v1.3.4 的拉宽/偏移残留，回归原生宽度
       const rtEl = document.querySelector('rich-textarea');
       if (rtEl) {
         const pill = rtEl.closest('input-area-v2') || climbToPainted(rtEl) || rtEl;
         mark(pill, 'composer');
-        // 水平精确对齐回复卡：宽度=卡宽，水平偏移=卡左缘-药丸原始左缘
-        // （relative 偏移不影响布局流；以 __kgOffsetX 记录当前偏移防漂移累积）
-        if (replyWidth > 300) {
-          const cardRect = firstCard.getBoundingClientRect();
-          const pillRect = pill.getBoundingClientRect();
-          const prev = pill.__kgOffsetX || 0;
-          const baseLeft = pillRect.left - prev;
-          const offsetX = Math.round(cardRect.left - baseLeft);
-          pill.__kgOffsetX = offsetX;
-          try {
-            pill.style.setProperty('position', 'relative', 'important');
-            pill.style.setProperty('left', offsetX + 'px', 'important');
-            pill.style.setProperty('width', Math.round(cardRect.width) + 'px', 'important');
-            pill.style.setProperty('max-width', 'none', 'important');
-            pill.style.setProperty('box-sizing', 'border-box', 'important');
-          } catch (e) {}
-        }
+        try {
+          pill.style.removeProperty('width');
+          pill.style.removeProperty('left');
+          pill.style.removeProperty('position');
+          pill.style.removeProperty('max-width');
+          pill.style.removeProperty('box-sizing');
+          pill.style.removeProperty('margin-left');
+          pill.style.removeProperty('margin-right');
+          delete pill.__kgOffsetX;
+        } catch (e) {}
       }
       document.querySelectorAll('details, .thought-container, [data-test-id="thinking-process"]').forEach((d) => mark(d, 'thinking'));
 
@@ -171,10 +210,9 @@
       }
 
       ghostHunt();
-      updateGlassBand();
       updatePaneGeometry();
       attachFadeScroller();
-      scheduleFade();
+      scheduleFade(); // 渐隐 + 玻璃带几何统一在此更新
     } catch (e) {}
   };
 
@@ -248,9 +286,18 @@
   // ⚠️ 内容的真实切线是滚动容器底边，不是 Composer 顶边（两者相差 ~30px，
   // 锚错会导致渐隐完成位置与生硬切线错位——v1.3.4 的"渐变没对齐"根因）
   const getConversationScroller = () => {
-    return [...document.querySelectorAll('infinite-scroller')].find(
-      (e) => e.scrollHeight > e.clientHeight + 50 && !String(e.className).includes('chat-history')
-    ) || null;
+    // ⚠️ v1.3.8 铁律：对话滚动容器 = `infinite-scroller.chat-history`（7984px 那个），
+    // 它【不在】bard-sidenav 内；`infinite-scroller.lr26-theme`（侧栏滚动区，572 底边）
+    // 是历史的错误锚点。首选从回复卡/用户气泡向上 closest 定位，A/B 免疫。
+    const mr = document.querySelector('model-response') || document.querySelector('user-query');
+    if (mr) {
+      const sc = mr.closest('infinite-scroller');
+      if (sc) return sc;
+    }
+    const candidates = [...document.querySelectorAll('infinite-scroller')];
+    return candidates.find((e) => String(e.className).includes('chat-history') && !e.closest('bard-sidenav'))
+      || candidates.find((e) => !e.closest('bard-sidenav'))
+      || null;
   };
 
   const getCutLineY = (composerTop) => {
@@ -260,42 +307,9 @@
   };
 
   // ============ Liquid Glass 渐变模糊带 ============
-  // fixed 覆盖层，跟随 Composer 实测坐标定位（不依赖 Google 容器的 position/z-index），
-  // mask 渐变让模糊从 Composer 顶边向上渐进衰减 —— 内容滚入底下时有"已知"的过渡。
+  // ⚠️ 几何由 applyFades 统一写入（与卡片渐隐共用 [fadeStartY, cutY] 同一区间，
+  // 两条过渡曲线完全重合）——此处不再独立计算，避免双曲线错位。
   let glassBand = null;
-  const updateGlassBand = () => {
-    try {
-      const active = document.documentElement.classList.contains('kimino-dream-active');
-      const rt = document.querySelector('rich-textarea');
-      if (!active || !rt) {
-        if (glassBand) { glassBand.remove(); glassBand = null; }
-        return;
-      }
-      const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
-      const pr = pill.getBoundingClientRect();
-      const cutY = getCutLineY(pr.top);
-      if (!glassBand) {
-        glassBand = document.createElement('div');
-        glassBand.id = 'kimino-glass-band';
-        glassBand.setAttribute('aria-hidden', 'true');
-        (document.body || document.documentElement).appendChild(glassBand);
-      }
-      // 垂直：覆盖 [切线-100, Composer 顶]（含切线与下方空隙）
-      const top = Math.max(0, cutY - 100);
-      const height = Math.max(40, pr.top - top);
-      // 水平：与回复列精确对齐
-      const card = document.querySelector('model-response');
-      const colRect = card ? card.getBoundingClientRect() : pr;
-      glassBand.style.cssText =
-        'position:fixed !important;' +
-        'pointer-events:none !important;' +
-        'z-index:30 !important;' +
-        'left:' + Math.round(colRect.left) + 'px !important;' +
-        'width:' + Math.round(colRect.width) + 'px !important;' +
-        'top:' + Math.round(top) + 'px !important;' +
-        'height:' + Math.round(height) + 'px !important;';
-    } catch (e) {}
-  };
 
   // ============ 滚动联动底色渐隐（Liquid Glass 核心观感） ============
   // 卡片/气泡进入 Composer 上方渐变区时，自身底色沿滚动方向渐隐
@@ -306,8 +320,12 @@
 
   const applyFades = () => {
     try {
+      if (!document.documentElement.classList.contains('kimino-dream-active')) return;
       const rt = document.querySelector('rich-textarea');
-      if (!rt) return;
+      if (!rt) {
+        if (glassBand) { glassBand.remove(); glassBand = null; }
+        return;
+      }
       const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
       // ⚠️ 切线 = 滚动容器底边（真实裁剪线），锚到 Composer 顶会错位
       const cutY = getCutLineY(pill.getBoundingClientRect().top);
@@ -315,36 +333,67 @@
       const surfaces = document.querySelectorAll(
         '[data-kg="card"], [data-kg="bubble"], model-response, .user-query-bubble-with-background'
       );
+      // Liquid Glass 带：与卡片渐隐共用 [fadeStartY, cutY] 同一几何，两曲线完全重合
+      const firstCard = document.querySelector('model-response');
+      const colRect = firstCard ? firstCard.getBoundingClientRect() : null;
+      if (!glassBand) {
+        glassBand = document.createElement('div');
+        glassBand.id = 'kimino-glass-band';
+        glassBand.setAttribute('aria-hidden', 'true');
+        (document.body || document.documentElement).appendChild(glassBand);
+      }
+      const bandLeft = colRect ? Math.round(colRect.left) : Math.round(pill.getBoundingClientRect().left);
+      const bandWidth = colRect ? Math.round(colRect.width) : Math.round(pill.getBoundingClientRect().width);
+      const bandGeom = 'position:fixed !important;pointer-events:none !important;z-index:30 !important;' +
+        'left:' + bandLeft + 'px !important;width:' + bandWidth + 'px !important;' +
+        'top:' + Math.round(fadeStartY) + 'px !important;height:' + FADE_RANGE + 'px !important;';
+      if (glassBand.__kgGeom !== bandGeom) {
+        glassBand.__kgGeom = bandGeom;
+        glassBand.style.cssText = bandGeom;
+      }
       surfaces.forEach((el) => {
         const r = el.getBoundingClientRect();
         if (r.height < 8) return;
         const outOfZone = r.bottom <= fadeStartY || r.top >= cutY;
         if (outOfZone) {
           if (el.__kgFaded) {
-            el.style.removeProperty('background-color');
-            el.style.removeProperty('background-image');
+            ['background-color', 'background-image', 'backdrop-filter', 'box-shadow', 'border-color'].forEach((p) => el.style.removeProperty(p));
             el.__kgFaded = false;
+            el.__kgLastGrad = '';
           }
           return;
         }
         // 区内：底色从 fadeStartY 起线性渐隐，至切线处全透明
-        const solidPx = Math.max(0, fadeStartY - r.top);
-        const fadeEndPx = Math.min(r.height, Math.max(solidPx + 1, cutY - r.top));
+        // ⚠️ 同步渐隐 blur/阴影/描边——只隐底色不隐 blur 会留下一层"雾"
+        // （blur18 的壁纸在透明底上依旧是雾）；模糊由切线处的玻璃带接管。
+        // ⚠️ 防闪屏：渐隐停靠点按 12px 量化，量化后与上次相同则跳过写入
+        // （滚动时绝大多数帧不再触发样式重算/重绘）
+        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 12) * 12);
+        const fadeEndPx = Math.min(r.height, Math.max(solidPx + 12, cutY - r.top));
         const grad = 'linear-gradient(to bottom, rgba(33, 30, 45, 0.74) 0px, rgba(33, 30, 45, 0.74) ' +
           solidPx.toFixed(0) + 'px, rgba(33, 30, 45, 0) ' + fadeEndPx.toFixed(0) + 'px)';
+        const sig = grad + '|v2';
+        if (el.__kgLastGrad === sig) return;
+        el.__kgLastGrad = sig;
         el.style.setProperty('background-color', 'transparent', 'important');
         el.style.setProperty('background-image', grad, 'important');
+        el.style.setProperty('backdrop-filter', 'none', 'important');
+        el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        el.style.setProperty('box-shadow', 'none', 'important');
+        el.style.setProperty('border-color', 'transparent', 'important');
         el.__kgFaded = true;
       });
     } catch (e) {}
   };
 
   const scheduleFade = () => {
+    // ⚠️ 用 setTimeout 而非 rAF：失焦/后台窗口的 rAF 会被浏览器暂停（实测 IAB/后台标签
+    // rAF 永不触发，渐隐引擎整体冻结）；setTimeout 前台 32ms 平滑，后台降频兜底。
     if (fadeRaf) return;
-    fadeRaf = requestAnimationFrame(() => {
+    fadeRaf = setTimeout(() => {
       fadeRaf = 0;
       applyFades();
-    });
+    }, 32);
   };
 
   const attachFadeScroller = () => {
@@ -365,7 +414,7 @@
     try {
       await loadAndApply();
       api.onChanged((changes, area) => {
-        if (area === 'local' && (changes.skinEnabled || changes.wallpaperOpacity || changes.customWallpaper)) {
+        if (area === 'local' && (changes.skinEnabled || changes.wallpaperOpacity || changes.customWallpaper || changes.wallpaperId || changes.customWallpapers)) {
           loadAndApply();
         }
       });

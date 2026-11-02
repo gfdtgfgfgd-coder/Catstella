@@ -1,7 +1,7 @@
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v1.3.5 | 更新时间：2026-11-03
+> **文档版本**：v1.3.8 | 更新时间：2026-11-03
 
 ### v1.3.5 增补（对齐终修 / 壁纸复活 / 自定义形象与壁纸）· 必读
 * **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
@@ -20,6 +20,24 @@
 * **卡片对齐**：model-response 宽度由 skin.js 实测 user-query 列宽后**内联写入**（`max-width !important`），CSS 管 22px 圆角与居中——不要改回 CSS 写死宽度；
 * **侧栏选择器只许用 `bard-sidenav`**：`mat-nav-list` 宿主自带 `role="navigation"`、通知气泡是裸 `aside`——`[role="navigation"]` / 裸 `aside` 选择器都会误伤（渐变重复绘制 Bug 根因）；
 * **Liquid Glass 过渡带**：`input-container::before`（120px，blur16+mask 渐变+底部暗化），依赖 `input-container { position: relative }`——若 Google 改容器名，标注引擎的 composer 标记可平移承载。
+
+
+
+
+### v1.3.8 增补（对齐铁律 / 防跳滚 / rAF 冻结）· 必读
+* **双曲线铁律**：玻璃带几何由 applyFades 统一写入（与卡片渐隐同区间 [fadeStartY, cutY]），mask 纯线性——勿恢复独立 updateGlassBand（双曲线错位根因）；
+* **滚动容器铁律**：对话滚动容器 = 从 model-response 向上 closest('infinite-scroller')（即 .chat-history，7984px）；`infinite-scroller.lr26-theme` 是侧栏滚动区（勿锚）；溢出过滤（sh>ch+50）在虚拟化+置底时会误判消失（勿用）；
+* **防跳滚**：overflow-anchor:auto 已恢复（Google 禁用了锚定）+ 卡片 max-width 写入 __kgLastMaxW 去重——布局写入必须去重；
+* **rAF 禁用**：失焦/后台窗口 rAF 被暂停（实测永不触发）——所有持续动画/轮询禁止依赖 rAF，用 setTimeout 节流。
+### v1.3.7 增补（渐隐自然化 / 额度实时语义）
+* **applyFades 区内必须同步渐隐 blur/阴影/描边**（内联 none）——只隐底色不隐 blur 会留雾（blur18 壁纸在透明底上依旧糊）；切线处模糊由 #kimino-glass-band 接管；
+* **额度显示语义**：tracker.calculateMetrics 折算为 max(官方, 会话估算)（turns>0 时），realQuota.displaySource ∈ official/session/estimate，挂件角标随动——勿改回官方单独直显（官方 0% 会冻结用量条）。
+
+### v1.3.6 增补（原生观感回调 / 画廊面板 / 防闪屏）· 必读
+* **宽度语义再修正**：Composer 恢复 Google 原生宽度（annotate 时清除全部内联残留），回复卡 max-width = user-query 容器实测宽（回退 720，clamp 480~880）——拉宽两个方向都被用户否决，勿再回炉；
+* **画廊**：构建期生成 assets/manifest.json（generateGalleryManifest），widget/skin 经 fetch 解析；storage 键 wallpaperId（内置 id / custom:<ts>）+ customWallpapers[]，旧版 customWallpaper 仅作迁移兜底；
+* **面板自动收起**：document 捕获段 click + composedPath 判定；Shadow DOM 内点击 composedPath 含 host 不收起；
+* **防闪屏**：applyFades 渐变停靠点 12px 量化 + __kgLastGrad 去重，勿删除（滚动闪屏根因）。
 
 ---
 

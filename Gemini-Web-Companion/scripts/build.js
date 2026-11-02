@@ -124,6 +124,33 @@ const itemsToCopy = [
   'assets'
 ];
 
+// 画廊清单：构建时扫描 assets 生成（壁纸/形象两族），供设置面板画廊使用
+function generateGalleryManifest(targetDir) {
+  const wallpapers = [];
+  const wpDir = path.join(rootDir, 'assets', 'wallpapers');
+  if (fs.existsSync(wpDir)) {
+    for (const f of fs.readdirSync(wpDir)) {
+      if (/\.(png|jpe?g|webp)$/i.test(f)) {
+        const id = f.replace(/\.[^.]+$/, '');
+        wallpapers.push({ id, name: id.replace(/[-_]+/g, ' '), src: 'assets/wallpapers/' + f });
+      }
+    }
+  }
+  const characters = [];
+  const chDir = path.join(rootDir, 'assets', 'characters');
+  if (fs.existsSync(chDir)) {
+    for (const d of fs.readdirSync(chDir)) {
+      const p = path.join(chDir, d);
+      if (fs.statSync(p).isDirectory() && fs.existsSync(path.join(p, 'idle.png'))) {
+        characters.push({ id: d, name: d.replace(/[-_]+/g, ' '), preview: 'assets/characters/' + d + '/idle.png' });
+      }
+    }
+  }
+  const manifest = { wallpapers, characters };
+  fs.writeFileSync(path.join(targetDir, 'assets', 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+  return manifest;
+}
+
 // 1. 构建 Chromium (Edge / Chrome) 版本
 console.log('📦 构建 Chromium (Edge / Chrome) 专版...');
 if (fs.existsSync(chromiumDir)) fs.rmSync(chromiumDir, { recursive: true, force: true });
@@ -140,6 +167,8 @@ crManifest.background = {
 };
 delete crManifest.browser_specific_settings;
 fs.writeFileSync(crManifestPath, JSON.stringify(crManifest, null, 2), 'utf8');
+const galleryCr = generateGalleryManifest(chromiumDir);
+console.log(`🖼️ 画廊清单：壁纸 ${galleryCr.wallpapers.length} 张 / 形象 ${galleryCr.characters.length} 套`);
 
 // 2. 构建 Firefox 专版
 console.log('🦊 构建 Firefox (火狐) 专版...');
@@ -179,6 +208,11 @@ ffManifest.web_accessible_resources = [
     matches: ["*://gemini.google.com/*"]
   }
 ];
+fs.writeFileSync(ffManifestPath, JSON.stringify(ffManifest, null, 2), 'utf8');
+generateGalleryManifest(firefoxDir);
+
+// web_accessible_resources 需要放行画廊清单
+ffManifest.web_accessible_resources[0].resources.push('assets/manifest.json');
 fs.writeFileSync(ffManifestPath, JSON.stringify(ffManifest, null, 2), 'utf8');
 
 // 3. 规范压缩打包

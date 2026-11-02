@@ -1,5 +1,27 @@
 # 更新记录
 
+## 1.3.8-ext · 对齐铁律 + 防跳滚 + rAF 冻结修复（feat/browser-extension） / 2026-11-03
+
+- **双曲线错位根除**：玻璃带与卡片渐隐此前各算各的几何（带=Composer 基、卡=切线基），两条过渡曲线错位。现 `applyFades` 统一写入带几何 `[fadeStartY, cutY]`（与卡片渐隐完全同区间），带 mask 改纯线性渐变——模糊曲线与底色渐隐曲线**完全重合**；`updateGlassBand` 独立函数废除。
+- **对话滚动容器定位铁律**：`infinite-scroller.chat-history`（7984px、不在侧栏内）才是**对话**滚动容器；`infinite-scroller.lr26-theme`（572 底边）是**侧栏**滚动区——此前一直锚错（渐隐带错位的真正根因）。现从 `model-response`/`user-query` 向上 `closest('infinite-scroller')` 定位（A/B 免疫），虚拟化+置底 sh≈ch 时依然稳定。
+- **防跳滚**：Google 给滚动容器禁用了浏览器滚动锚定——任何布局写入都造成滚动跳动。恢复 `overflow-anchor: auto`（infinite-scroller 全体）+ 卡片 max-width 写入加 `__kgLastMaxW` 去重跳写。
+- **rAF 冻结修复**：失焦/后台窗口的 requestAnimationFrame 被浏览器暂停（实测 IAB 面板 rAF 永不触发→渐隐引擎整体冻结）。调度器改 `setTimeout 32ms`（前台平滑、后台降频兜底）。
+- 实机核对：band=composer=card 列几何严格一致（x430/w708）、fades 计数运转、渐隐贴合切线；dist 重建，版本 1.3.8；测试 39/40（唯一失败仍为该副本桌面端 native heartbeat 旧案）。
+
+## 1.3.7-ext · 渐隐自然化 + 额度实时语义（feat/browser-extension） / 2026-11-03
+
+- **渐隐自然化**：v1.3.6 的底色渐隐留下"雾感"——卡片 `backdrop-filter blur(18)` 在透明底上依旧把壁纸糊成雾，交界突兀。区内现同步内联渐隐 blur/阴影/描边（切线处玻璃带接管模糊），形成"实体卡 → 溶解 → 轻模糊"三段自然过渡；实发一轮对话截图验收通过。
+- **额度实时语义**：官方 MaZiqc 权威但 5h 窗口初期恒为 0%（四舍五入滞后），0% 权威值盖住会话估算导致"跑了一轮对话条纹丝不动"。tracker 折算改为 `max(官方, 会话估算)`（turns>0 时），新增 `realQuota.displaySource`；挂件来源角标随动（官方限额/会话估算），官方重置时间照常显示。实发一轮对话验证：条 0%→92% 实时跳动（会话估算语义），每周 66% 官方数据并存。
+- dist 重建，版本 1.3.7；Catstella-web 测试 39/40（唯一失败项仍为该副本桌面端 native heartbeat 旧案，与扩展无关）。
+
+## 1.3.6-ext · 原生观感回调 + 画廊设置面板 + 防闪屏（feat/browser-extension） / 2026-11-03
+
+- **宽度回调**：v1.3.4 的"拉宽 Composer/回复"方向被否决——Composer 恢复 Google 原生宽度（清除全部内联残留），回复卡收窄到"原生对话列"宽度（实测 user-query 容器，回退 720px），居中；观感 = 换了风格的原生 Gemini。
+- **画廊设置面板（agy 移植）**：设置面板新增 壁纸画廊（内置 + 自定义上传，缩略图网格、active 高亮、自定义可删）与 形象画廊（按形象包预览选择 + 自定义单图上传/还原）；构建期扫描 assets 生成 `assets/manifest.json` 画廊清单（build.js `generateGalleryManifest`，双 dist 注入 + Firefox WAR 放行）。
+- **面板自动收起**：document 捕获段点击 + composedPath 判定（Shadow DOM 兼容），点击桌宠外自动收起，Esc 亦可。
+- **滚动防闪屏**：底色渐隐的渐变停靠点按 12px 量化、量化后与上次相同则跳过写入——滚动期间绝大多数帧零样式重算，闪屏消除。
+- 壁纸解析链升级：`wallpaperId`（内置 id / custom:<ts>）→ `customWallpapers[]` → 旧版单图 `customWallpaper` 兜底 → 默认；skin.js 经画廊清单解析内置 id。dist 重建，版本 1.3.6；Catstella-web 测试 39/40（唯一失败项为该副本桌面端 native heartbeat 旧案，与扩展无关）。
+
 ## 0.2.12 · 独立安装包（测试版） / 2026-11-02
 
 - 新增挂件和壁纸两个独立Windows x64安装EXE，内置Electron运行时，创建桌面与开始菜单入口及独立卸载项。

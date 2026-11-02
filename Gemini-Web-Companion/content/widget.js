@@ -378,7 +378,7 @@
       position: absolute;
       bottom: 102%;
       right: 0;
-      width: 250px;
+      width: 272px;
       background: rgba(28, 22, 44, 0.92);
       backdrop-filter: blur(18px) saturate(130%);
       border: 1px solid rgba(190, 160, 245, 0.35);
@@ -464,6 +464,78 @@
     .kimino-settings input[type="checkbox"] {
       accent-color: #a78bfa;
       cursor: pointer;
+    }
+
+    /* 画廊（agy 移植）：壁纸/形象网格 */
+    .kg-section-title {
+      color: #a78bfa;
+      font-size: 11px;
+      letter-spacing: 1px;
+      margin: 9px 0 5px;
+    }
+
+    .kg-wallpaper-grid,
+    .kg-character-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .kg-thumb {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      aspect-ratio: 16 / 9;
+      background: rgba(0, 0, 0, 0.3);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .kg-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .kg-thumb.kg-active {
+      border-color: #c084fc;
+      box-shadow: 0 0 0 2px rgba(192, 132, 252, 0.5);
+    }
+
+    .kg-thumb-del {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fda4af;
+      font-size: 9px;
+      border-radius: 50%;
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .kg-char-thumb {
+      aspect-ratio: auto;
+      text-align: center;
+      padding: 6px 2px 4px;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .kg-char-thumb img {
+      height: 44px;
+      width: auto;
+      margin: 0 auto;
+    }
+
+    .kg-char-name {
+      font-size: 10px;
+      color: #c4b5fd;
+      margin-top: 2px;
     }
   `;
 
@@ -651,23 +723,15 @@
         <label class="kg-set-row"><span>互动音效</span><input type="checkbox" class="kg-cfg" data-key="soundEnabled"></label>
         <div class="kg-set-row"><span>桌宠大小</span><input type="range" class="kg-range" data-key="widgetScale" min="120" max="320" step="10"><span class="kg-val kg-val-scale"></span></div>
         <div class="kg-set-row"><span>壁纸浓度</span><input type="range" class="kg-range" data-key="wallpaperOpacity" min="30" max="100" step="5"><span class="kg-val kg-val-opacity"></span></div>
-        <div class="kg-set-row"><span>形象</span>
-          <span class="kg-chips">
-            <button class="kg-chip" data-character="gemini-star-v1">星语喵</button>
-            <button class="kg-chip" data-character="lin-cat">林猫</button>
-          </span>
-        </div>
+        <div class="kg-section-title">壁纸画廊</div>
+        <div class="kg-wallpaper-grid"></div>
         <div class="kg-set-row"><span>自定义壁纸</span>
-          <span class="kg-chips">
-            <button class="kg-chip kg-btn-wallpaper">选择图片</button>
-            <button class="kg-chip kg-def-wallpaper">默认</button>
-          </span>
+          <span class="kg-chips"><button class="kg-chip kg-btn-wallpaper">上传</button></span>
         </div>
+        <div class="kg-section-title">形象画廊</div>
+        <div class="kg-character-grid"></div>
         <div class="kg-set-row"><span>自定义形象</span>
-          <span class="kg-chips">
-            <button class="kg-chip kg-btn-character">选择图片</button>
-            <button class="kg-chip kg-def-character">默认</button>
-          </span>
+          <span class="kg-chips"><button class="kg-chip kg-btn-character">上传</button><button class="kg-chip kg-def-character">还原</button></span>
         </div>
         <input type="file" accept="image/*" class="kg-file-input kg-file-wallpaper" style="display:none">
         <input type="file" accept="image/*" class="kg-file-input kg-file-character" style="display:none">
@@ -857,9 +921,25 @@
     const kgValScale = wrapper.querySelector('.kg-val-scale');
     const kgValOpacity = wrapper.querySelector('.kg-val-opacity');
 
+    // ===== 画廊清单（构建期生成 assets/manifest.json） =====
+    let kgManifestCache = null;
+    const loadGalleryManifest = async () => {
+      if (kgManifestCache) return kgManifestCache;
+      try {
+        const res = await fetch(api.getURL('assets/manifest.json'));
+        kgManifestCache = await res.json();
+      } catch (e) {
+        kgManifestCache = { wallpapers: [], characters: [] };
+      }
+      return kgManifestCache;
+    };
+
     const syncSettingsUI = async () => {
       try {
-        const st = await api.storageGet(['enabled', 'skinEnabled', 'bubbleVisible', 'soundEnabled', 'widgetScale', 'wallpaperOpacity', 'character']);
+        const st = await api.storageGet([
+          'enabled', 'skinEnabled', 'bubbleVisible', 'soundEnabled', 'widgetScale',
+          'wallpaperOpacity', 'character', 'wallpaperId', 'customWallpapers', 'customCharacter'
+        ]);
         settingsPanel.querySelectorAll('.kg-cfg').forEach((cb) => {
           const k = cb.dataset.key;
           cb.checked = st[k] !== undefined ? !!st[k] : (k === 'enabled' || k === 'skinEnabled' || k === 'bubbleVisible');
@@ -870,11 +950,101 @@
         const rOp = settingsPanel.querySelector('.kg-range[data-key="wallpaperOpacity"]');
         if (rScale) { rScale.value = scale; if (kgValScale) kgValScale.textContent = scale + 'px'; }
         if (rOp) { rOp.value = op; if (kgValOpacity) kgValOpacity.textContent = op + '%'; }
-        settingsPanel.querySelectorAll('.kg-chip').forEach((chip) => {
-          chip.classList.toggle('kg-active', chip.dataset.character === (st.character || 'gemini-star-v1'));
-        });
+
+        // ---- 壁纸画廊（内置 + 自定义上传） ----
+        const man = await loadGalleryManifest();
+        const customs = st.customWallpapers || [];
+        const wpGrid = settingsPanel.querySelector('.kg-wallpaper-grid');
+        if (wpGrid) {
+          wpGrid.textContent = '';
+          const items = [
+            ...man.wallpapers.map((w) => ({ id: w.id, src: api.getURL(w.src), custom: false })),
+            ...customs.map((c) => ({ id: c.id, src: c.dataUrl, custom: true }))
+          ];
+          items.forEach((item) => {
+            const thumb = document.createElement('div');
+            thumb.className = 'kg-thumb' + (st.wallpaperId === item.id ? ' kg-active' : '');
+            thumb.title = item.id;
+            const img = document.createElement('img');
+            img.src = item.src;
+            img.alt = item.id;
+            thumb.appendChild(img);
+            if (item.custom) {
+              const del = document.createElement('span');
+              del.className = 'kg-thumb-del';
+              del.textContent = '✕';
+              del.title = '删除';
+              del.addEventListener('click', (e) => {
+                e.stopPropagation();
+                playSound('press');
+                const rest = customs.filter((c) => c.id !== item.id);
+                const payload = { customWallpapers: rest };
+                if (st.wallpaperId === item.id) payload.wallpaperId = (man.wallpapers[0] && man.wallpapers[0].id) || '';
+                api.storageSet(payload);
+                syncSettingsUI();
+              });
+              thumb.appendChild(del);
+            }
+            thumb.addEventListener('click', () => {
+              playSound('press');
+              api.storageSet({ wallpaperId: item.id });
+              syncSettingsUI();
+            });
+            wpGrid.appendChild(thumb);
+          });
+        }
+
+        // ---- 形象画廊（内置形象包 + 自定义单图） ----
+        const chGrid = settingsPanel.querySelector('.kg-character-grid');
+        if (chGrid) {
+          chGrid.textContent = '';
+          man.characters.forEach((c) => {
+            const cell = document.createElement('div');
+            cell.className = 'kg-thumb kg-char-thumb' + (st.character === c.id && !st.customCharacter ? ' kg-active' : '');
+            const img = document.createElement('img');
+            img.src = api.getURL(c.preview);
+            img.alt = c.id;
+            cell.appendChild(img);
+            const name = document.createElement('div');
+            name.className = 'kg-char-name';
+            name.textContent = c.name;
+            cell.appendChild(name);
+            cell.addEventListener('click', () => {
+              playSound('press');
+              api.storageSet({ character: c.id, customCharacter: null });
+              syncSettingsUI();
+            });
+            chGrid.appendChild(cell);
+          });
+          if (st.customCharacter) {
+            const cell = document.createElement('div');
+            cell.className = 'kg-thumb kg-char-thumb kg-active';
+            const img = document.createElement('img');
+            img.src = st.customCharacter;
+            cell.appendChild(img);
+            const name = document.createElement('div');
+            name.className = 'kg-char-name';
+            name.textContent = '自定义';
+            cell.appendChild(name);
+            chGrid.appendChild(cell);
+          }
+        }
       } catch (e) {}
     };
+
+    // 点击面板外部自动收起（Shadow DOM: composedPath 判断是否点在桌宠内）
+    const closePanelFromOutside = (e) => {
+      if (settingsPanel.style.display !== 'block') return;
+      const path = e.composedPath ? e.composedPath() : [];
+      if (path.includes(host) || path.includes(settingsPanel)) return;
+      settingsPanel.style.display = 'none';
+    };
+    document.addEventListener('click', closePanelFromOutside, true);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && settingsPanel.style.display === 'block') {
+        settingsPanel.style.display = 'none';
+      }
+    });
 
     if (btnOpenSettings) {
       btnOpenSettings.addEventListener('click', (e) => {
@@ -905,13 +1075,6 @@
           if (key === 'wallpaperOpacity' && kgValOpacity) kgValOpacity.textContent = v + '%';
         });
       });
-      settingsPanel.querySelectorAll('.kg-chip').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          playSound('press');
-          api.storageSet({ character: chip.dataset.character });
-          settingsPanel.querySelectorAll('.kg-chip').forEach((c2) => c2.classList.toggle('kg-active', c2 === chip));
-        });
-      });
       const resetBtn = settingsPanel.querySelector('.kg-reset-pos');
       if (resetBtn) {
         resetBtn.addEventListener('click', () => {
@@ -926,42 +1089,45 @@
         });
       }
 
-      // 自定义壁纸 / 自定义形象（文件 → canvas 压缩 → storage，onChanged 链路即时生效）
-      const bindFileFlow = (btnSel, inputSel, defSel, opts, key) => {
+      // 自定义上传：壁纸加入画廊并选中；形象为单图覆盖（onChanged 链路即时生效）
+      const bindUpload = (btnSel, inputSel, opts) => {
         const btn = settingsPanel.querySelector(btnSel);
         const input = settingsPanel.querySelector(inputSel);
-        const def = settingsPanel.querySelector(defSel);
-        if (btn && input) {
-          btn.addEventListener('click', () => { playSound('press'); input.click(); });
-          input.addEventListener('change', async () => {
-            const file = input.files && input.files[0];
-            if (!file) return;
-            btn.textContent = '处理中...';
-            const dataUrl = await fileToDataUrl(file, opts);
-            btn.textContent = '选择图片';
-            if (dataUrl) {
-              const payload = {};
-              payload[key] = dataUrl;
-              api.storageSet(payload);
-            } else {
-              console.warn('[星语喵伴] 图片处理失败喵');
-            }
-            input.value = '';
-          });
-        }
-        if (def) {
-          def.addEventListener('click', () => {
-            playSound('press');
-            const payload = {};
-            payload[key] = null;
-            api.storageSet(payload);
-          });
-        }
+        if (!btn || !input) return;
+        btn.addEventListener('click', () => { playSound('press'); input.click(); });
+        input.addEventListener('change', async () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          btn.textContent = '处理中...';
+          const dataUrl = await fileToDataUrl(file, opts);
+          btn.textContent = '上传';
+          input.value = '';
+          if (!dataUrl) {
+            console.warn('[星语喵伴] 图片处理失败喵');
+            return;
+          }
+          if (opts.kind === 'wallpaper') {
+            const st = await api.storageGet(['customWallpapers']);
+            const customs = st.customWallpapers || [];
+            const id = 'custom:' + Date.now();
+            customs.push({ id, dataUrl });
+            api.storageSet({ customWallpapers: customs, wallpaperId: id });
+          } else {
+            api.storageSet({ customCharacter: dataUrl });
+          }
+          syncSettingsUI();
+        });
       };
-      bindFileFlow('.kg-btn-wallpaper', '.kg-file-wallpaper', '.kg-def-wallpaper',
-        { maxW: 1920, maxH: 1080, type: 'image/jpeg' }, 'customWallpaper');
-      bindFileFlow('.kg-btn-character', '.kg-file-character', '.kg-def-character',
-        { maxW: 640, maxH: 640, type: 'image/png' }, 'customCharacter');
+      bindUpload('.kg-btn-wallpaper', '.kg-file-wallpaper', { maxW: 1920, maxH: 1080, type: 'image/jpeg', kind: 'wallpaper' });
+      bindUpload('.kg-btn-character', '.kg-file-character', { maxW: 640, maxH: 640, type: 'image/png', kind: 'character' });
+      const defCharBtn = settingsPanel.querySelector('.kg-def-character');
+      if (defCharBtn) {
+        defCharBtn.addEventListener('click', () => {
+          playSound('press');
+          api.storageSet({ customCharacter: null });
+          syncSettingsUI();
+        });
+      }
     }
 
     // 订阅追踪器数据
@@ -971,10 +1137,14 @@
         const totalK = (data.totalTokensEst / 1000).toFixed(1);
         metaTokens.textContent = `预估: ~${totalK}k tokens`;
 
-        // 1. 真实当前用量 (5h)
-        const curPct = typeof data.realQuota.currentUsagePercent === 'number' 
-          ? data.realQuota.currentUsagePercent 
-          : data.fatiguePercent;
+        // 1. 当前用量 (5h)：tracker 已按 max(官方, 会话估算) 语义折算，
+        //    显示值 = fatiguePercent；来源角标随 displaySource 切换
+        const curPct = data.fatiguePercent;
+        const sourceTag = wrapper.querySelector('.quota-source-tag');
+        if (sourceTag) {
+          sourceTag.textContent = data.realQuota.displaySource === 'session' ? '会话估算'
+            : data.realQuota.displaySource === 'official' ? '官方限额' : '会话估算';
+        }
 
         curQuotaPct.textContent = `已使用 ${curPct}%`;
         curQuotaBar.style.width = `${Math.min(100, curPct)}%`;

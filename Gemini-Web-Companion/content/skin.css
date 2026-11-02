@@ -256,9 +256,10 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   z-index: 30 !important;
   backdrop-filter: blur(11px) saturate(115%) !important;
   -webkit-backdrop-filter: blur(11px) saturate(115%) !important;
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%) !important;
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 40%, rgba(0, 0, 0, 0) 100%) !important;
-  background-image: linear-gradient(to top, rgba(16, 12, 27, 0.30), rgba(16, 12, 27, 0.10) 55%, rgba(16, 12, 27, 0)) !important;
+  /* mask 纯线性：模糊曲线与卡片底色渐隐曲线完全重合（同一 110px 区间） */
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
+  background-image: linear-gradient(to top, rgba(16, 12, 27, 0.30), rgba(16, 12, 27, 0)) !important;
 }
 
 html.kimino-dream-active input-area-v2 {
@@ -364,4 +365,10 @@ html.kimino-dream-active #kimino-companion-root,
   background-image: none !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* ⚠️ 防跳滚：Google 给滚动容器禁用了浏览器滚动锚定（disable-browser-scroll-anchoring），
+   任何布局写入都会造成滚动位置跳动 —— 此处恢复锚定 */
+html.kimino-dream-active infinite-scroller {
+  overflow-anchor: auto !important;
 }
