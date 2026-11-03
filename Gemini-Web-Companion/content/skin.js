@@ -429,15 +429,10 @@
     } catch (e) {}
   };
 
-  // ============ 滚动与静态联动渐隐（Liquid Glass 动态溶解引擎 v4） ============
+  // ============ 滚动与静态联动渐隐（Liquid Glass 动态溶解引擎 v5） ============
   // 卡片/气泡进入 Composer 上方渐变区时，单卡自身平滑溶解渐隐
   // （文字与底色自然消融，不依赖祖先全局 mask，彻底规避 Firefox 滚动容器高度错位与毛玻璃失效）
   let fadePending = false;
-  const FADE_RANGE = 136; // 渐隐区间高度 px（由 96px 加强至 136px，更深邃柔和的毛玻璃溶解深度）
-
-  const getCutLineY = (composerTop) => {
-    return typeof composerTop === 'number' ? (composerTop + 6) : (window.innerHeight - 100);
-  };
 
   const applyFades = () => {
     try {
@@ -451,8 +446,17 @@
       // 若上方有常驻限额提示条/横幅，切线锚到提示条顶部
       const banner = document.querySelector('.inline-upgrade-banner-row, .gem-banner-container, [data-test-id="gem-banner-description-input"]');
       const baseEl = (banner && banner.getBoundingClientRect().top < compRect.top && banner.getBoundingClientRect().top > 50) ? banner : pill;
-      const cutY = getCutLineY(baseEl.getBoundingClientRect().top);
-      const fadeStartY = cutY - FADE_RANGE;
+      const baseTop = baseEl.getBoundingClientRect().top;
+
+      // a & b 核心几何：
+      // b. 默认静止停靠时绝不触发渐变：fadeStartY 设在 baseTop - 8px。
+      //    因为 Gemini 原生最后一条回复底部停在 baseTop 上方 16px~30px，
+      //    静止状态下 r.bottom <= fadeStartY 恒成立，100% 保持原生清晰无渐隐！
+      //    仅当用户往下拉（回复下沿移过 baseTop - 8px）时，才开始平滑进入渐隐区。
+      const fadeStartY = Math.round(baseTop - 8);
+      // 切线终点：落在输入框药丸下沿或纵深 56px 处，彻底消融
+      const cutY = Math.round(Math.min(baseTop + 56, compRect.bottom));
+      const span = Math.max(24, cutY - fadeStartY);
 
       const surfaces = document.querySelectorAll(
         '[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background'
@@ -465,27 +469,40 @@
         const el = surfaces[i];
         const r = el.getBoundingClientRect();
         if (r.height < 8) continue;
-        const outOfZone = r.bottom <= fadeStartY || r.top >= cutY;
-        if (outOfZone) {
+
+        // b. 未向下滚动到达渐变线时，100% 清空 mask 恢复纯净实体
+        if (r.bottom <= fadeStartY) {
           if (el.__kgFaded) {
             updates.push({ el, reset: true });
           }
           continue;
         }
 
-        // 区内：细腻 2px 量化步长，彻底消除 12px 阶梯抽搐与滞后感
-        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 2) * 2);
-        const fadeEndPx = Math.min(r.height, Math.round(Math.max(solidPx + 16, cutY - r.top) / 2) * 2);
-        const span = Math.max(4, fadeEndPx - solidPx);
+        // 若卡片已完全没入切线下方（被输入框彻底覆盖），保持完全透明，杜绝从底部穿透
+        if (r.top >= cutY) {
+          const maskVal = 'linear-gradient(to bottom, transparent, transparent)';
+          const sig = 'full-transparent';
+          if (el.__kgLastGrad !== sig) {
+            updates.push({ el, reset: false, maskVal, sig });
+          }
+          continue;
+        }
 
-        // 6 阶自然物理平滑 S 曲线，模拟光线穿透磨砂毛玻璃在切线处的柔光消融
-        const s0 = solidPx.toFixed(1);
-        const s1 = (solidPx + span * 0.18).toFixed(1);
-        const s2 = (solidPx + span * 0.38).toFixed(1);
-        const s3 = (solidPx + span * 0.60).toFixed(1);
-        const s4 = (solidPx + span * 0.80).toFixed(1);
-        const s5 = (solidPx + span * 0.94).toFixed(1);
-        const sEnd = fadeEndPx.toFixed(1);
+        // a. 渐隐效果固定，不随着回复滚动而动：
+        // 关键：绝对不把 fadeEndPx 截断到 r.height！
+        // 让 solidPx 与 fadeEndPx 严格保持相对视口固定线 [fadeStartY, cutY] 与 r.top 的几何差，
+        // 这样在屏幕物理坐标系中，渐变每一阶的 Y 坐标恒定不动，回复滑动如同穿透固定的光学视窗。
+        const solidPx = fadeStartY - r.top;
+        const fadeEndPx = cutY - r.top;
+
+        // 6 阶自然物理平滑 S 曲线，每一阶在屏幕上的物理坐标恒定固定
+        const s0 = Math.max(0, solidPx).toFixed(1);
+        const s1 = Math.max(0, solidPx + span * 0.18).toFixed(1);
+        const s2 = Math.max(0, solidPx + span * 0.38).toFixed(1);
+        const s3 = Math.max(0, solidPx + span * 0.60).toFixed(1);
+        const s4 = Math.max(0, solidPx + span * 0.80).toFixed(1);
+        const s5 = Math.max(0, solidPx + span * 0.94).toFixed(1);
+        const sEnd = Math.max(0, fadeEndPx).toFixed(1);
 
         const maskVal = `linear-gradient(to bottom, ` +
           `black 0px, black ${s0}px, ` +
@@ -496,7 +513,9 @@
           `rgba(0, 0, 0, 0.06) ${s5}px, ` +
           `transparent ${sEnd}px)`;
 
-        const sig = maskVal + '|v4';
+        const qSolid = Math.round(solidPx / 2) * 2;
+        const qEnd = Math.round(fadeEndPx / 2) * 2;
+        const sig = `${qSolid}_${qEnd}_v5`;
         if (el.__kgLastGrad === sig) continue;
 
         updates.push({ el, reset: false, maskVal, sig });
