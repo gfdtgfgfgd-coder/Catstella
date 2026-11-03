@@ -263,7 +263,8 @@
       restyleExpandButtonsAndStripMasks();
       cleanupFades();
       updatePaneGeometry();
-          } catch (e) {}
+      applyFades();
+    } catch (e) {}
   };
 
   const schedule = () => {
@@ -272,7 +273,7 @@
       annotateTimer = null;
       annotate();
       applyFades();
-    }, 80);
+    }, 60);
   };
 
   // ============ 左下角幽灵色块侦探 ============
@@ -428,11 +429,11 @@
     } catch (e) {}
   };
 
-  // ============ 滚动联动底色渐隐（Liquid Glass 动态溶解引擎） ============
+  // ============ 滚动与静态联动渐隐（Liquid Glass 动态溶解引擎 v4） ============
   // 卡片/气泡进入 Composer 上方渐变区时，单卡自身平滑溶解渐隐
   // （文字与底色自然消融，不依赖祖先全局 mask，彻底规避 Firefox 滚动容器高度错位与毛玻璃失效）
-  let fadeRaf = 0;
-  const FADE_RANGE = 96; // 渐隐区间高度 px
+  let fadePending = false;
+  const FADE_RANGE = 136; // 渐隐区间高度 px（由 96px 加强至 136px，更深邃柔和的毛玻璃溶解深度）
 
   const getCutLineY = (composerTop) => {
     return typeof composerTop === 'number' ? (composerTop + 6) : (window.innerHeight - 100);
@@ -456,47 +457,96 @@
       const surfaces = document.querySelectorAll(
         '[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background'
       );
+      if (!surfaces.length) return;
 
-      surfaces.forEach((el) => {
+      // Phase 1: 批量度量（纯只读，分离读写彻底消除 Layout Thrashing）
+      const updates = [];
+      for (let i = 0; i < surfaces.length; i++) {
+        const el = surfaces[i];
         const r = el.getBoundingClientRect();
-        if (r.height < 8) return;
+        if (r.height < 8) continue;
         const outOfZone = r.bottom <= fadeStartY || r.top >= cutY;
         if (outOfZone) {
           if (el.__kgFaded) {
-            el.style.removeProperty('-webkit-mask-image');
-            el.style.removeProperty('mask-image');
-            el.style.removeProperty('box-shadow');
-            el.style.removeProperty('border-color');
-            el.__kgFaded = false;
-            el.__kgLastGrad = '';
+            updates.push({ el, reset: true });
           }
-          return;
+          continue;
         }
 
-        // 区内：单卡沿滚动方向动态渐隐（停靠点按 12px 量化，绝大多数帧零样式重算，避免闪烁）
-        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 12) * 12);
-        const fadeEndPx = Math.min(r.height, Math.max(solidPx + 12, cutY - r.top));
+        // 区内：细腻 2px 量化步长，彻底消除 12px 阶梯抽搐与滞后感
+        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 2) * 2);
+        const fadeEndPx = Math.min(r.height, Math.round(Math.max(solidPx + 16, cutY - r.top) / 2) * 2);
+        const span = Math.max(4, fadeEndPx - solidPx);
 
-        const maskVal = `linear-gradient(to bottom, black 0px, black ${solidPx.toFixed(0)}px, transparent ${fadeEndPx.toFixed(0)}px)`;
-        const sig = maskVal + '|v3';
-        if (el.__kgLastGrad === sig) return;
-        el.__kgLastGrad = sig;
+        // 6 阶自然物理平滑 S 曲线，模拟光线穿透磨砂毛玻璃在切线处的柔光消融
+        const s0 = solidPx.toFixed(1);
+        const s1 = (solidPx + span * 0.18).toFixed(1);
+        const s2 = (solidPx + span * 0.38).toFixed(1);
+        const s3 = (solidPx + span * 0.60).toFixed(1);
+        const s4 = (solidPx + span * 0.80).toFixed(1);
+        const s5 = (solidPx + span * 0.94).toFixed(1);
+        const sEnd = fadeEndPx.toFixed(1);
 
-        el.style.setProperty('-webkit-mask-image', maskVal, 'important');
-        el.style.setProperty('mask-image', maskVal, 'important');
-        el.style.setProperty('box-shadow', 'none', 'important');
-        el.style.setProperty('border-color', 'transparent', 'important');
-        el.__kgFaded = true;
-      });
+        const maskVal = `linear-gradient(to bottom, ` +
+          `black 0px, black ${s0}px, ` +
+          `rgba(0, 0, 0, 0.95) ${s1}px, ` +
+          `rgba(0, 0, 0, 0.80) ${s2}px, ` +
+          `rgba(0, 0, 0, 0.52) ${s3}px, ` +
+          `rgba(0, 0, 0, 0.24) ${s4}px, ` +
+          `rgba(0, 0, 0, 0.06) ${s5}px, ` +
+          `transparent ${sEnd}px)`;
+
+        const sig = maskVal + '|v4';
+        if (el.__kgLastGrad === sig) continue;
+
+        updates.push({ el, reset: false, maskVal, sig });
+      }
+
+      // Phase 2: 批量写入样式（集中 Mutation，零多余重排）
+      for (let i = 0; i < updates.length; i++) {
+        const u = updates[i];
+        if (u.reset) {
+          u.el.style.removeProperty('-webkit-mask-image');
+          u.el.style.removeProperty('mask-image');
+          u.el.__kgFaded = false;
+          u.el.__kgLastGrad = '';
+        } else {
+          u.el.__kgLastGrad = u.sig;
+          u.el.style.setProperty('-webkit-mask-image', u.maskVal, 'important');
+          u.el.style.setProperty('mask-image', u.maskVal, 'important');
+          u.el.__kgFaded = true;
+        }
+      }
     } catch (e) {}
   };
 
   const scheduleFade = () => {
-    if (fadeRaf) return;
-    fadeRaf = setTimeout(() => {
-      fadeRaf = 0;
+    if (fadePending) return;
+    fadePending = true;
+    const run = () => {
+      fadePending = false;
       applyFades();
-    }, 32);
+    };
+    if (typeof requestAnimationFrame === 'function' && !document.hidden) {
+      requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 16);
+    }
+  };
+
+  // ============ 滚动监听多目标绑定（即时响应滚轮、触控板与容器滚动） ============
+  const bindScrollListeners = () => {
+    try {
+      window.addEventListener('scroll', scheduleFade, { passive: true, capture: true });
+      document.addEventListener('scroll', scheduleFade, { passive: true, capture: true });
+      window.addEventListener('wheel', scheduleFade, { passive: true });
+      window.addEventListener('touchmove', scheduleFade, { passive: true });
+      const scroller = document.querySelector('infinite-scroller.chat-history') || document.querySelector('infinite-scroller');
+      if (scroller && !scroller.__kgBound) {
+        scroller.__kgBound = true;
+        scroller.addEventListener('scroll', scheduleFade, { passive: true });
+      }
+    } catch (e) {}
   };
 
   // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
@@ -529,12 +579,26 @@
     }
     try {
       annotate();
-      const mo = new MutationObserver(schedule);
+      applyFades();
+      bindScrollListeners();
+      const mo = new MutationObserver(() => {
+        bindScrollListeners();
+        schedule();
+      });
       const start = () => {
         const t = document.body;
         if (t) {
           mo.observe(t, { childList: true, subtree: true, characterData: true });
+          bindScrollListeners();
           schedule();
+          applyFades();
+          if (window.ResizeObserver) {
+            const scroller = document.querySelector('infinite-scroller.chat-history') || document.querySelector('infinite-scroller') || document.querySelector('main');
+            if (scroller) {
+              const ro = new ResizeObserver(() => scheduleFade());
+              ro.observe(scroller);
+            }
+          }
         } else {
           setTimeout(start, 500);
         }
@@ -542,9 +606,9 @@
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
       else start();
       setInterval(schedule, 15000); // 兜底轮询（无突变的形态变化）
-      window.addEventListener('resize', schedule); // 视口变化 → 重测气泡列宽
-      window.addEventListener('scroll', scheduleFade, { passive: true, capture: true }); // 滚动联动卡片平滑溶解
+      window.addEventListener('resize', () => { schedule(); scheduleFade(); }); // 视口变化 → 重测气泡列宽与渐隐
+      window.addEventListener('popstate', scheduleFade);
     } catch (e) {}
-    console.log('[星语喵伴] Dream Skin v3 表面标注引擎就绪喵～✨');
+    console.log('[星语喵伴] Dream Skin v4 表面标注与实时毛玻璃渐隐引擎就绪喵～✨');
   })();
 })();
