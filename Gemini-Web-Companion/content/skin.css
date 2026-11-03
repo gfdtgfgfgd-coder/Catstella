@@ -486,7 +486,7 @@ html.kimino-dream-active model-response::before {
    星语喵伴 · 展开/收起按钮水晶药丸（主会话区专属，绝不污染侧边栏）
    ================================================================ */
 /* 明确排除侧边栏，仅作用于主对话区中的展开/收起按钮 */
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"],
+html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *),
 html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
   button,
   [role="button"]
@@ -495,7 +495,7 @@ html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
   [class*="collapse"],
   [class*="show-more"],
   [class*="read-more"]
-):not(bard-sidenav *) {
+):not(bard-sidenav *):not([data-test-id="side-nav"] *) {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -518,8 +518,17 @@ html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
   transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
+/* 消除 Google MD3 原生按钮内部水波纹与高亮白底 */
+html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__ripple, .mat-mdc-button-touch-target, .mat-ripple) {
+  display: none !important;
+}
+html.kimino-dream-active [data-kg-expand-btn="true"] .mdc-button__label {
+  color: #ede6fc !important;
+  position: static !important;
+}
+
 /* 纯图标圆纽扣（如用户气泡右下角的独立小向下箭头） */
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"][data-kg-icon-only="true"] {
+html.kimino-dream-active [data-kg-expand-btn="true"][data-kg-icon-only="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *) {
   width: 28px !important;
   height: 28px !important;
   min-width: 28px !important;
@@ -532,7 +541,7 @@ html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [dat
 }
 
 /* 按钮内文字与图标颜色 */
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"] :is(mat-icon, .mat-icon, span, svg, i) {
+html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *) :is(mat-icon, .mat-icon, span, svg, i) {
   color: #ede6fc !important;
   fill: #ede6fc !important;
   font-size: 18px !important;
@@ -542,7 +551,7 @@ html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [dat
 }
 
 /* 悬停微光星晕（0 坐标位移、0 缩放，彻底杜绝悬停抽搐） */
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"]:hover {
+html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *):hover {
   background-color: rgba(85, 65, 122, 0.95) !important;
   border-color: rgba(230, 210, 255, 0.80) !important;
   box-shadow: 0 4px 20px rgba(160, 120, 240, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;

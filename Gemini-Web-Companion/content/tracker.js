@@ -178,46 +178,61 @@
         }
         if (this._lastQuotaSource !== 'rpc') this._loggedRawOnce = true;
         this._lastQuotaSource = 'rpc';
+
+        let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
+        let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+        if (parsed.currentReset) {
+          const loc = this.toLocalResetTime(parsed.currentReset);
+          if (loc) {
+            curReset = loc.display;
+            this.sessionData.resetTimestamp = loc.epoch;
+          }
+        }
+        if (parsed.weeklyReset) {
+          const locW = this.toLocalResetTime(parsed.weeklyReset);
+          if (locW) weekReset = locW.display;
+        }
+
         this.updateRealQuota({
           currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
-          currentResetTime: parsed.currentReset || this.sessionData.realQuota.currentResetTime,
+          currentResetTime: curReset,
           weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-          weeklyResetTime: parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime,
+          weeklyResetTime: weekReset,
           resetSource: 'rpc-' + (data.source || 'boot'),
           isReal: true
         });
-        // 把官方重置时间换算成本地 epoch（当前周期驱动倒计时；每周仅记录）
-        try {
-          if (parsed.currentReset) {
-            const ts = this.resetTextToEpoch(parsed.currentReset);
-            if (ts) this.sessionData.resetTimestamp = ts;
-          }
-        } catch (e) {}
       } catch (e) {}
     }
 
-    // "06:37" / "6:37 下午" / "11月3日23:37" → 本地 epoch（过期自动顺延）
-    resetTextToEpoch(s) {
+    // 字符串转本地重置对象 { epoch, date, display, isUtcCorrected }
+    toLocalResetTime(s) {
       if (!s) return null;
       const text = String(s).trim();
-      const dateMatch = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*([01]?\d|2[0-3])\s*[:：]\s*(\d{1,2})/);
+      const dateMatch = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*([01]?\d|2[0-3])\s*[:：点]\s*(\d{1,2})/);
       if (dateMatch) {
-        return this.buildDate({
+        return this.resolveResetDateTime({
           month: parseInt(dateMatch[1], 10),
           day: parseInt(dateMatch[2], 10),
           hour: parseInt(dateMatch[3], 10),
           minute: parseInt(dateMatch[4], 10)
-        })?.getTime() || null;
+        });
       }
-      const clock = text.match(/(上午|早上|凌晨|中午|下午|傍晚|晚上|今晚|明晚|AM|PM|am|pm)?\s*([01]?\d|2[0-3])\s*[:：]\s*(\d{2})/);
+      const clock = text.match(/(上午|早上|凌晨|中午|下午|傍晚|晚上|今晚|明晚|AM|PM|am|pm)?\s*([01]?\d|2[0-3])\s*[:：]\s*(\d{2})\s*(上午|早上|凌晨|中午|下午|傍晚|晚上|今晚|明晚|AM|PM|am|pm)?/i);
       if (clock) {
-        return this.buildDate({
+        const meridiem = clock[1] || clock[4] || '';
+        return this.resolveResetDateTime({
           hour: parseInt(clock[2], 10),
           minute: parseInt(clock[3], 10),
-          meridiem: clock[1] || ''
-        })?.getTime() || null;
+          meridiem
+        });
       }
       return null;
+    }
+
+    // "06:37" / "6:37 下午" / "11月3日23:37" → 本地 epoch（智能时区换算 + 过期自动顺延）
+    resetTextToEpoch(s) {
+      const res = this.toLocalResetTime(s);
+      return res ? res.epoch : null;
     }
 
     // batchexecute 响应 → 双周期额度（锚点式自适应解析，不依赖字段名与顺序）
@@ -404,15 +419,29 @@
           if (weekPctMatch) weeklyPct = parseInt(weekPctMatch[1], 10);
 
           if (currentPct !== null || weeklyPct !== null || currentReset) {
+            let curReset = currentReset || this.sessionData.realQuota.currentResetTime;
+            let weekReset = weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+            if (currentReset) {
+              const loc = this.toLocalResetTime(currentReset);
+              if (loc) {
+                curReset = loc.display;
+                this.sessionData.resetTimestamp = loc.epoch;
+              }
+            }
+            if (weeklyReset) {
+              const locW = this.toLocalResetTime(weeklyReset);
+              if (locW) weekReset = locW.display;
+            }
+
             this.updateRealQuota({
               currentUsagePercent: currentPct !== null ? currentPct : this.sessionData.realQuota.currentUsagePercent,
-              currentResetTime: currentReset || this.sessionData.realQuota.currentResetTime,
+              currentResetTime: curReset,
               weeklyUsagePercent: weeklyPct !== null ? weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-              weeklyResetTime: weeklyReset || this.sessionData.realQuota.weeklyResetTime,
+              weeklyResetTime: weekReset,
               resetSource: 'silent-prober',
               isReal: true
             });
-            console.log('[星语喵伴] 静默探针成功解析官方配额:', currentPct, '% 重置:', currentReset);
+            console.log('[星语喵伴] 静默探针成功解析官方配额:', currentPct, '% 重置:', curReset);
           }
         }
       } catch (e) {}
@@ -517,6 +546,11 @@
         const parsed = this.parseResetHint(text);
         if (!parsed) continue;
 
+        // 智能时区页面同步：若判定为 Google UTC 时间且完成本地时区换算，在页面上同步修正文案
+        if (parsed.isUtcCorrected && parsed.rawDisplay && parsed.display && el) {
+          this.patchElementTimezoneText(el, parsed);
+        }
+
         const signature = `${parsed.display}|${parsed.limited ? 1 : 0}|${parsed.resetAt ? parsed.resetAt.getTime() : ''}`;
         if (signature === this._lastHintSignature) continue; // 文案未变不重复广播
         this._lastHintSignature = signature;
@@ -547,11 +581,47 @@
 
         console.log('[星语喵伴] 从常驻提示条捕获官方重置信息:', parsed.display, parsed.limited ? '(限流中)' : '');
         this.notify();
-        break; // 命中一条即可
       }
     }
 
-    // 解析提示条文案 → { resetAt: Date|null, display: string, limited: boolean }
+    // 在页面 DOM 节点上将 Google 原生 UTC 时间文本替换为本地系统时间文案
+    patchElementTimezoneText(containerEl, parsed) {
+      try {
+        if (!containerEl || !parsed.rawDisplay || !parsed.display) return;
+        if (containerEl.getAttribute('data-kimino-tz-fixed') === parsed.display) return;
+
+        const targetText = parsed.rawDisplay;
+        if (targetText === parsed.display) return;
+        const replacement = `${parsed.display}（本地时间）`;
+
+        const walker = document.createTreeWalker(
+          containerEl,
+          NodeFilter.SHOW_TEXT,
+          {
+            acceptNode(node) {
+              if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+              if (node.nodeValue.includes('本地时间')) return NodeFilter.FILTER_REJECT;
+              return node.nodeValue.includes(targetText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+            }
+          }
+        );
+
+        let textNode = walker.nextNode();
+        let patched = false;
+        while (textNode) {
+          textNode.nodeValue = textNode.nodeValue.replace(targetText, replacement);
+          patched = true;
+          textNode = walker.nextNode();
+        }
+
+        if (patched) {
+          containerEl.setAttribute('data-kimino-tz-fixed', parsed.display);
+          console.log(`[星语喵伴] 页面提示条时区自动修正成功: "${targetText}" → "${replacement}"`);
+        }
+      } catch (e) {}
+    }
+
+    // 解析提示条文案 → { resetAt: Date|null, display: string, rawDisplay: string, isUtcCorrected: boolean, limited: boolean }
     parseResetHint(rawText) {
       const text = (rawText || '').replace(/\s+/g, ' ').trim();
       if (!text) return null;
@@ -574,27 +644,38 @@
         return {
           resetAt: new Date(Date.now() + (hours * 60 + mins) * 60000),
           display: m[0].trim(),
+          rawDisplay: m[0].trim(),
+          isUtcCorrected: false,
           limited
         };
       }
 
-      // ---- 绝对日期: “11月3日 23:37” ----
+      // ---- 绝对日期: “11月3日 23:37” / “11月3日09:37” ----
       const dateMatch = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*([01]?\d|2[0-3])\s*[:：点]\s*(\d{1,2})/);
       if (dateMatch) {
-        const resetAt = this.buildDate({
+        const resolved = this.resolveResetDateTime({
           month: parseInt(dateMatch[1], 10),
           day: parseInt(dateMatch[2], 10),
           hour: parseInt(dateMatch[3], 10),
           minute: parseInt(dateMatch[4], 10)
         });
-        return { resetAt, display: dateMatch[0].trim(), limited };
+        if (resolved) {
+          return {
+            resetAt: resolved.date,
+            display: resolved.display,
+            display12h: resolved.display12h,
+            rawDisplay: dateMatch[0].trim(),
+            isUtcCorrected: resolved.isUtcCorrected,
+            limited
+          };
+        }
       }
 
-      // ---- 绝对时刻: “下午 6:37” / “6:37 下午” / “18:37” / “6:37 PM” ----
+      // ---- 绝对时刻: “下午 6:37” / “6:37 下午” / “18:37” / “6:37 PM” / “9:37 上午” ----
       let hour = null;
       let minute = null;
       let meridiem = '';
-      let display = '';
+      let rawDisplay = '';
 
       const timeBefore = text.match(/(上午|早上|凌晨|中午|下午|傍晚|晚上|今晚|明晚|AM|PM|am|pm)\s*([01]?\d|2[0-3])\s*[:：]\s*(\d{2})/);
       const timeAfter = text.match(/([01]?\d|2[0-3])\s*[:：]\s*(\d{2})\s*(上午|早上|凌晨|中午|下午|傍晚|晚上|今晚|明晚|AM|PM|am|pm)?/);
@@ -603,29 +684,43 @@
         meridiem = timeBefore[1];
         hour = parseInt(timeBefore[2], 10);
         minute = parseInt(timeBefore[3], 10);
-        display = timeBefore[0].trim();
+        rawDisplay = timeBefore[0].trim();
       } else if (timeAfter) {
         hour = parseInt(timeAfter[1], 10);
         minute = parseInt(timeAfter[2], 10);
         meridiem = timeAfter[3] || '';
-        display = timeAfter[0].trim();
+        rawDisplay = timeAfter[0].trim();
       }
 
       if (hour === null) return null;
 
       const isTomorrow = /明天|明晚|tomorrow/i.test(text);
-      const resetAt = this.buildDate({
+      const resolved = this.resolveResetDateTime({
         hour,
         minute,
         meridiem,
         tomorrow: isTomorrow
       });
-      if (!resetAt) return null;
-      return { resetAt, display, limited };
+      if (!resolved) return null;
+
+      return {
+        resetAt: resolved.date,
+        display: resolved.display,
+        display12h: resolved.display12h,
+        rawDisplay,
+        isUtcCorrected: resolved.isUtcCorrected,
+        limited
+      };
     }
 
-    // 时间拼装：12/24 小时制归一 + 过期自动顺延一天/一年
-    buildDate({ month, day, hour, minute, meridiem = '', tomorrow = false }) {
+    // ============ 时区智能推断与换算引擎 (UTC vs Local 自适应) ============
+    // Google Gemini 官方后端在渲染配额重置文本时，普遍直接吐出服务器 UTC 时间
+    // （例如当前本地时间 16:35，页面显示 "11月3日09:37 重置" 或 "9:37 上午 重置"）。
+    // 若盲目当成本地时间解析，会导致：
+    //  1) 误以为 09:37 已过去 7 小时，被迫顺延至明天/明年；
+    //  2) 倒计时由真实的 1h02m 错乱变成 17h02m！
+    // 本引擎同时推算 UTC 与本地时区时间戳，按窗口合理度自适应决断，并换算为本地系统时间。
+    resolveResetDateTime({ month, day, hour, minute, meridiem = '', tomorrow = false }) {
       try {
         let h = hour;
         const m = minute || 0;
@@ -635,20 +730,104 @@
         if (am && h === 12) h = 0;
 
         const now = new Date();
-        const target = new Date(now.getFullYear(), month ? month - 1 : now.getMonth(), day || now.getDate(), h, m, 0, 0);
-        if (tomorrow) target.setDate(target.getDate() + 1);
+        const nowMs = now.getTime();
+        const tzOffsetMin = now.getTimezoneOffset(); // 本地距 UTC 分钟数（例如东八区为 -480）
 
-        if (month && day) {
-          // 指定日期：已过期则顺延一年
-          if (target.getTime() <= now.getTime() - 60000) target.setFullYear(target.getFullYear() + 1);
-        } else {
-          // 指定时刻：已过期则顺延一天
-          if (target.getTime() <= now.getTime() - 60000) target.setDate(target.getDate() + 1);
+        // 1. 假设字符串表示的是 UTC 时间
+        const utcYear = now.getUTCFullYear();
+        const utcMonth = month ? month - 1 : now.getUTCMonth();
+        const utcDay = day || now.getUTCDate();
+        let targetUtcMs = Date.UTC(utcYear, utcMonth, utcDay, h, m, 0, 0);
+
+        if (tomorrow) {
+          targetUtcMs += 24 * 3600 * 1000;
+        } else if (!month) {
+          // 纯时刻：若在 UTC 下已过去超 1 分钟，顺延至下一个 UTC 天
+          if (targetUtcMs <= nowMs - 60000) targetUtcMs += 24 * 3600 * 1000;
+        } else if (month && day) {
+          if (targetUtcMs <= nowMs - 60000) {
+            const nextUtc = new Date(targetUtcMs);
+            nextUtc.setUTCFullYear(nextUtc.getUTCFullYear() + 1);
+            targetUtcMs = nextUtc.getTime();
+          }
         }
-        return target;
+        const diffUtc = targetUtcMs - nowMs;
+
+        // 2. 假设字符串表示的是 本地时间
+        let targetLocal = new Date(now.getFullYear(), month ? month - 1 : now.getMonth(), day || now.getDate(), h, m, 0, 0);
+        if (tomorrow) {
+          targetLocal.setDate(targetLocal.getDate() + 1);
+        } else if (!month) {
+          if (targetLocal.getTime() <= nowMs - 60000) targetLocal.setDate(targetLocal.getDate() + 1);
+        } else if (month && day) {
+          if (targetLocal.getTime() <= nowMs - 60000) targetLocal.setFullYear(targetLocal.getFullYear() + 1);
+        }
+        const diffLocal = targetLocal.getTime() - nowMs;
+
+        // 3. 自适应仲裁：UTC 还是 本地时区？
+        // Gemini 配额周期通常为 5 小时滚动窗口（或限流等待 1~6h），每周限额为 1~7 天。
+        let isUtc = false;
+        if (tzOffsetMin === 0) {
+          isUtc = false;
+        } else {
+          // 条件 A：UTC 换算后落在合理的近期重置窗口 (0 < diffUtc <= 6.5 小时)，
+          // 而本地解析却落在深过去或被顺延到了 8 小时之后（典型如东八区相差 8h）
+          const utcInRollingWindow = diffUtc > 0 && diffUtc <= 6.5 * 3600 * 1000;
+          const localFarAway = diffLocal <= 0 || diffLocal > 6.5 * 3600 * 1000;
+          if (utcInRollingWindow && localFarAway) {
+            isUtc = true;
+          } else if (month && day) {
+            // 指定具体日期（如 11月3日09:37）：
+            // 若按本地时间当天 09:37 已经过期，而 UTC 换算到本地时间却刚好在未来（如 17:37），必为 UTC！
+            const localRawMs = new Date(now.getFullYear(), month - 1, day, h, m, 0, 0).getTime();
+            if (localRawMs <= nowMs - 60000 && diffUtc > 0) {
+              isUtc = true;
+            }
+          } else if (diffUtc > 0 && diffLocal > 0) {
+            // 两者都在未来，但滚动限流一般 <= 5h，取落在 5.5h 内的那个
+            if (diffUtc <= 5.5 * 3600 * 1000 && diffLocal > 5.5 * 3600 * 1000) {
+              isUtc = true;
+            }
+          }
+        }
+
+        const finalEpoch = isUtc ? targetUtcMs : targetLocal.getTime();
+        const finalDate = new Date(finalEpoch);
+
+        // 格式化为当前系统本地时间的展示字符串
+        const localH24 = finalDate.getHours();
+        const localM = String(finalDate.getMinutes()).padStart(2, '0');
+        const localMonth = finalDate.getMonth() + 1;
+        const localDay = finalDate.getDate();
+
+        // 12小时制表达 (例如 "下午 5:37")
+        const isPm = localH24 >= 12;
+        const h12 = localH24 % 12 || 12;
+        const meridiemText = isPm ? '下午' : '上午';
+        const display12h = `${meridiemText} ${h12}:${localM}`;
+        const display24h = `${String(localH24).padStart(2, '0')}:${localM}`;
+
+        let display = display24h;
+        if (month && day) {
+          display = `${localMonth}月${localDay}日 ${display24h}`;
+        }
+
+        return {
+          epoch: finalEpoch,
+          date: finalDate,
+          display,
+          display12h: month && day ? `${localMonth}月${localDay}日 ${display12h}` : display12h,
+          isUtcCorrected: isUtc
+        };
       } catch (e) {
         return null;
       }
+    }
+
+    // 向后兼容的 buildDate：委托给 resolveResetDateTime
+    buildDate(params) {
+      const resolved = this.resolveResetDateTime(params);
+      return resolved ? resolved.date : null;
     }
 
     // 关键字文本搜索 (TreeWalker，带节点上限防止超大 DOM 卡顿)，回溯至有意义的容器
@@ -715,11 +894,25 @@
           if (weekResetMatch) weeklyReset = weekResetMatch[1].trim();
 
           if (currentPct !== null || weeklyPct !== null) {
+            let curReset = currentReset || this.sessionData.realQuota.currentResetTime;
+            let weekReset = weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+            if (currentReset) {
+              const loc = this.toLocalResetTime(currentReset);
+              if (loc) {
+                curReset = loc.display;
+                this.sessionData.resetTimestamp = loc.epoch;
+              }
+            }
+            if (weeklyReset) {
+              const locW = this.toLocalResetTime(weeklyReset);
+              if (locW) weekReset = locW.display;
+            }
+
             this.updateRealQuota({
               currentUsagePercent: currentPct !== null ? currentPct : this.sessionData.realQuota.currentUsagePercent,
-              currentResetTime: currentReset || this.sessionData.realQuota.currentResetTime,
+              currentResetTime: curReset,
               weeklyUsagePercent: weeklyPct !== null ? weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-              weeklyResetTime: weeklyReset || this.sessionData.realQuota.weeklyResetTime,
+              weeklyResetTime: weekReset,
               resetSource: 'native-dialog',
               fetchedAt: now,
               isReal: true

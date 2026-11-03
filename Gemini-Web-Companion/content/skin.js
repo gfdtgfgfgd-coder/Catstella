@@ -195,23 +195,6 @@
           delete pill.__kgOffsetX;
         } catch (e) {}
       }
-      // 3.5) 清理“展开文字”背后的暗黑遮罩/渐变阴影
-      document.querySelectorAll('button, [role="button"]').forEach((btn) => {
-        const txt = btn.textContent || '';
-        if (txt.includes('展开') || txt.includes('Show more') || txt.includes('Read more')) {
-          let p = btn.parentElement;
-          for (let i = 0; i < 4 && p && p !== document.body; i++) {
-            p.style.setProperty('background', 'transparent', 'important');
-            p.style.setProperty('background-image', 'none', 'important');
-            p.style.setProperty('box-shadow', 'none', 'important');
-            p = p.parentElement;
-          }
-          if (btn.previousElementSibling) {
-            btn.previousElementSibling.style.setProperty('background', 'transparent', 'important');
-            btn.previousElementSibling.style.setProperty('background-image', 'none', 'important');
-          }
-        }
-      });
       document.querySelectorAll('details, .thought-container, [data-test-id="thinking-process"]').forEach((d) => mark(d, 'thinking'));
 
       // 4) /usage 路由配额卡（按内容锚定，不按原子类）
@@ -303,6 +286,17 @@
   const PROCESSED_BTNS = new WeakSet();
   const restyleExpandButtonsAndStripMasks = () => {
     try {
+      // 门禁 0：清洗左侧栏可能被误染的任何展开标记与内联样式
+      document.querySelectorAll('bard-sidenav [data-kg-expand-btn], [data-test-id="side-nav"] [data-kg-expand-btn]').forEach((el) => {
+        el.removeAttribute('data-kg-expand-btn');
+        el.removeAttribute('data-kg-icon-only');
+        el.style.removeProperty('border-radius');
+        el.style.removeProperty('background');
+        el.style.removeProperty('background-color');
+        el.style.removeProperty('background-image');
+        el.style.removeProperty('box-shadow');
+      });
+
       // 1. 仅扫描主对话区域（排除 bard-sidenav 侧边栏！）
       const mainArea = document.querySelector('infinite-scroller.chat-history') || document.querySelector('main') || document.body;
       if (!mainArea) return;
