@@ -435,32 +435,8 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   box-shadow: none !important;
 }
 
-/* Liquid Glass 渐变磨砂过渡带：覆盖 Composer / 限额栏上方 (#kimino-glass-band)
-   - 丝滑垂直渐隐 + 渐进式毛玻璃 (0% -> 80%)，杜绝生硬直角与断层
-   - pointer-events: none 确保不阻挡滚轮、选词与点击
-   - 严禁使用 border-top，杜绝横贯屏幕的生硬线条
-   - 独立 fixed 覆盖层，绝非 scroller 祖先，100% 保护气泡自身 backdrop-filter */
-#kimino-glass-band {
-  position: fixed !important;
-  pointer-events: none !important;
-  z-index: 12 !important;
-  border: none !important;
-  outline: none !important;
-  border-radius: 20px 20px 0 0 !important;
-  background: linear-gradient(
-    to bottom,
-    rgba(33, 30, 45, 0) 0%,
-    rgba(33, 30, 45, 0.35) 45%,
-    rgba(33, 30, 45, 0.78) 85%,
-    rgba(33, 30, 45, 0.92) 100%
-  ) !important;
-  backdrop-filter: blur(14px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(130%) !important;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 35%, black 85%, black 100%) !important;
-  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 35%, black 85%, black 100%) !important;
-  box-sizing: border-box !important;
-  display: block !important;
-}
+/* Liquid Glass 渐变模糊带：彻底回退清除独立大玻璃板，恢复纯净滚动视口（杜绝大玻璃板遮挡与底部浓雾） */
+#kimino-glass-band { display: none !important; }
 
 html.kimino-dream-active input-area-v2 {
   border-radius: 22px !important;
@@ -641,16 +617,21 @@ html.kimino-dream-active :is(
 }
 
 
-/* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡） */
 /* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡）
    Gecko (Firefox) 特别兼容：显式声明 mask-size 与 mask-origin 为 border-box，
    防止火狐将 mask 撑满整个 scrollHeight 导致当前可视区渐变丢失 */
-/* 对话滚动视口：严禁使用 mask-image（CSS 规范：祖先 mask 会创建隔离渲染上下文，导致全部子孙气泡的 backdrop-filter 毛玻璃硬件采样失效退化成全黑或三层亚克力） */
 html.kimino-dream-active infinite-scroller.chat-history,
-html.kimino-dream-active main infinite-scroller,
-html.kimino-dream-active infinite-scroller {
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
+html.kimino-dream-active main infinite-scroller {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  -webkit-mask-size: 100% 100% !important;
+  mask-size: 100% 100% !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  -webkit-mask-origin: border-box !important;
+  mask-origin: border-box !important;
+  -webkit-mask-clip: border-box !important;
+  mask-clip: border-box !important;
   overflow-anchor: auto !important;
 }
 

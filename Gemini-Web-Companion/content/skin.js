@@ -429,49 +429,11 @@
     } catch (e) {}
   };
 
-  // ============ 底部毛玻璃渐隐过渡带几何定位 (#kimino-glass-band) ============
-  const updateGlassBand = () => {
-    try {
-      const rt = document.querySelector('rich-textarea');
-      if (!rt) return;
-      const composer = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
-      const compRect = composer.getBoundingClientRect();
-      if (!compRect || compRect.height === 0) return;
-
-      // 若有常驻限额提示条/横幅，以最上层条目的顶部作为基准
-      const banner = document.querySelector('.inline-upgrade-banner-row, .gem-banner-container, [data-test-id="gem-banner-description-input"]');
-      const baseEl = (banner && banner.getBoundingClientRect().top < compRect.top && banner.getBoundingClientRect().top > 50) ? banner : composer;
-      const baseRect = baseEl.getBoundingClientRect();
-
-      let glassBand = document.getElementById('kimino-glass-band');
-      if (!glassBand) {
-        glassBand = document.createElement('div');
-        glassBand.id = 'kimino-glass-band';
-        (document.body || document.documentElement).appendChild(glassBand);
-      }
-
-      // 水平对齐：从左侧栏边缘到视口右边界（与主内容区无缝对齐）
-      const nav = document.querySelector('bard-sidenav');
-      const navRight = nav ? Math.max(0, Math.round(nav.getBoundingClientRect().right)) : 0;
-      const left = navRight;
-      const width = Math.max(240, window.innerWidth - left);
-
-      // 垂直对齐：覆盖基准元素顶边上方 84px，并向下伸展 10px 消除接缝
-      const bandHeight = 84;
-      const top = Math.round(baseRect.top - bandHeight + 10);
-
-      glassBand.style.setProperty('left', left + 'px', 'important');
-      glassBand.style.setProperty('width', width + 'px', 'important');
-      glassBand.style.setProperty('top', top + 'px', 'important');
-      glassBand.style.setProperty('height', bandHeight + 'px', 'important');
-      glassBand.style.setProperty('display', 'block', 'important');
-    } catch (e) {}
-  };
-
   // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
   const cleanupFades = () => {
     try {
-      updateGlassBand();
+      const gb = document.getElementById('kimino-glass-band');
+      if (gb) gb.remove();
       document.querySelectorAll('[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background').forEach((el) => {
         if (el.style.backgroundColor === 'transparent') {
           el.style.removeProperty('background-color');
