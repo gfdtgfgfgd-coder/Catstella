@@ -107,11 +107,13 @@
       const turnRatio = this.sessionData.turns / Math.max(1, this.config.argonMaxSafeTurns);
       const tokenRatio = this.sessionData.totalTokensEst / Math.max(1, this.config.argonMaxSafeTokens);
       const estimate = Math.min(99, Math.round(Math.max(turnRatio, tokenRatio) * 100));
+
+      // 额度算法重构（v1.3.8）：
+      // 官方权威优先：只要获取到官方真实配额，100% 以官方真实数据为准！
+      // 绝不使用 Math.max(official, estimate) 覆盖，严禁因对话字数增加而虚假上调配额消耗。
       if (typeof official === 'number') {
-        this.sessionData.fatiguePercent = this.sessionData.turns > 0
-          ? Math.max(official, estimate)
-          : official;
-        this.sessionData.realQuota.displaySource = estimate > official && this.sessionData.turns > 0 ? 'session' : 'official';
+        this.sessionData.fatiguePercent = official;
+        this.sessionData.realQuota.displaySource = 'official';
       } else {
         this.sessionData.fatiguePercent = estimate;
         this.sessionData.realQuota.displaySource = 'estimate';

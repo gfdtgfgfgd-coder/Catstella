@@ -195,6 +195,23 @@
           delete pill.__kgOffsetX;
         } catch (e) {}
       }
+      // 3.5) 清理“展开文字”背后的暗黑遮罩/渐变阴影
+      document.querySelectorAll('button, [role="button"]').forEach((btn) => {
+        const txt = btn.textContent || '';
+        if (txt.includes('展开') || txt.includes('Show more') || txt.includes('Read more')) {
+          let p = btn.parentElement;
+          for (let i = 0; i < 4 && p && p !== document.body; i++) {
+            p.style.setProperty('background', 'transparent', 'important');
+            p.style.setProperty('background-image', 'none', 'important');
+            p.style.setProperty('box-shadow', 'none', 'important');
+            p = p.parentElement;
+          }
+          if (btn.previousElementSibling) {
+            btn.previousElementSibling.style.setProperty('background', 'transparent', 'important');
+            btn.previousElementSibling.style.setProperty('background-image', 'none', 'important');
+          }
+        }
+      });
       document.querySelectorAll('details, .thought-container, [data-test-id="thinking-process"]').forEach((d) => mark(d, 'thinking'));
 
       // 4) /usage 路由配额卡（按内容锚定，不按原子类）
@@ -301,9 +318,8 @@
   };
 
   const getCutLineY = (composerTop) => {
-    const sc = getConversationScroller();
-    const scBottom = sc ? sc.getBoundingClientRect().bottom : composerTop;
-    return Math.min(scBottom, composerTop);
+    // 渐变带和卡片淡出终点必须严丝合缝对齐 Composer 药丸顶部（深入 6px 避免亚像素缝隙与断层）
+    return typeof composerTop === 'number' ? (composerTop + 6) : (window.innerHeight - 100);
   };
 
   // ============ Liquid Glass 渐变模糊带 ============
@@ -377,8 +393,7 @@
         el.__kgLastGrad = sig;
         el.style.setProperty('background-color', 'transparent', 'important');
         el.style.setProperty('background-image', grad, 'important');
-        el.style.setProperty('backdrop-filter', 'none', 'important');
-        el.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        // 保留卡片原有 backdrop-filter 毛玻璃模糊，避免渐隐区变成生硬透明塑料纸
         el.style.setProperty('box-shadow', 'none', 'important');
         el.style.setProperty('border-color', 'transparent', 'important');
         el.__kgFaded = true;

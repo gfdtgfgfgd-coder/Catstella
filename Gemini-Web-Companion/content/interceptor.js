@@ -75,27 +75,28 @@
         // --- 额度 RPC 被动捕获：请求体 + 响应体 ---
         const reqBodyCandidate = args[1] && typeof args[1].body === 'string' ? args[1].body : '';
         const isQuotaReq = url.includes('MaZiqc') || reqBodyCandidate.includes('MaZiqc') || reqBodyCandidate.includes('%22MaZiqc%22');
-        if (response.status === 200 && (isQuotaReq || isGeminiRpc)) {
+        if (response.status === 200 && isQuotaReq) {
           try {
             const clone = response.clone();
-            const text = await clone.text();
-            if (text.includes('"MaZiqc"') || isQuotaReq) {
-              if (reqBodyCandidate && !quotaRpc.reqBody) {
-                quotaRpc.reqBody = reqBodyCandidate;
-                quotaRpc.urlTemplate = String(url).split('?')[0] + '?' + (String(url).split('?')[1] || '')
-                  .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
-                quotaRpc.capturedAt = Date.now();
+            clone.text().then((text) => {
+              if (text.includes('"MaZiqc"')) {
+                if (reqBodyCandidate && !quotaRpc.reqBody) {
+                  quotaRpc.reqBody = reqBodyCandidate;
+                  quotaRpc.urlTemplate = String(url).split('?')[0] + '?' + (String(url).split('?')[1] || '')
+                    .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
+                  quotaRpc.capturedAt = Date.now();
+                }
+                notify('QUOTA_RPC_RAW', {
+                  rpc: 'MaZiqc',
+                  responseText: text.slice(0, 60000),
+                  capturedReqBody: quotaRpc.reqBody ? true : false,
+                  source: 'boot'
+                });
               }
-              notify('QUOTA_RPC_RAW', {
-                rpc: 'MaZiqc',
-                responseText: text.slice(0, 60000),
-                capturedReqBody: quotaRpc.reqBody ? true : false,
-                source: 'boot'
-              });
-            }
+            }).catch(() => {});
           } catch (e) {}
-        } else if (response.status === 200 && response.body) {
-          // 兜底：流式扫描 RESOURCE_EXHAUSTED
+        } else if (response.status === 200 && response.body && !url.includes('batchexecute')) {
+          // 仅对非 batchexecute 的流式请求做 RESOURCE_EXHAUSTED 扫描，异步 pump 绝不阻塞 fetch 返回
           try {
             const clone = response.clone();
             const reader = clone.body.getReader();
@@ -105,11 +106,7 @@
               reader.read().then(({ done, value }) => {
                 if (done) {
                   const duration = Date.now() - startTime;
-                  notify('STREAM_COMPLETE', {
-                    totalBytes,
-                    duration,
-                    sampleSnippet: fullTextSample.slice(0, 300)
-                  });
+                  notify('STREAM_COMPLETE', { totalBytes, duration, sampleSnippet: fullTextSample.slice(0, 300) });
                   return;
                 }
                 totalBytes += value ? value.length : 0;
@@ -128,9 +125,8 @@
               }).catch(() => {});
             };
             pump();
-          } catch (e) { /* 流读取失败不影响原始响应 */ }
+          } catch (e) {}
         } else {
-          // 非 200 / 无 body 的 RPC 也要给 STREAM_COMPLETE，保证轮次计数闭合
           notify('STREAM_COMPLETE', { totalBytes: 0, duration: Date.now() - startTime, sampleSnippet: '' });
         }
 

@@ -158,13 +158,40 @@ html.kimino-dream-active model-response {
 }
 
 /* 思维链折叠卡：card 面 */
-html.kimino-dream-active :is(details, .thought-container, [data-test-id="thinking-process"]) {
+/* 思考窗口：强制胶囊化，杜绝初次挂载时 100% 满宽拉伸闪烁 */
+html.kimino-dream-active :is(
+  details:not([open]),
+  .thought-container,
+  [data-test-id="thinking-process"],
+  [data-kg="thinking"]:not([open]),
+  .thought-box
+) {
+  width: fit-content !important;
+  max-width: 100% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 20px !important;
   background-color: rgba(38, 33, 50, 0.66) !important;
   backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
-  border-radius: 12px !important;
+  padding: 8px 16px !important;
+  margin: 8px 0 !important;
+  box-sizing: border-box !important;
+}
+
+html.kimino-dream-active :is(details[open], [data-kg="thinking"][open]) {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: block !important;
+  border-radius: 16px !important;
+  background-color: rgba(38, 33, 50, 0.66) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(174, 142, 218, 0.16) !important;
   padding: 10px 14px !important;
   margin: 8px 0 !important;
+  box-sizing: border-box !important;
 }
 
 /* ================================================================
@@ -276,12 +303,12 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   position: fixed !important;
   pointer-events: none !important;
   z-index: 30 !important;
-  backdrop-filter: blur(11px) saturate(115%) !important;
-  -webkit-backdrop-filter: blur(11px) saturate(115%) !important;
-  /* mask 纯线性：模糊曲线与卡片底色渐隐曲线完全重合（同一 110px 区间） */
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
-  background-image: linear-gradient(to top, rgba(168, 142, 229, 0.04), transparent) !important;
+  border-radius: 20px 20px 0 0 !important;
+  backdrop-filter: blur(14px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(120%) !important;
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0) 100%) !important;
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0) 100%) !important;
+  background-image: linear-gradient(to top, rgba(168, 142, 229, 0.05), transparent) !important;
 }
 
 html.kimino-dream-active input-area-v2 {
@@ -407,4 +434,40 @@ html.kimino-dream-active #kimino-companion-root,
    任何布局写入都会造成滚动位置跳动 —— 此处恢复锚定 */
 html.kimino-dream-active infinite-scroller {
   overflow-anchor: auto !important;
+}
+
+
+/* 彻底清除展开文字背后的原生暗黑遮罩/渐变脏阴影 */
+html.kimino-dream-active :is(
+  [class*="collapse"],
+  [class*="collaps"],
+  [class*="show-more"],
+  [class*="read-more"],
+  [class*="see-more"],
+  [class*="fade-overlay"],
+  [class*="text-truncat"]
+):not(button):not([role="button"]) {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html.kimino-dream-active :is(
+  [class*="collapse"],
+  [class*="collaps"],
+  [class*="show-more"],
+  [class*="read-more"],
+  [class*="see-more"]
+)::before,
+html.kimino-dream-active :is(
+  [class*="collapse"],
+  [class*="collaps"],
+  [class*="show-more"],
+  [class*="read-more"],
+  [class*="see-more"]
+)::after {
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  display: none !important;
 }
