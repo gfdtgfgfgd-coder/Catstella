@@ -126,9 +126,9 @@ html.kimino-dream-active bard-sidenav :is(button, a, [role="button"]):hover:not(
    ================================================================ */
 /* 用户气泡真身（实机：span.user-query-bubble-with-background） */
 html.kimino-dream-active .user-query-bubble-with-background {
-  background-color: rgba(28, 22, 42, 0.70) !important;
-  backdrop-filter: blur(20px) saturate(135%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -145,9 +145,9 @@ html.kimino-dream-active :is(user-query, .user-query-container, user-query-conte
    margin auto 居中 + max-width 由 JS 按当前会话的 user-query 列宽内联写入 */
 html.kimino-dream-active model-response {
   display: block !important;
-  background-color: rgba(28, 22, 42, 0.70) !important;
-  backdrop-filter: blur(20px) saturate(135%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -213,9 +213,9 @@ html.kimino-dream-active [data-kg="query-root"] {
 
 /* 用户气泡：阅读面药丸 */
 html.kimino-dream-active [data-kg="bubble"] {
-  background-color: rgba(28, 22, 42, 0.70) !important;
-  backdrop-filter: blur(20px) saturate(135%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -224,9 +224,9 @@ html.kimino-dream-active [data-kg="bubble"] {
 /* 模型回答：阅读面卡片（标注版，同上） */
 html.kimino-dream-active [data-kg="card"] {
   display: block !important;
-  background-color: rgba(28, 22, 42, 0.70) !important;
-  backdrop-filter: blur(20px) saturate(135%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -567,13 +567,51 @@ html.kimino-dream-active [data-kg-expand-btn="true"]:hover {
   background-color: rgba(85, 65, 122, 0.88) !important;
   border-color: rgba(225, 205, 255, 0.75) !important;
   box-shadow: 0 4px 18px rgba(145, 105, 225, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.50) !important;
-  transform: translateY(-1px) scale(1.03) !important;
+  transform: none !important;
 }
 
 /* 彻底剥除展开/收起按钮的父级暗黑容器背景与遮罩 */
-html.kimino-dream-active :is(user-query, model-response) :has(> [data-kg-expand-btn="true"]),
 html.kimino-dream-active :is(user-query, model-response) :is([class*="expand"], [class*="collapse"]):not(button):not([role="button"]) {
   background: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
+}
+
+
+/* 全域展开文字按钮：强制重绘为星语喵伴水晶胶囊，覆盖 Google 原生白灰底色 */
+html.kimino-dream-active [data-kg-expand-btn="true"],
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller, .conversation-container) :is(
+  button,
+  [role="button"]
+):is(
+  [class*="expand"],
+  [class*="collapse"],
+  [class*="show-more"],
+  [class*="read-more"]
+),
+html.kimino-dream-active button.mat-mdc-button:has(span) {
+  /* 仅针对包含展开/收起文字的按钮 */
+}
+
+html.kimino-dream-active [data-kg-expand-btn="true"] {
+  background-color: rgba(55, 42, 78, 0.85) !important;
+  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(45, 32, 68, 0.82)) !important;
+  color: #ede6fc !important;
+  border: 1px solid rgba(200, 175, 245, 0.45) !important;
+  border-radius: 18px !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
+}
+
+html.kimino-dream-active [data-kg-expand-btn="true"] * {
+  color: #ede6fc !important;
+  fill: #ede6fc !important;
+}
+
+html.kimino-dream-active [data-kg-expand-btn="true"]:hover {
+  background-color: rgba(78, 58, 115, 0.95) !important;
+  border-color: rgba(225, 205, 255, 0.75) !important;
+  box-shadow: 0 4px 18px rgba(155, 115, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+  transform: none !important;
 }

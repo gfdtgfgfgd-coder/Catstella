@@ -299,60 +299,68 @@
     } catch (e) {}
   };
 
-  // ============ 展开/收起按钮重绘与暗黑遮罩全域歼灭 ============
+  // ============ 展开/收起按钮全域水晶重绘与精准遮罩清除 ============
   const restyleExpandButtonsAndStripMasks = () => {
     try {
-      // 遍历所有用户气泡和模型回复
-      document.querySelectorAll('user-query, model-response').forEach((scope) => {
-        // 1. 寻找带向下的箭头、或者包含“展开/收起/Show more/Read more”文本的所有按钮或可交互节点
-        const candidates = scope.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]');
+      // 1. 全局扫描所有按钮，捕获所有“展开/收起/Show more/Read more”文字或图标按钮（包括卡片外同级的按钮）
+      document.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]').forEach((el) => {
+        let target = el;
+        if (el.tagName && el.tagName.toLowerCase() === 'mat-icon') {
+          target = el.closest('button') || el.closest('[role="button"]') || el;
+        }
+        const text = (target.textContent || '').trim();
+        const aria = target.getAttribute('aria-label') || '';
+        const icon = (target.querySelector('mat-icon')?.textContent || '') + (target.querySelector('svg')?.innerHTML || '');
 
-        candidates.forEach((btn) => {
-          let target = btn;
-          if (btn.tagName && btn.tagName.toLowerCase() === 'mat-icon') {
-            target = btn.closest('button') || btn.closest('[role="button"]') || btn;
+        const isExpand = text.includes('展开') || text.includes('收起') ||
+          /show more|read more|expand|collapse/i.test(text) ||
+          /展开|收起|expand|collapse/i.test(aria) ||
+          /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up|arrow_drop_down/i.test(icon) ||
+          /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up/i.test(text);
+
+        if (isExpand) {
+          target.setAttribute('data-kg-expand-btn', 'true');
+          const isIconOnly = (!text || text.length <= 1 || text === icon || target.querySelector('svg') || target.querySelector('mat-icon')) && text.length <= 2;
+          if (isIconOnly) {
+            target.setAttribute('data-kg-icon-only', 'true');
           }
-          const text = (target.textContent || '').trim();
-          const aria = target.getAttribute('aria-label') || '';
-          const icon = (target.querySelector('mat-icon')?.textContent || '') + (target.querySelector('svg')?.innerHTML || '');
 
-          const isExpandBtn = text.includes('展开') || text.includes('收起') ||
-            /show more|read more|expand|collapse/i.test(text) ||
-            /展开|收起|expand|collapse/i.test(aria) ||
-            /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up|arrow_drop_down|arrow_drop_up/i.test(icon) ||
-            /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up/i.test(text);
+          // 核心安全防护：只向上清空直接包裹按钮的小工具栏（高度 <= 64px），绝不触碰卡片本身！
+          let p = target.parentElement;
+          for (let i = 0; i < 2 && p && p !== document.body; i++) {
+            // 严禁清空卡片/气泡自身背景！
+            if (p.hasAttribute('data-kg') && p.getAttribute('data-kg') !== 'expand-btn') break;
+            const tag = (p.tagName || '').toLowerCase();
+            if (tag === 'model-response' || tag === 'user-query' || tag === 'response-container' || tag === 'message-content') break;
+            const h = p.getBoundingClientRect().height;
+            if (h > 64) break; // 超过 64px 必然是正文容器，立即停手！
 
-          if (isExpandBtn) {
-            target.setAttribute('data-kg-expand-btn', 'true');
-            // 如果内部只有图标或者纯箭头符号，标记为纯图标圆钮扣
-            const isIconOnly = (!text || text.length <= 1 || text === icon || target.querySelector('svg') || target.querySelector('mat-icon')) && text.length <= 2;
-            if (isIconOnly) {
-              target.setAttribute('data-kg-icon-only', 'true');
-            }
+            p.style.setProperty('background', 'transparent', 'important');
+            p.style.setProperty('background-image', 'none', 'important');
+            p.style.setProperty('box-shadow', 'none', 'important');
+            p = p.parentElement;
+          }
 
-            // 向上追溯 4 层祖先，清空所有背景、阴影，打掉所有黑灰脏渐变
-            let p = target.parentElement;
-            for (let i = 0; i < 4 && p && p !== scope; i++) {
-              p.style.setProperty('background', 'transparent', 'important');
-              p.style.setProperty('background-image', 'none', 'important');
-              p.style.setProperty('box-shadow', 'none', 'important');
-              p = p.parentElement;
-            }
-            if (target.previousElementSibling) {
-              target.previousElementSibling.style.setProperty('background', 'transparent', 'important');
-              target.previousElementSibling.style.setProperty('background-image', 'none', 'important');
-              target.previousElementSibling.style.setProperty('box-shadow', 'none', 'important');
+          // 清空前一个直接相连的遮罩层
+          if (target.previousElementSibling) {
+            const prev = target.previousElementSibling;
+            if (prev.getBoundingClientRect().height <= 64) {
+              prev.style.setProperty('background', 'transparent', 'important');
+              prev.style.setProperty('background-image', 'none', 'important');
+              prev.style.setProperty('box-shadow', 'none', 'important');
             }
           }
-        });
+        }
+      });
 
-        // 2. 清除 scope 内部所有纯遮罩作用的空绝对定位元素（长文折叠底部的渐变遮罩）
+      // 2. 清除纯遮罩作用的空绝对定位元素（长文折叠底部的渐变阴影条）
+      document.querySelectorAll('model-response, user-query').forEach((scope) => {
         scope.querySelectorAll('div, span').forEach((child) => {
-          if (child.children.length === 0 && child.textContent.trim().length <= 2) {
+          if (child.children.length === 0 && child.textContent.trim().length === 0) {
             try {
               const cs = getComputedStyle(child);
               if (cs.position === 'absolute' || cs.position === 'relative') {
-                if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+                if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
                   child.style.setProperty('display', 'none', 'important');
                 }
               }
@@ -363,16 +371,16 @@
     } catch (e) {}
   };
 
-  // ============ 清除残留的 JS 动态渐变与直角切痕 ============
+  // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
   const cleanupFades = () => {
     try {
       const gb = document.getElementById('kimino-glass-band');
       if (gb) gb.remove();
-      document.querySelectorAll('[data-kg="card"], [data-kg="bubble"], model-response, .user-query-bubble-with-background').forEach((el) => {
-        if (el.__kgFaded) {
-          ['background-color', 'background-image', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border-color'].forEach((p) => el.style.removeProperty(p));
-          el.__kgFaded = false;
-          el.__kgLastGrad = '';
+      document.querySelectorAll('[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background').forEach((el) => {
+        if (el.style.backgroundColor === 'transparent') {
+          el.style.removeProperty('background-color');
+          el.style.removeProperty('background-image');
+          el.style.removeProperty('background');
         }
       });
     } catch (e) {}
