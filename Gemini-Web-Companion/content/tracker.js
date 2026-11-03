@@ -395,54 +395,72 @@
       }
     }
 
+    // 统一解析 Google 用量文本（弹窗、/usage 页面、隐形探针均复用此逻辑）
+    parseQuotaText(text) {
+      if (!text || typeof text !== 'string') return null;
+      let currentPct = null;
+      let currentReset = '';
+      let weeklyPct = null;
+      let weeklyReset = '';
+
+      // 1. 当前用量百分比（中英文兼容：已使用 67% / 67% 已使用 / 67% used）
+      const curMatch = text.match(/当前(?:用量|周期)?[\s\S]*?已使用\s*(\d+)%/i) ||
+                       text.match(/当前(?:用量|周期)?[\s\S]*?(\d+)%\s*(?:已使用|used)/i) ||
+                       text.match(/current\s*usage[\s\S]*?(\d+)%\s*used/i) ||
+                       text.match(/已使用\s*(\d+)%[\s\S]*?重置时间/i);
+      if (curMatch) currentPct = parseInt(curMatch[1], 10);
+
+      // 2. 当前周期重置时间
+      const curResetMatch = text.match(/当前(?:用量|周期)?[\s\S]*?重置时间[:：\s]*([0-9:apmAPM\s\u4e00-\u9fa5]+?)(?:的|\n|\r|<|$)/i) ||
+                            text.match(/(?:重置时间|resets?[:：\s]*)\s*((?:[01]?\d|2[0-3])\s*[:：]\s*\d{2}(?:\s*(?:上午|下午|AM|PM))?)/i) ||
+                            text.match(/((?:[01]?\d|2[0-3])\s*[:：]\s*\d{2}(?:\s*(?:上午|下午|AM|PM))?)\s*重置/i);
+      if (curResetMatch) currentReset = (curResetMatch[1] || '').replace('重置', '').trim();
+
+      // 3. 每周限额百分比
+      const weekMatch = text.match(/每周限额[\s\S]*?已使用\s*(\d+)%/i) ||
+                        text.match(/每周限额[\s\S]*?(\d+)%\s*(?:已使用|used)/i) ||
+                        text.match(/weekly\s*(?:limit|usage)[\s\S]*?(\d+)%\s*used/i);
+      if (weekMatch) weeklyPct = parseInt(weekMatch[1], 10);
+
+      // 4. 每周重置时间
+      const weekResetMatch = text.match(/每周限额[\s\S]*?重置时间[:：\s]*([^\n\r<]+)/i) ||
+                             text.match(/(?:weekly[\s\S]*?resets?[:：\s]*|重置时间[:：\s]*)((\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]{3}\s*\d{1,2})[\s\S]*?(?:[01]?\d|2[0-3])\s*[:：]\s*\d{2})/i) ||
+                             text.match(/(\d{1,2}\s*月\s*\d{1,2}\s*日\s*(?:[01]?\d|2[0-3])\s*[:：]\s*\d{2})/i);
+      if (weekResetMatch) weeklyReset = (weekResetMatch[1] || '').trim();
+
+      if (currentPct === null && weeklyPct === null && !currentReset && !weeklyReset) return null;
+      return { currentPct, currentReset, weeklyPct, weeklyReset };
+    }
+
     scrapeQuotaFromDocument(doc) {
       if (!doc) return;
       try {
         const text = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
-        if (text.includes('用量') || text.includes('限额') || text.includes('重置') || text.includes('Usage') || text.includes('limit')) {
-          let currentPct = null;
-          let currentReset = '';
-          let weeklyPct = null;
-          let weeklyReset = '';
-
-          // 匹配当前用量百分比
-          const curPctMatch = text.match(/当前(?:用量|周期)?[:：\s]*(\d{1,3})\s*%/i) || text.match(/(\d{1,3})\s*%\s*(?:已使用|used)/i);
-          if (curPctMatch) currentPct = parseInt(curPctMatch[1], 10);
-
-          // 匹配重置时间
-          const resetMatch = text.match(/([01]?\d|2[0-3])\s*[:：]\s*(\d{2})\s*(?:上午|下午|AM|PM)?\s*重置/i) ||
-                             text.match(/重置时间[:：\s]*([01]?\d|2[0-3]\s*[:：]\s*\d{2})/i);
-          if (resetMatch) currentReset = resetMatch[0].replace('重置', '').trim();
-
-          // 匹配每周限额
-          const weekPctMatch = text.match(/每周限额[:：\s]*(\d{1,3})\s*%/i);
-          if (weekPctMatch) weeklyPct = parseInt(weekPctMatch[1], 10);
-
-          if (currentPct !== null || weeklyPct !== null || currentReset) {
-            let curReset = currentReset || this.sessionData.realQuota.currentResetTime;
-            let weekReset = weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-            if (currentReset) {
-              const loc = this.toLocalResetTime(currentReset);
-              if (loc) {
-                curReset = loc.display;
-                this.sessionData.resetTimestamp = loc.epoch;
-              }
+        const parsed = this.parseQuotaText(text);
+        if (parsed) {
+          let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
+          let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+          if (parsed.currentReset) {
+            const loc = this.toLocalResetTime(parsed.currentReset);
+            if (loc) {
+              curReset = loc.display;
+              this.sessionData.resetTimestamp = loc.epoch;
             }
-            if (weeklyReset) {
-              const locW = this.toLocalResetTime(weeklyReset);
-              if (locW) weekReset = locW.display;
-            }
-
-            this.updateRealQuota({
-              currentUsagePercent: currentPct !== null ? currentPct : this.sessionData.realQuota.currentUsagePercent,
-              currentResetTime: curReset,
-              weeklyUsagePercent: weeklyPct !== null ? weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-              weeklyResetTime: weekReset,
-              resetSource: 'silent-prober',
-              isReal: true
-            });
-            console.log('[星语喵伴] 静默探针成功解析官方配额:', currentPct, '% 重置:', curReset);
           }
+          if (parsed.weeklyReset) {
+            const locW = this.toLocalResetTime(parsed.weeklyReset);
+            if (locW) weekReset = locW.display;
+          }
+
+          this.updateRealQuota({
+            currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
+            currentResetTime: curReset,
+            weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+            weeklyResetTime: weekReset,
+            resetSource: 'silent-prober',
+            isReal: true
+          });
+          console.log('[星语喵伴] 静默探针成功解析官方配额:', parsed.currentPct, '% 重置:', curReset);
         }
       } catch (e) {}
     }
@@ -523,6 +541,12 @@
 
       const candidates = new Set();
       const fastSelectors = [
+        '.gem-banner-container',
+        '[data-test-id="gem-banner-description-input"]',
+        '.inline-upgrade-banner-row',
+        '.ai-credits-input-plate-indicator',
+        '.ai-credits-input-plate-indicator-title',
+        '.inline-upgrade-banner-text',
         '[class*="usage"]', '[class*="limit"]', '[class*="reset"]',
         '[class*="banner"]', '[class*="notice"]', '[class*="snackbar"]',
         '[role="status"]', '[role="alert"]', 'mat-snack-bar-container',
@@ -875,50 +899,32 @@
       const dialogs = document.querySelectorAll('[role="dialog"], [role="region"], mat-dialog-container, .cdk-overlay-container [role="presentation"]');
       for (const el of dialogs) {
         const text = el.innerText || el.textContent || '';
-        if (text.includes('用量限额') && (text.includes('当前用量') || text.includes('每周限额'))) {
-          let currentPct = null;
-          let currentReset = '';
-          let weeklyPct = null;
-          let weeklyReset = '';
-
-          // 匹配“当前用量 ... 已使用 67% ... 重置时间: 01:37”
-          const curMatch = text.match(/当前用量[\s\S]*?已使用\s*(\d+)%/i) || text.match(/已使用\s*(\d+)%[\s\S]*?重置时间:\s*([^\n\r]+)/i);
-          if (curMatch) currentPct = parseInt(curMatch[1], 10);
-          const curResetMatch = text.match(/当前用量[\s\S]*?重置时间:\s*([0-9:apmAPM\s]+)的/i) || text.match(/当前用量[\s\S]*?重置时间:\s*([0-9:apmAPM\s]+)/i) || text.match(/重置时间:\s*([0-9:apmAPM\s]+)/i);
-          if (curResetMatch) currentReset = curResetMatch[1].trim();
-
-          // 匹配“每周限额 ... 已使用 64% ... 重置时间: 11月3日23:37”
-          const weekMatch = text.match(/每周限额[\s\S]*?已使用\s*(\d+)%/i);
-          if (weekMatch) weeklyPct = parseInt(weekMatch[1], 10);
-          const weekResetMatch = text.match(/每周限额[\s\S]*?重置时间:\s*([^\n\r]+)/i);
-          if (weekResetMatch) weeklyReset = weekResetMatch[1].trim();
-
-          if (currentPct !== null || weeklyPct !== null) {
-            let curReset = currentReset || this.sessionData.realQuota.currentResetTime;
-            let weekReset = weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-            if (currentReset) {
-              const loc = this.toLocalResetTime(currentReset);
-              if (loc) {
-                curReset = loc.display;
-                this.sessionData.resetTimestamp = loc.epoch;
-              }
+        const parsed = this.parseQuotaText(text);
+        if (parsed && (parsed.currentPct !== null || parsed.weeklyPct !== null)) {
+          let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
+          let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+          if (parsed.currentReset) {
+            const loc = this.toLocalResetTime(parsed.currentReset);
+            if (loc) {
+              curReset = loc.display;
+              this.sessionData.resetTimestamp = loc.epoch;
             }
-            if (weeklyReset) {
-              const locW = this.toLocalResetTime(weeklyReset);
-              if (locW) weekReset = locW.display;
-            }
-
-            this.updateRealQuota({
-              currentUsagePercent: currentPct !== null ? currentPct : this.sessionData.realQuota.currentUsagePercent,
-              currentResetTime: curReset,
-              weeklyUsagePercent: weeklyPct !== null ? weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-              weeklyResetTime: weekReset,
-              resetSource: 'native-dialog',
-              fetchedAt: now,
-              isReal: true
-            });
-            break;
           }
+          if (parsed.weeklyReset) {
+            const locW = this.toLocalResetTime(parsed.weeklyReset);
+            if (locW) weekReset = locW.display;
+          }
+
+          this.updateRealQuota({
+            currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
+            currentResetTime: curReset,
+            weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+            weeklyResetTime: weekReset,
+            resetSource: 'native-dialog',
+            fetchedAt: now,
+            isReal: true
+          });
+          break;
         }
       }
     }

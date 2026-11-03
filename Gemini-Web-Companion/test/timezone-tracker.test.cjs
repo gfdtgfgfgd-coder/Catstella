@@ -95,4 +95,29 @@ assert.strictEqual(rNeg1, null, '普通聊天文本不应被当成额度提示')
 const rNeg2 = tracker.parseResetHint('如果我们在 9:30 上午 见面怎么样？');
 assert.strictEqual(rNeg2, null, '普通约定时间不应被当成额度提示');
 
+// 场景 7: 用户提供的真实 HTML 结构文案测试
+console.log('测试 7: 用户提供的真实 Google Gemini 提示栏文案');
+const rawHtml1Text = '用量限额将于 11月3日09:37 重置；在此之前，部分功能将无法使用。升级即可获享更高用量限额及更多功能。';
+const r7_1 = tracker.parseResetHint(rawHtml1Text);
+assert.ok(r7_1, '真实 HTML Banner 应解析成功');
+assert.strictEqual(r7_1.rawDisplay, '11月3日09:37');
+assert.strictEqual(r7_1.display, '11月3日 17:37');
+
+const rawHtml2Text = '用量限额将在9:37 上午 重置 查看用量 升级';
+const r7_2 = tracker.parseResetHint(rawHtml2Text);
+assert.ok(r7_2, '真实 HTML 底部栏应解析成功');
+assert.strictEqual(r7_2.rawDisplay, '9:37 上午');
+assert.strictEqual(r7_2.display, '17:37');
+
+// 场景 8: parseQuotaText 统一解析器测试
+console.log('测试 8: parseQuotaText 双语与真实 DOM 解析');
+const qCn = tracker.parseQuotaText('用量限额\n当前用量\n已使用 67%\n重置时间: 01:37\n每周限额\n已使用 64%\n重置时间: 11月3日23:37');
+assert.strictEqual(qCn.currentPct, 67);
+assert.strictEqual(qCn.weeklyPct, 64);
+assert.strictEqual(qCn.currentReset, '01:37');
+
+const qEn = tracker.parseQuotaText('Current usage\n67% used\nResets: 01:37\nWeekly limit\n64% used\nResets: 11月3日 23:37');
+assert.strictEqual(qEn.currentPct, 67);
+assert.strictEqual(qEn.weeklyPct, 64);
+
 console.log('🎉 所有时区智能推断与修正单元测试通过！');

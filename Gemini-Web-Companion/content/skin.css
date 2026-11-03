@@ -463,11 +463,32 @@ html.kimino-dream-active :is(
 }
 
 
-/* 对话滚动视口底部的自然平滑透明过渡（视口级纯透明渐隐，杜绝直角切痕与背景突变） */
+/* 对话滚动视口：移除 mask-image 以彻底恢复 Firefox / Gecko 的 backdrop-filter 硬件加速与自然滚动 */
 html.kimino-dream-active infinite-scroller {
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
-  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
   overflow-anchor: auto !important;
+}
+
+/* 顶部配额告警横幅 & 输入框上方常驻限额栏（水晶毛玻璃化，彻底驱散纯黑底色） */
+html.kimino-dream-active :is(.gem-banner-container, .inline-upgrade-banner-row) {
+  background-color: rgba(38, 26, 54, 0.78) !important;
+  background-image: linear-gradient(135deg, rgba(145, 105, 205, 0.25), rgba(30, 20, 48, 0.78)) !important;
+  backdrop-filter: blur(18px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
+  border: 1px solid rgba(210, 180, 255, 0.35) !important;
+  box-shadow: 0 4px 18px rgba(16, 10, 28, 0.40) !important;
+  border-radius: 16px !important;
+  color: #ede6fc !important;
+}
+
+html.kimino-dream-active :is(.gem-banner-container, .inline-upgrade-banner-row) :is(h2, span, p, div) {
+  color: #ede6fc !important;
+}
+
+html.kimino-dream-active .inline-upgrade-banner-btn {
+  background-color: rgba(65, 48, 92, 0.75) !important;
+  border: 1px solid rgba(195, 170, 240, 0.40) !important;
+  color: #ede6fc !important;
+  border-radius: 14px !important;
 }
 
 /* 彻底清除回复卡片内部所有折叠遮罩伪元素与展开按钮脏阴影 */
