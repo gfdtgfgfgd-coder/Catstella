@@ -73,25 +73,26 @@
         }
 
         // --- 额度 RPC 被动捕获：请求体 + 响应体 ---
-        const rpcName = rpcNameOf(url);
-        if (response.status === 200 && (rpcName === 'MaZiqc' || url.includes('MaZiqc'))) {
-          try {
-            if (args[1] && typeof args[1].body === 'string') {
-              quotaRpc.reqBody = args[1].body;
-              quotaRpc.urlTemplate = String(url).split('?')[0] + '?' + (String(url).split('?')[1] || '')
-                .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
-              quotaRpc.capturedAt = Date.now();
-            }
-          } catch (e) {}
+        const reqBodyCandidate = args[1] && typeof args[1].body === 'string' ? args[1].body : '';
+        const isQuotaReq = url.includes('MaZiqc') || reqBodyCandidate.includes('MaZiqc') || reqBodyCandidate.includes('%22MaZiqc%22');
+        if (response.status === 200 && (isQuotaReq || isGeminiRpc)) {
           try {
             const clone = response.clone();
             const text = await clone.text();
-            notify('QUOTA_RPC_RAW', {
-              rpc: 'MaZiqc',
-              responseText: text.slice(0, 60000),
-              capturedReqBody: quotaRpc.reqBody ? true : false,
-              source: 'boot'
-            });
+            if (text.includes('"MaZiqc"') || isQuotaReq) {
+              if (reqBodyCandidate && !quotaRpc.reqBody) {
+                quotaRpc.reqBody = reqBodyCandidate;
+                quotaRpc.urlTemplate = String(url).split('?')[0] + '?' + (String(url).split('?')[1] || '')
+                  .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
+                quotaRpc.capturedAt = Date.now();
+              }
+              notify('QUOTA_RPC_RAW', {
+                rpc: 'MaZiqc',
+                responseText: text.slice(0, 60000),
+                capturedReqBody: quotaRpc.reqBody ? true : false,
+                source: 'boot'
+              });
+            }
           } catch (e) {}
         } else if (response.status === 200 && response.body) {
           // 兜底：流式扫描 RESOURCE_EXHAUSTED
@@ -161,22 +162,24 @@
             if (this.status === 429) {
               notify('RATE_LIMIT_HIT', { status: 429, message: 'XHR 429' });
             }
-            const rpcName = rpcNameOf(u);
-            if (this.status === 200 && (rpcName === 'MaZiqc' || u.includes('MaZiqc'))) {
+            const isXhrQuota = u.includes('MaZiqc') || (typeof body === 'string' && (body.includes('MaZiqc') || body.includes('%22MaZiqc%22')));
+            if (this.status === 200) {
               try {
                 const text = this.responseType === 'json' ? JSON.stringify(this.response) : String(this.responseText || '');
-                if (typeof body === 'string' && !quotaRpc.reqBody) {
-                  quotaRpc.reqBody = body;
-                  quotaRpc.urlTemplate = u.split('?')[0] + '?' + (u.split('?')[1] || '')
-                    .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
-                  quotaRpc.capturedAt = Date.now();
+                if (text.includes('"MaZiqc"') || isXhrQuota) {
+                  if (typeof body === 'string' && !quotaRpc.reqBody) {
+                    quotaRpc.reqBody = body;
+                    quotaRpc.urlTemplate = u.split('?')[0] + '?' + (u.split('?')[1] || '')
+                      .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
+                    quotaRpc.capturedAt = Date.now();
+                  }
+                  notify('QUOTA_RPC_RAW', {
+                    rpc: 'MaZiqc',
+                    responseText: text.slice(0, 60000),
+                    capturedReqBody: quotaRpc.reqBody ? true : false,
+                    source: 'boot-xhr'
+                  });
                 }
-                notify('QUOTA_RPC_RAW', {
-                  rpc: 'MaZiqc',
-                  responseText: text.slice(0, 60000),
-                  capturedReqBody: quotaRpc.reqBody ? true : false,
-                  source: 'boot-xhr'
-                });
               } catch (e) {}
             }
           });

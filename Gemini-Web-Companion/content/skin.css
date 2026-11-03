@@ -65,9 +65,31 @@ html.kimino-dream-active bard-sidenav {
   -webkit-backdrop-filter: blur(20px) saturate(120%) !important;
 }
 
-html.kimino-dream-active :is(.top-gradient, .bottom-gradient) {
+html.kimino-dream-active :is(
+  .top-gradient,
+  .bottom-gradient,
+  .chat-history-gradient,
+  .scroll-gradient,
+  .gradient,
+  [class*="gradient"],
+  [class*="fade-out"],
+  [class*="fade_out"],
+  .input-area-container::before,
+  .input-area-container::after,
+  .conversation-container::after,
+  .conversation-container::before,
+  infinite-scroller::after,
+  infinite-scroller::before,
+  .bottom-container::before,
+  .bottom-container::after,
+  .bottom-container
+) {
   background: none !important;
+  background-color: transparent !important;
   background-image: none !important;
+  box-shadow: none !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
 }
 
 /* 左下角档案区防御性穿透（footer/mavatar 系） */
@@ -259,7 +281,7 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   /* mask 纯线性：模糊曲线与卡片底色渐隐曲线完全重合（同一 110px 区间） */
   -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
   mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%) !important;
-  background-image: linear-gradient(to top, rgba(16, 12, 27, 0.30), rgba(16, 12, 27, 0)) !important;
+  background-image: linear-gradient(to top, rgba(168, 142, 229, 0.04), transparent) !important;
 }
 
 html.kimino-dream-active input-area-v2 {
@@ -270,10 +292,24 @@ html.kimino-dream-active input-area-v2 {
   box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.16), inset 0 0 0 1px rgba(200, 175, 230, 0.18), 0 10px 30px rgba(16, 12, 27, 0.15) !important;
 }
 
-html.kimino-dream-active :is(fieldset.input-area-fieldset, .text-input-field, .text-input-field-main-area, .text-input-field_textarea-wrapper, .text-input-field_textarea-inner, .textarea-wrapper, rich-textarea, .ql-editor, textarea) {
+/* 核心：输入框除按钮与模型胶囊外的所有内部嵌套容器全部透明化，彻底挖空 #282a2c 实体暗底 */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  div:not([role="button"]):not(button):not([class*="pill"]):not([class*="chip"]):not([class*="model"]),
+  fieldset,
+  form,
+  rich-textarea,
+  .text-input-field,
+  .text-input-field-main-area,
+  .text-input-field_textarea-wrapper,
+  .text-input-field_textarea-inner,
+  .textarea-wrapper,
+  .ql-editor,
+  textarea
+) {
   background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 /* ================================================================

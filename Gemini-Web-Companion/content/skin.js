@@ -370,7 +370,7 @@
         // （滚动时绝大多数帧不再触发样式重算/重绘）
         const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 12) * 12);
         const fadeEndPx = Math.min(r.height, Math.max(solidPx + 12, cutY - r.top));
-        const grad = 'linear-gradient(to bottom, rgba(33, 30, 45, 0.74) 0px, rgba(33, 30, 45, 0.74) ' +
+        const grad = 'linear-gradient(to bottom, rgba(38, 33, 50, 0.42) 0px, rgba(38, 33, 50, 0.42) ' +
           solidPx.toFixed(0) + 'px, rgba(33, 30, 45, 0) ' + fadeEndPx.toFixed(0) + 'px)';
         const sig = grad + '|v2';
         if (el.__kgLastGrad === sig) return;
