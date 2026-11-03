@@ -120,4 +120,51 @@ const qEn = tracker.parseQuotaText('Current usage\n67% used\nResets: 01:37\nWeek
 assert.strictEqual(qEn.currentPct, 67);
 assert.strictEqual(qEn.weeklyPct, 64);
 
+// 场景 9: 账本权威时间校准与页面文案旧值纠偏 (03:37 -> 02:37)
+console.log('测试 9: 账本权威时间纠偏 (03:37 -> 02:37 本地时间)');
+tracker.sessionData.realQuota = {
+  currentResetTime: '02:37',
+  fiveResetEpoch: Date.now() + 2 * 3600 * 1000,
+  isReal: true,
+  fetchedAt: Date.now()
+};
+
+// 模拟 DOM 文本节点与容器
+class MockTextNode {
+  constructor(val) { this.nodeValue = val; }
+}
+class MockElement {
+  constructor(text) {
+    this.attrs = {};
+    this.childNode = new MockTextNode(text);
+  }
+  getAttribute(k) { return this.attrs[k] || null; }
+  setAttribute(k, v) { this.attrs[k] = v; }
+}
+
+context.document.createTreeWalker = (root, filterType, options) => {
+  let done = false;
+  return {
+    nextNode() {
+      if (done) return null;
+      done = true;
+      const accept = options.acceptNode(root.childNode);
+      return accept === 1 ? root.childNode : null;
+    }
+  };
+};
+
+const elStale = new MockElement('用量限额将在03:37（本地时间）重置 查看用量 升级');
+elStale.setAttribute('data-kimino-tz-fixed', '03:37');
+
+tracker.patchElementTimezoneText(elStale, {
+  rawDisplay: '7:37 下午',
+  display: '03:37'
+});
+
+assert.strictEqual(elStale.getAttribute('data-kimino-tz-fixed'), '02:37', '应更新为账本权威时间 02:37');
+assert.ok(elStale.childNode.nodeValue.includes('02:37（本地时间）'), '文本节点应包含 02:37（本地时间）');
+assert.ok(!elStale.childNode.nodeValue.includes('03:37'), '文本节点绝不应再残留 03:37');
+console.log('   -> 成功纠偏:', elStale.childNode.nodeValue);
+
 console.log('🎉 所有时区智能推断与修正单元测试通过！');

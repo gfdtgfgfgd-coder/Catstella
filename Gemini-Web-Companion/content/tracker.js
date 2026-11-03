@@ -560,6 +560,7 @@
       console.log('[星语喵伴] 用量账本已刷新 (' + reason + '): 5h ' +
         (fivePct !== null ? fivePct + '%' : '?') + ' @ ' + (fiveMs ? this.formatClockLocal(fiveMs) : '?') +
         ' | 周 ' + (weekPct !== null ? weekPct + '%' : '?') + ' @ ' + (weekMs ? this.formatWeekLocal(weekMs) : '?'));
+      try { this.scrapePromptResetHint(); } catch (e) {}
     }
 
     // 统一解析 Google 用量文本（弹窗、/usage 页面、隐形探针均复用此逻辑）
@@ -827,8 +828,9 @@
         const parsed = this.parseResetHint(text);
         if (!parsed) continue;
 
-        // 智能时区页面同步：若判定为 Google UTC 时间且完成本地时区换算，在页面上同步修正文案
-        if (parsed.isUtcCorrected && parsed.rawDisplay && parsed.display && el) {
+        // 智能时区页面同步：优先使用账本权威时间，若持有账本或判定为 Google UTC 时间，在页面上同步修正文案
+        const ledgerTime = (this.sessionData.realQuota && this.sessionData.realQuota.currentResetTime) || '';
+        if ((ledgerTime || parsed.isUtcCorrected) && parsed.rawDisplay && el) {
           this.patchElementTimezoneText(el, parsed);
         }
 
@@ -875,15 +877,23 @@
       }
     }
 
-    // 在页面 DOM 节点上将 Google 原生 UTC 时间文本替换为本地系统时间文案
+    // 在页面 DOM 节点上将 Google 原生/异区时间文本替换为本地系统时间文案
     patchElementTimezoneText(containerEl, parsed) {
       try {
-        if (!containerEl || !parsed.rawDisplay || !parsed.display) return;
-        if (containerEl.getAttribute('data-kimino-tz-fixed') === parsed.display) return;
+        if (!containerEl || !parsed.rawDisplay) return;
 
+        // 账本为第一绝对权威源：直接使用账本的本地重置时间（例如 02:37）
+        const ledgerTime = (this.sessionData.realQuota && this.sessionData.realQuota.currentResetTime) || '';
+        const effectiveDisplay = ledgerTime || parsed.display;
+        if (!effectiveDisplay) return;
+
+        if (containerEl.getAttribute('data-kimino-tz-fixed') === effectiveDisplay) return;
+
+        const replacement = `${effectiveDisplay}（本地时间）`;
         const targetText = parsed.rawDisplay;
-        if (targetText === parsed.display) return;
-        const replacement = `${parsed.display}（本地时间）`;
+
+        // 兼容已有的旧替换文案（例如之前误算生成的 "03:37（本地时间）" 或带不同时间的本地标记）
+        const tzBadgeRegex = /(?:[01]?\d|2[0-3])\s*[:：]\s*\d{2}(?:\s*(?:上午|下午|AM|PM))?（本地时间）/;
 
         const walker = document.createTreeWalker(
           containerEl,
@@ -891,7 +901,7 @@
           {
             acceptNode(node) {
               if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
-              if (node.nodeValue.includes('本地时间')) return NodeFilter.FILTER_REJECT;
+              if (tzBadgeRegex.test(node.nodeValue)) return NodeFilter.FILTER_ACCEPT;
               return node.nodeValue.includes(targetText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
             }
           }
@@ -900,13 +910,18 @@
         let textNode = walker.nextNode();
         let patched = false;
         while (textNode) {
-          textNode.nodeValue = textNode.nodeValue.replace(targetText, replacement);
-          patched = true;
+          if (tzBadgeRegex.test(textNode.nodeValue)) {
+            textNode.nodeValue = textNode.nodeValue.replace(tzBadgeRegex, replacement);
+            patched = true;
+          } else if (textNode.nodeValue.includes(targetText)) {
+            textNode.nodeValue = textNode.nodeValue.replace(targetText, replacement);
+            patched = true;
+          }
           textNode = walker.nextNode();
         }
 
         if (patched) {
-          containerEl.setAttribute('data-kimino-tz-fixed', parsed.display);
+          containerEl.setAttribute('data-kimino-tz-fixed', effectiveDisplay);
           console.log(`[星语喵伴] 页面提示条时区自动修正成功: "${targetText}" → "${replacement}"`);
         }
       } catch (e) {}
@@ -1023,6 +1038,27 @@
         const now = new Date();
         const nowMs = now.getTime();
         const tzOffsetMin = now.getTimezoneOffset(); // 本地距 UTC 分钟数（例如东八区为 -480）
+
+        // 门禁：若账本已持有权威 5h 重置时间戳且未携带跨月日期，优先与账本绝对对齐
+        if (!month && !day && this.sessionData.realQuota && this.sessionData.realQuota.fiveResetEpoch) {
+          const epoch = this.sessionData.realQuota.fiveResetEpoch;
+          if (epoch > nowMs - 90 * 60000 && epoch < nowMs + 6 * 3600 * 1000) {
+            const date = new Date(epoch);
+            const display = this.sessionData.realQuota.currentResetTime || this.formatClockLocal(epoch);
+            const h24 = date.getHours();
+            const mStr = String(date.getMinutes()).padStart(2, '0');
+            const p = h24 >= 12 ? '下午' : '上午';
+            const h12 = h24 % 12 || 12;
+            const display12h = `${p} ${h12}:${mStr}`;
+            return {
+              date,
+              epoch,
+              display,
+              display12h,
+              isUtcCorrected: true
+            };
+          }
+        }
 
         // 1. 假设字符串表示的是 UTC 时间
         const utcYear = now.getUTCFullYear();

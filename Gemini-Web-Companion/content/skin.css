@@ -268,16 +268,21 @@ html.kimino-dream-active model-response {
 
 /* 思维链折叠卡：card 面 */
 /* 思考窗口：强制胶囊化，杜绝初次挂载时 100% 满宽拉伸闪烁 */
+/* 注意：必须严格排除 response-footer / .has-thoughts 等操作栏节点，防止操作栏被误染成蜜汁腰圆胶囊 */
 html.kimino-dream-active :is(
   details:not([open]),
   [data-kg="thinking"]:not([open]),
   .thought-container:not([open]),
   .thought-box:not([open]),
-  [data-test-id*="thought" i]:not([open]),
-  [data-test-id*="thinking" i]:not([open]),
-  [class*="thought" i]:not([open]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
-  [class*="thinking" i]:not([open]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
-  model-response :is(details:not([open]), [class*="thought" i]:not([open]):not(p):not(span):not(code), [class*="thinking" i]:not([open]):not(p):not(span):not(code))
+  [data-test-id*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]),
+  [data-test-id*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]),
+  [class*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
+  [class*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
+  model-response :is(
+    details:not([open]),
+    [class*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not(p):not(span):not(code):not(button),
+    [class*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not(p):not(span):not(code):not(button)
+  )
 ) {
   width: fit-content !important;
   max-width: 100% !important;
@@ -291,6 +296,27 @@ html.kimino-dream-active :is(
   padding: 8px 16px !important;
   margin: 8px 0 !important;
   box-sizing: border-box !important;
+}
+
+/* 坚决杜绝 response-footer 及操作按钮栏被任何胶囊选择器误伤（消除蜜汁腰圆形） */
+html.kimino-dream-active :is(
+  response-footer,
+  .response-footer,
+  [class*="response-footer"],
+  .has-thoughts,
+  .has-thought
+) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: auto !important;
 }
 
 html.kimino-dream-active :is(details[open], [data-kg="thinking"][open]) {
@@ -409,11 +435,32 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   box-shadow: none !important;
 }
 
-/* Liquid Glass 渐变模糊带：由 skin.js 以 fixed 覆盖层实现（#kimino-glass-band），
-   跟随 Composer 实测坐标定位——不依赖 Google 容器的 position/z-index，
-   mask 渐变让模糊从 Composer 顶边向上渐进衰减。此处仅保留样式兜底。 */
-/* Liquid Glass 渐变模糊带：彻底回退清除独立大玻璃板，恢复纯净滚动视口 */
-#kimino-glass-band { display: none !important; }
+/* Liquid Glass 渐变磨砂过渡带：覆盖 Composer / 限额栏上方 (#kimino-glass-band)
+   - 丝滑垂直渐隐 + 渐进式毛玻璃 (0% -> 80%)，杜绝生硬直角与断层
+   - pointer-events: none 确保不阻挡滚轮、选词与点击
+   - 严禁使用 border-top，杜绝横贯屏幕的生硬线条
+   - 独立 fixed 覆盖层，绝非 scroller 祖先，100% 保护气泡自身 backdrop-filter */
+#kimino-glass-band {
+  position: fixed !important;
+  pointer-events: none !important;
+  z-index: 12 !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 20px 20px 0 0 !important;
+  background: linear-gradient(
+    to bottom,
+    rgba(33, 30, 45, 0) 0%,
+    rgba(33, 30, 45, 0.35) 45%,
+    rgba(33, 30, 45, 0.78) 85%,
+    rgba(33, 30, 45, 0.92) 100%
+  ) !important;
+  backdrop-filter: blur(14px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(130%) !important;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 35%, black 85%, black 100%) !important;
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.35) 35%, black 85%, black 100%) !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
 
 html.kimino-dream-active input-area-v2 {
   border-radius: 22px !important;
