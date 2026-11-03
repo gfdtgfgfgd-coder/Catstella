@@ -228,7 +228,51 @@ if (fs.existsSync(zipDest)) fs.unlinkSync(zipDest);
 buildZip(chromiumDir, zipDest);
 console.log('✅ Edge/Chrome .zip 生成成功:', zipDest);
 
+// 4. 构建 Stylus / xStyle 专版 UserCSS (纯 CSS 零 JS 安全无注入)
+console.log('🎨 正在生成 Stylus 专版 UserCSS (kimino-dream.user.css)...');
+const rawSkinCss = fs.readFileSync(path.join(rootDir, 'content', 'skin.css'), 'utf8');
+
+// 转换：解绑 html.kimino-dream-active 门禁为直接生效
+let userCssBody = rawSkinCss
+  .replace(/html\.kimino-dream-active\s*/g, '')
+  .replace(/#kimino-glass-band\s*\{[^}]*\}/g, '')
+  .replace(/#kimino-companion-root[^}]*\{[^}]*\}/g, '');
+
+const userCssHeader = `/* ==UserStyle==
+@name           Kimino Dream Skin · Google Gemini 暗夜星云磨砂
+@namespace      github.com/Catstella/kimino-dream
+@version        1.3.7
+@description    基米乃暗夜星云磨砂主题 · 纯 CSS 安全无注入版（适配 Stylus / xStyle / Cascadea）
+@author         Catstella & Kimino
+@preprocessor   default
+@var text       customWallpaper "自定义壁纸图片直链 (可填图片URL，留空则为纯深色暗夜磨砂)" ""
+==/UserStyle== */
+
+@-moz-document domain("gemini.google.com") {
+
+/* Stylus 纯 CSS 壁纸底板（利用 body::before 代替 JS 动态注入节点） */
+body::before {
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: -99999 !important;
+  pointer-events: none !important;
+  background-color: #211e2d !important;
+  background-image: var(--customWallpaper, none) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+}
+
+`;
+
+const userCssFooter = `\n}\n`;
+const userCssDest = path.join(distDir, 'kimino-dream.user.css');
+fs.writeFileSync(userCssDest, userCssHeader + userCssBody + userCssFooter, 'utf8');
+console.log('✅ Stylus UserCSS 生成成功:', userCssDest);
+
 console.log('\n✨ 打包完毕！');
 console.log(`📁 1. 火狐安装包 (.xpi): ${xpiDest}`);
 console.log(`📁 2. 火狐调试解压目录: ${firefoxDir}`);
 console.log(`📁 3. Edge/Chrome 解压安装目录: ${chromiumDir}`);
+console.log(`📁 4. Stylus 单文件样式: ${userCssDest}`);

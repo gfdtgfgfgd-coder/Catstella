@@ -569,10 +569,21 @@ html.kimino-dream-active :is(
 
 
 /* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡） */
+/* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡）
+   Gecko (Firefox) 特别兼容：显式声明 mask-size 与 mask-origin 为 border-box，
+   防止火狐将 mask 撑满整个 scrollHeight 导致当前可视区渐变丢失 */
 html.kimino-dream-active infinite-scroller.chat-history,
 html.kimino-dream-active main infinite-scroller {
   -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
   mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  -webkit-mask-size: 100% 100% !important;
+  mask-size: 100% 100% !important;
+  -webkit-mask-repeat: no-repeat !important;
+  mask-repeat: no-repeat !important;
+  -webkit-mask-origin: border-box !important;
+  mask-origin: border-box !important;
+  -webkit-mask-clip: border-box !important;
+  mask-clip: border-box !important;
   overflow-anchor: auto !important;
 }
 
