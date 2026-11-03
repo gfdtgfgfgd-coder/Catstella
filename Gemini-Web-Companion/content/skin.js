@@ -193,6 +193,14 @@
       }
       document.querySelectorAll('model-response').forEach((mr) => {
         mark(mr, 'card');
+        mr.querySelectorAll('response-container, .response-container, message-content, .message-content, structured-content, .structured-content, .response-container-content').forEach((child) => {
+          child.style.setProperty('background', 'transparent', 'important');
+          child.style.setProperty('background-color', 'transparent', 'important');
+          child.style.setProperty('border', 'none', 'important');
+          child.style.setProperty('box-shadow', 'none', 'important');
+          child.style.setProperty('backdrop-filter', 'none', 'important');
+          child.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        });
         // ⚠️ 防跳滚：宽度值不变时跳过写入（滚动锚定被 Google 禁用，
         // 任何布局写入都会造成滚动位置跳动）；残留值清理与写入同循环完成
         if (mr.__kgLastMaxW !== columnWidth) {

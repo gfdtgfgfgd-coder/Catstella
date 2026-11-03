@@ -230,6 +230,27 @@ html.kimino-dream-active user-query :is(button, [role="button"]):is(
 
 /* 模型回答：阅读面卡片 —— 与气泡同列同宽同圆角（宽度由 skin.js 实测内联）
    margin auto 居中 + max-width 由 JS 按当前会话的 user-query 列宽内联写入 */
+
+/* 模型回答内部所有容器：彻底清空原生暗底、边框、阴影与多余遮罩，只保留唯一的单层纯净磨砂玻璃 */
+html.kimino-dream-active model-response :is(
+  response-container,
+  .response-container,
+  message-content,
+  .message-content,
+  structured-content,
+  .structured-content,
+  .response-container-content,
+  .message-content-wrapper
+) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 html.kimino-dream-active model-response {
   display: block !important;
   background-color: rgba(24, 18, 36, 0.76) !important;
@@ -577,18 +598,12 @@ html.kimino-dream-active :is(
 /* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡）
    Gecko (Firefox) 特别兼容：显式声明 mask-size 与 mask-origin 为 border-box，
    防止火狐将 mask 撑满整个 scrollHeight 导致当前可视区渐变丢失 */
+/* 对话滚动视口：严禁使用 mask-image（CSS 规范：祖先 mask 会创建隔离渲染上下文，导致全部子孙气泡的 backdrop-filter 毛玻璃硬件采样失效退化成全黑或三层亚克力） */
 html.kimino-dream-active infinite-scroller.chat-history,
-html.kimino-dream-active main infinite-scroller {
-  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
-  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
-  -webkit-mask-size: 100% 100% !important;
-  mask-size: 100% 100% !important;
-  -webkit-mask-repeat: no-repeat !important;
-  mask-repeat: no-repeat !important;
-  -webkit-mask-origin: border-box !important;
-  mask-origin: border-box !important;
-  -webkit-mask-clip: border-box !important;
-  mask-clip: border-box !important;
+html.kimino-dream-active main infinite-scroller,
+html.kimino-dream-active infinite-scroller {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
   overflow-anchor: auto !important;
 }
 

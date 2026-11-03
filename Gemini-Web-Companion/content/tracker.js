@@ -71,9 +71,26 @@
 
       this.initNetworkListener();
       this.initDomObserver();
+      this.initTurnDomWatcher();
       this.initUrlListener();
       this.startCountdownTimer();
       this.startQuotaRpcRefreshLoop();
+      // 页面载入即刻强制拉取一次最新官方账本（零延迟，杜绝旧缓存）
+      this.refreshUsageLedger('page-load', true);
+      this.startUsagePageScraper();
+      // storage.onChanged：其他标签页（隐藏用量兜底页等）写入的账本数据实时并入本页
+      try {
+        api.onChanged((changes, area) => {
+          if (area !== 'local' || !changes.cachedRealQuota || !changes.cachedRealQuota.newValue) return;
+          const incoming = changes.cachedRealQuota.newValue;
+          const cur = this.sessionData.realQuota;
+          if (cur.fetchedAt && (incoming.fetchedAt || 0) <= cur.fetchedAt) return; // 只接受更新的数据
+          this.sessionData.realQuota = { ...cur, ...incoming };
+          if (incoming.resetTimestamp) this.sessionData.resetTimestamp = incoming.resetTimestamp;
+          this.notify();
+          console.log('[星语喵伴] 已并入其他页面的额度账本更新:', incoming.currentUsagePercent ?? '?', '%');
+        });
+      } catch (e) {}
       // 启动后先立刻嗅探一轮，避免冷启动空白
       setTimeout(() => { this.scheduleScrape(true); }, 800);
     }
@@ -373,7 +390,7 @@
     async refreshUsageLedger(reason, force) {
       const now = Date.now();
       // 节流：回合后 20s、其余 60s；被节流时不丢弃——安排一次延后补刷
-      const minGap = reason === 'after-turn' ? 20000 : 60000;
+      const minGap = reason.startsWith('after-turn') ? 3500 : (reason === 'boot' || reason === 'page-load' ? 0 : 30000);
       if (!force && now - (this._lastLedgerAt || 0) < minGap) {
         if (!this._ledgerPendingTimer) {
           const wait = Math.max(3000, minGap - (now - (this._lastLedgerAt || 0)));
@@ -385,7 +402,8 @@
         return;
       }
       if (this._ledgerInFlight) return;
-      if (location.pathname === '/usage') return; // 页面自身即数据源，避免自抓
+      const path = (typeof window !== 'undefined' && window.location && window.location.pathname) || (typeof location !== 'undefined' && location.pathname) || '';
+      if (path === '/usage') return; // 页面自身即数据源，避免自抓
       if (this._ledgerPendingTimer) {
         clearTimeout(this._ledgerPendingTimer);
         this._ledgerPendingTimer = null;
@@ -404,6 +422,10 @@
             if (!info) throw new Error('parse-failed');
             this.applyUsageLedger(info, reason);
             this._lastLedgerAt = Date.now(); // 成功才计入节流
+            this._ledgerFailCount = 0;
+            console.log('[星语喵伴] 用量账本刷新成功 (' + reason + '): 5h ' +
+              (this.sessionData.realQuota.currentUsagePercent ?? '?') + '% | 周 ' +
+              (this.sessionData.realQuota.weeklyUsagePercent ?? '?') + '%');
             return;
           } catch (e) {
             lastErr = e;
@@ -411,7 +433,17 @@
         }
         // 全部失败：30s 后允许重试（不按 60s 节流惩罚）
         this._lastLedgerAt = Date.now() - 30000;
-        console.warn('[星语喵伴] 用量账本抓取失败（已重试 3 次）:', lastErr && lastErr.message);
+        this._ledgerFailCount = (this._ledgerFailCount || 0) + 1;
+        console.warn('[星语喵伴] 用量账本抓取失败（已重试 3 次）:', lastErr && lastErr.message,
+          '| 连败', this._ledgerFailCount, '次');
+        // 连续 2 轮失败 → 请求后台开隐藏 /usage 标签页兜底（页面 DOM 抓取链路）
+        if (this._ledgerFailCount >= 2) {
+          try {
+            const rt = (window.KIMINO_API && window.KIMINO_API.raw && window.KIMINO_API.raw.runtime) ||
+              (typeof chrome !== 'undefined' ? chrome.runtime : null);
+            if (rt && rt.sendMessage) rt.sendMessage({ type: 'KG_USAGE_FALLBACK' });
+          } catch (e) {}
+        }
       } finally {
         this._ledgerInFlight = false;
       }
@@ -497,16 +529,30 @@
       const weekPct = info.weekly && typeof info.weekly.percentageUsed === 'number'
         ? Math.min(100, Math.round(info.weekly.percentageUsed * 100)) : null;
 
-      // 当前周期重置时间驱动倒计时 / 限流判定（真实 UTC 时刻，时区零误差）
-      if (fiveMs) {
-        this.sessionData.resetTimestamp = fiveMs;
-        this.sessionData.rateLimited = fivePct !== null ? fivePct >= 100 : this.sessionData.rateLimited;
+      // v1.4.0 倒计时目标 = 两个池中【最近的未来重置时刻】：
+      // 周额度先到就先倒数周额度（到点强制刷账本——若 5h 池随周额度同步清零会立刻显示；
+      // 若没有，则 resetTimestamp 自动回退到 5h 池自己的重置时刻）
+      const futureResets = [fiveMs, weekMs].filter((ms) => ms && ms > now).sort((a, b) => a - b);
+      const nearest = futureResets[0] || fiveMs || null;
+      if (nearest) {
+        this.sessionData.resetTimestamp = nearest;
+        this.sessionData.nearestResetIsWeekly = nearest === weekMs && weekMs !== fiveMs;
+        const isActuallyLimited = fivePct !== null ? fivePct >= 100 : this.sessionData.rateLimited;
+        this.sessionData.rateLimited = isActuallyLimited;
+        if (!isActuallyLimited) {
+          if (this.sessionData.status === 'rate_limited') {
+            this.sessionData.status = 'idle';
+          }
+          this.sessionData.resetCountdownText = '';
+        }
       }
       this.updateRealQuota({
         currentUsagePercent: fivePct !== null ? fivePct : this.sessionData.realQuota.currentUsagePercent,
         currentResetTime: fiveMs ? this.formatClockLocal(fiveMs) : this.sessionData.realQuota.currentResetTime,
         weeklyUsagePercent: weekPct !== null ? weekPct : this.sessionData.realQuota.weeklyUsagePercent,
         weeklyResetTime: weekMs ? this.formatWeekLocal(weekMs) : this.sessionData.realQuota.weeklyResetTime,
+        fiveResetEpoch: fiveMs,
+        weeklyResetEpoch: weekMs,
         resetSource: 'usage-ledger',
         subscriptionTier: info.tier || '',
         isReal: true
@@ -613,6 +659,55 @@
       setTimeout(() => this.requestQuotaRpcRefresh('boot'), 3000);
     }
 
+    // ============ /usage 路由自身的 DOM 抓取 ============
+    // 双重用途：
+    //  a) 用户手动打开用量页时，本页 tracker 直接读 DOM 同步准确数据；
+    //  b) background 的隐藏兜底标签页（KG_USAGE_FALLBACK）打开 /usage 后，
+    //     由本抓取器读数并通知后台关闭 —— Edge/老环境账本 fetch 失败时的保底链路。
+    startUsagePageScraper() {
+      const path = (typeof window !== 'undefined' && window.location && window.location.pathname) || (typeof location !== 'undefined' && location.pathname) || '';
+      if (path !== '/usage') return;
+      let attempts = 0;
+      const timer = setInterval(() => {
+        attempts++;
+        try {
+          const ul = document.querySelector('ul[aria-label="用量周期"], [aria-label*="用量周期"]');
+          const text = ul ? (ul.innerText || ul.textContent || '') : (document.body.innerText || '');
+          const parsed = this.parseQuotaText(text);
+          if (parsed && (parsed.currentPct !== null || parsed.weeklyPct !== null)) {
+            let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
+            let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
+            if (parsed.currentReset) {
+              const loc = this.toLocalResetTime(parsed.currentReset);
+              if (loc) { curReset = loc.display; this.sessionData.resetTimestamp = loc.epoch; }
+            }
+            if (parsed.weeklyReset) {
+              const locW = this.toLocalResetTime(parsed.weeklyReset);
+              if (locW) weekReset = locW.display;
+            }
+            this.updateRealQuota({
+              currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
+              currentResetTime: curReset,
+              weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+              weeklyResetTime: weekReset,
+              resetSource: 'usage-page-dom',
+              isReal: true
+            });
+            // 通知后台：兜底页已完成使命，可关闭
+            try {
+              const rt = (window.KIMINO_API && window.KIMINO_API.raw && window.KIMINO_API.raw.runtime) ||
+                (typeof chrome !== 'undefined' ? chrome.runtime : null);
+              if (rt && rt.sendMessage) rt.sendMessage({ type: 'KG_USAGE_FALLBACK_DONE' });
+            } catch (e) {}
+            clearInterval(timer);
+            console.log('[星语喵伴] 已从用量页 DOM 同步官方配额（兜底链路）');
+          } else if (attempts >= 25) {
+            clearInterval(timer);
+          }
+        } catch (e) { clearInterval(timer); }
+      }, 1000);
+    }
+
     initDomObserver() {
       const observer = new MutationObserver(() => this.scheduleScrape());
 
@@ -634,6 +729,42 @@
 
       // 30s 安全轮询：兜住无结构性变更时的提示条文案变化 (倒计时跳变等)
       setInterval(() => this.scheduleScrape(true), 30000);
+    }
+
+    // ============ DOM 级回合完成检测（interceptor STREAM 事件的兜底） ============
+    // 用户诉求：每次对方 AI 输出完毕自动刷新额度。STREAM 事件依赖 MAIN world
+    // 拦截器（Edge/老 Firefox 上可能失灵），此处用纯 DOM 启发式兜底：
+    // user-query 数量增加 = 新回合开始；最后一条回复文本 2s 不再变化 = 输出完毕
+    // → 刷账本（内部 20s 节流 + 延后补刷，不会打爆网络）。
+    initTurnDomWatcher() {
+      this.__turnLastUq = -1;
+      this.__turnLastMr = -1;
+      this.__turnLastText = '';
+      this.__turnPending = false;
+      this.__turnSettleAt = 0;
+
+      setInterval(() => {
+        try {
+          const uqs = document.querySelectorAll('user-query').length;
+          const mrs = [...document.querySelectorAll('model-response')];
+          const last = mrs[mrs.length - 1];
+          const text = last ? (last.innerText || '') : '';
+          if (uqs > this.__turnLastUq) {
+            this.__turnPending = true;
+            this.__turnLastUq = uqs;
+            this.__turnSettleAt = Date.now();
+          }
+          if (text !== this.__turnLastText) {
+            this.__turnLastText = text;
+            this.__turnPending = true;
+            this.__turnSettleAt = Date.now();
+          }
+          if (this.__turnPending && this.__turnSettleAt && Date.now() - this.__turnSettleAt > 1200) {
+            this.__turnPending = false;
+            this.refreshUsageLedger('after-turn-dom', true);
+          }
+        } catch (e) {}
+      }, 600);
     }
 
     // 防抖调度：高频 DOM 突变时 600ms 合并一次，强制模式立即执行
@@ -1125,7 +1256,9 @@
       const alertElements = document.querySelectorAll('[role="alert"], .snack-bar, .toast, .banner, [data-test-id="error-message"]');
       for (const el of alertElements) {
         const text = el.textContent || '';
-        if (text.includes('limit') || text.includes('reached') || text.includes('上限') || text.includes('限流') || text.includes('额度') || text.includes('重试')) {
+        const isExhausted = /已达到(用量|限额)?上限|用量已(达|到)上限|已达限额|达到限额|quota\s*exceeded|usage\s*limit\s*reached|rate\s*limited/i.test(text);
+        const isInfoOnly = /将在.*重置|将于.*重置|resets?\s*at/i.test(text);
+        if (isExhausted && !isInfoOnly) {
           this.triggerRateLimit(text);
           break;
         }

@@ -1,7 +1,7 @@
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v1.3.10 | 更新时间：2026-11-03
+> **文档版本**：v1.3.12 | 更新时间：2026-11-03
 
 ### v1.3.5 增补（对齐终修 / 壁纸复活 / 自定义形象与壁纸）· 必读
 * **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
@@ -26,6 +26,14 @@
 
 
 
+
+
+### v1.3.12 增补（兜底链闭环）
+* **隐藏用量页兜底**：账本连续 2 轮失败 → tracker 请求 background 开隐藏 /usage 标签页（active:false），该页 tracker 用 startUsagePageScraper()（DOM → parseQuotaText → toLocalResetTime）写 storage 并通知 background 关页（45s 保底强关，5 分钟冷却）；
+* **跨页实时并入**：tracker init 挂 storage.onChanged（cachedRealQuota，fetchedAt 更新者胜出）——兜底页数据即刻驱动 /app 挂件。
+### v1.3.11 增补（回合 DOM 兜底 / 最近重置倒计时）
+* **回合完成双保险**：STREAM 事件（interceptor）可能失灵 → `initTurnDomWatcher()` 用纯 DOM 启发式兜底（user-query 增量=新回合、最后回复文本 2s 稳定=完毕 → 刷账本，20s 节流）。
+* **倒计时目标 = 最近重置**：applyUsageLedger 里 resetTimestamp = min(未来的 5h 重置, 未来的周重置)；周先到先盯周，到点强制刷账本实证 5h 是否同步。`realQuota.fiveResetEpoch/weeklyResetEpoch` 已落 storage 供挂件扩展使用。
 ### v1.3.10 增补（额度恢复补强）· 必读
 * **账本重试**：refreshUsageLedger 内 3 次退避重试（0.8s/2s）；成功才计 60s 节流，全败后 30s 可再试——杜绝瞬时网络故障把进度条钉在旧值；
 * **重置即刷**：倒计时归零 → 强制 refreshUsageLedger("after-reset")（30s 防抖），额度恢复当场回显，不依赖 5 分钟轮询；

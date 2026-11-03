@@ -94,6 +94,10 @@ Google 会话级 A/B 分流会让 CSS 类名漂移——**任何类名选择器�
 - 倒计时归零 → **强制拉账本**（额度窗恢复当场回显）；
 - **提示条时间纠偏**：账本新鲜（<10 分钟）时，Google 输入框提示条的重置时间**禁止覆盖**账本（实测两者存在 1 小时级错位，21:37 vs 22:37）；账本过期才允许兜底。
 
+**v1.3.11 加固（回合检测双保险 + 最近重置倒计时）**：
+- STREAM 事件依赖 MAIN world 拦截器，部分环境可能失灵 → `initTurnDomWatcher()` 用纯 DOM 启发式兜底（user-query 增量=新回合，最后回复文本 2s 稳定=输出完毕 → 刷账本，20s 节流）；
+- 倒计时目标 = **两个池中最近的未来重置时刻**（周额度先到先盯周；到点强制刷账本实证 5h 是否同步，没同步则自动回退盯 5h 池）。
+
 兜底链（保留但非主）：interceptor 的 MaZiqc 捕获/重放（历史遗留，勿再扩展）、提示条嗅探、用量弹窗 DOM 嗅探。
 
 ---
@@ -161,9 +165,10 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 4. **IAB 部署是桩环境且会触发风控**：storage 不持久、manifest 走 fetch 桩；`/app` 整页刷新会清掉注入；**切勿在 IAB 里做对话测试**（见 §4 红线）。
 5. **/usage 页与图片查看器**样式按**当前**原子类/类名编写，Google 改版后需按 §2.2 重新勘察（用 skin.js 的 ghostHunt/角落诊断辅助定位）。
 6. **真实 Firefox 的 `world:MAIN`**：Firefox 128+ 支持；更老版本退回 isolated + inject-bridge（CSP 可能拦截 → 仅 DOM 嗅探，功能降级不崩溃）。
-7. **待用户实测（Edge 实装）**：
+7. **待用户实测（Edge 实装，v1.3.12 已覆盖大部分）**：
    - [x] 对话完成后实时刷新额度（已确认正常）；
    - [ ] **5h 额度窗重置后**进度条是否自动回落（v1.3.10 已加"倒计时归零强制刷新"，待实测）；
+- [x] **账本 fetch 失败的兜底**：v1.3.12 已闭环——连续 2 轮失败自动开隐藏 /usage 标签页 DOM 抓取写 storage（background.js KG_USAGE_FALLBACK），完成即关页；
    - [ ] **每周额度重置后**是否自动更新；
    - [ ] **新开浏览器会话**后首屏是否正确显示（账本启动 2.5s 应拉取；若偶发网络失败，3 次重试 + 30s 后再试兜底）；
    - [ ] Firefox/Zen 上账本 fetch 是否受 CSP 影响（Chromium 内容脚本不受页面 CSP 约束；Gecko 若有异常则需主世界桥兜底）。
@@ -171,14 +176,15 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 
 ---
 
-## 7. 本次未提交改动（v1.3.10）
+## 7. 本次未提交改动（v1.3.12 兜底链闭环）
 
 ```
-M CHANGELOG.md                            # 1.3.9 + 1.3.10 条目（1.3.9 条目在 71dd3a1 提交中缺失，已补回）
-M Gemini-Web-Companion/HANDOVER.md        # v1.3.9 / v1.3.10 增补
-M Gemini-Web-Companion/content/tracker.js # 账本重试 / 重置即刷 / 回合后 20s + 延后补刷 / 提示条时间纠偏
-M Gemini-Web-Companion/manifest.json      # 1.3.9 → 1.3.10
-M HANDOFF.md                              # 本文件（v1.3.10 定案 + IAB 风控红线 + 待验证清单）
+M CHANGELOG.md                            # 1.3.9/1.3.10/1.3.11/1.3.12 条目
+M Gemini-Web-Companion/HANDOVER.md        # v1.3.9~v1.3.12 增补
+M Gemini-Web-Companion/content/tracker.js # DOM 回合兜底 / 最近重置倒计时 / 账本重试 / /usage DOM 抓取 / storage.onChanged
+M Gemini-Web-Companion/background.js      # 隐藏用量页兜底标签页管理
+M Gemini-Web-Companion/manifest.json      # 1.3.9 → 1.3.12
+M HANDOFF.md                              # 本文（v1.3.12 定案）
 ```
 
 ---
