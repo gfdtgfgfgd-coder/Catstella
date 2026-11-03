@@ -51,6 +51,8 @@
       this._scrapeTimer = null;
       this._lastReplayAt = 0;
       this._loggedRawOnce = false;
+      this._lastLedgerAt = 0;   // 用量账本刷新节流
+      this._ledgerInFlight = false;
 
       this.init();
     }
@@ -144,7 +146,8 @@
             this.sessionData.status = 'idle';
             this.sessionData.lastActiveTime = Date.now();
             this.scheduleScrape(true);
-            // 每轮对话结束后请求一次静默额度重放（interceptor 内部有节流）
+            // 每轮对话结束后刷新官方用量账本（60s 内部节流）+ RPC 重放兜底
+            this.refreshUsageLedger('after-turn');
             this.requestQuotaRpcRefresh('after-turn');
           } else if (type === 'RATE_LIMIT_HIT') {
             this.triggerRateLimit('网络返回 429 配额用尽');
@@ -359,40 +362,135 @@
 
     // 请求 interceptor 静默重放 MaZiqc（60s 最小间隔，手动可强制，绝不打开任何界面）
     
-    // ============ 主动静默探针 (彻底攻克实时官方额度抓取) ============
-    spawnSilentUsageProber() {
-      if (document.getElementById('kimino-usage-prober')) return;
+    // ============ 官方用量账本抓取 (v1.3.9 根治方案) ============
+    // 实机破案：/usage 的额度数据【不在任何运行期 RPC】，而是服务端渲染的流式
+    // JSON 块 —— HTML 里 <script type="application/json"> 中 id="usage:0" 的
+    // chunk 拼接后是 [{data:{viewer:{rpcs:{getUsageInfo:{subscriptionTier,pools:[
+    //   {poolType:"GXU_FIVE_HOURLY",percentageUsed,windowRefreshesAt(UTC ISO)},
+    //   {poolType:"GXU_WEEKLY",...}]}}}},...}]。
+    // 直接 fetch('/usage')（同源带 cookie、no-store）解析即可：零 UI、零导航、
+    // 无跨域限制 —— 取代会被同源嵌入策略拦截的 iframe 探针。
+    async refreshUsageLedger(reason, force) {
+      const now = Date.now();
+      if (!force && now - (this._lastLedgerAt || 0) < 60000) return; // 60s 节流
+      if (this._ledgerInFlight) return;
+      if (location.pathname === '/usage') return; // 页面自身即数据源，避免自抓
+      this._lastLedgerAt = now;
+      this._ledgerInFlight = true;
       try {
-        console.log('[星语喵伴] 启动静默用量探针，拉取官方最新配额...');
-        const iframe = document.createElement('iframe');
-        iframe.id = 'kimino-usage-prober';
-        iframe.style.cssText = 'position:fixed !important;width:0 !important;height:0 !important;border:none !important;opacity:0 !important;pointer-events:none !important;left:-9999px !important;top:-9999px !important;';
-        iframe.src = '/usage';
-        (document.body || document.documentElement).appendChild(iframe);
-
-        iframe.onload = () => {
-          setTimeout(() => {
-            try {
-              const doc = iframe.contentDocument || iframe.contentWindow?.document;
-              if (doc) {
-                this.scrapeQuotaFromDocument(doc);
-              }
-            } catch (e) {}
-            setTimeout(() => {
-              try { iframe.remove(); } catch (e) {}
-            }, 3000);
-          }, 1200);
-        };
-
-        setTimeout(() => {
-          try {
-            const el = document.getElementById('kimino-usage-prober');
-            if (el) el.remove();
-          } catch (e) {}
-        }, 8000);
+        const res = await fetch('/usage', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const html = await res.text();
+        const info = this.parseUsageLedgerHtml(html);
+        if (info) {
+          this.applyUsageLedger(info, reason);
+        } else {
+          console.warn('[星语喵伴] 用量账本解析失败（页面结构可能变更），依赖兜底链路');
+        }
       } catch (e) {
-        console.warn('[星语喵伴] 挂载用量探针异常:', e);
+        console.warn('[星语喵伴] 用量账本抓取失败:', e && e.message);
+      } finally {
+        this._ledgerInFlight = false;
       }
+    }
+
+    // HTML → { tier, five, weekly }（five/weekly 为原始 pool 对象）
+    parseUsageLedgerHtml(html) {
+      const chunks = [];
+      const re = /<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi;
+      let m;
+      while ((m = re.exec(html)) !== null) {
+        const body = m[1];
+        if (!body || body.indexOf('usage:0') === -1) continue;
+        try {
+          const obj = JSON.parse(body);
+          (obj.events || []).forEach((ev) => {
+            if (ev && ev.id === 'usage:0' && ev.kind === 'chunk' && typeof ev.chunk === 'string') {
+              chunks.push(ev.chunk);
+            }
+          });
+        } catch (e) {}
+      }
+      if (!chunks.length) return null;
+      let data;
+      try { data = JSON.parse(chunks.join('')); } catch (e) { return null; }
+      const info = this.findUsageInfo(data);
+      if (!info || !Array.isArray(info.pools)) return null;
+      const five = info.pools.find((p) => p && p.poolType === 'GXU_FIVE_HOURLY');
+      const weekly = info.pools.find((p) => p && p.poolType === 'GXU_WEEKLY');
+      if (!five && !weekly) return null;
+      return { tier: info.subscriptionTier || '', five, weekly };
+    }
+
+    findUsageInfo(node) {
+      if (!node || typeof node !== 'object') return null;
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const r = this.findUsageInfo(item);
+          if (r) return r;
+        }
+        return null;
+      }
+      if (Array.isArray(node.pools) && node.pools.some((p) => p && p.poolType)) return node;
+      for (const key of Object.keys(node)) {
+        const r = this.findUsageInfo(node[key]);
+        if (r) return r;
+      }
+      return null;
+    }
+
+    // UTC ISO → 本地毫秒（V8/Gecko 对超长小数秒解析不一致，先截断到毫秒）
+    isoToMs(iso) {
+      try {
+        if (!iso) return null;
+        const normalized = String(iso).replace(/\.(\d{3})\d+/, '.$1');
+        const ms = Date.parse(normalized);
+        return Number.isFinite(ms) ? ms : null;
+      } catch (e) { return null; }
+    }
+
+    // 本地时钟文案（与 Google 一致：24h HH:MM）
+    formatClockLocal(ms) {
+      try {
+        const d = new Date(ms);
+        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      } catch (e) { return ''; }
+    }
+
+    formatWeekLocal(ms) {
+      try {
+        const d = new Date(ms);
+        return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' +
+          String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      } catch (e) { return ''; }
+    }
+
+    applyUsageLedger(info, reason) {
+      const now = Date.now();
+      const fiveMs = info.five ? this.isoToMs(info.five.gxu && info.five.gxu.windowRefreshesAt) : null;
+      const weekMs = info.weekly ? this.isoToMs(info.weekly.gxu && info.weekly.gxu.windowRefreshesAt) : null;
+      const fivePct = info.five && typeof info.five.percentageUsed === 'number'
+        ? Math.min(100, Math.round(info.five.percentageUsed * 100)) : null;
+      const weekPct = info.weekly && typeof info.weekly.percentageUsed === 'number'
+        ? Math.min(100, Math.round(info.weekly.percentageUsed * 100)) : null;
+
+      // 当前周期重置时间驱动倒计时 / 限流判定（真实 UTC 时刻，时区零误差）
+      if (fiveMs) {
+        this.sessionData.resetTimestamp = fiveMs;
+        this.sessionData.rateLimited = fivePct !== null ? fivePct >= 100 : this.sessionData.rateLimited;
+      }
+      this.updateRealQuota({
+        currentUsagePercent: fivePct !== null ? fivePct : this.sessionData.realQuota.currentUsagePercent,
+        currentResetTime: fiveMs ? this.formatClockLocal(fiveMs) : this.sessionData.realQuota.currentResetTime,
+        weeklyUsagePercent: weekPct !== null ? weekPct : this.sessionData.realQuota.weeklyUsagePercent,
+        weeklyResetTime: weekMs ? this.formatWeekLocal(weekMs) : this.sessionData.realQuota.weeklyResetTime,
+        resetSource: 'usage-ledger',
+        subscriptionTier: info.tier || '',
+        isReal: true
+      });
+      console.log('[星语喵伴] 用量账本已刷新 (' + reason + '): 5h ' +
+        (fivePct !== null ? fivePct + '%' : '?') + ' @ ' + (fiveMs ? this.formatClockLocal(fiveMs) : '?') +
+        ' | 周 ' + (weekPct !== null ? weekPct + '%' : '?') + ' @ ' + (weekMs ? this.formatWeekLocal(weekMs) : '?'));
     }
 
     // 统一解析 Google 用量文本（弹窗、/usage 页面、隐形探针均复用此逻辑）
@@ -466,7 +564,8 @@
     }
 
     requestQuotaRpcRefresh(reason = 'manual', force = false) {
-      if (!this._lastQuotaSource || force) { this.spawnSilentUsageProber(); }
+      // v1.3.9: 主链路 = 用量账本（SSR JSON 块）；RPC 重放仅作兜底
+      this.refreshUsageLedger(reason, force);
       const now = Date.now();
       if (!force && now - this._lastReplayAt < 60000) return;
       this._lastReplayAt = now;
@@ -481,7 +580,11 @@
     }
 
     startQuotaRpcRefreshLoop() {
-      // 每 5 分钟静默刷新一次官方额度
+      // 每 5 分钟刷新官方用量账本（真实百分比 + UTC 重置时刻）
+      setInterval(() => this.refreshUsageLedger('periodic'), 5 * 60 * 1000);
+      // 启动先抓一次（缓存兜底之后再校准）
+      setTimeout(() => this.refreshUsageLedger('boot'), 2500);
+      // 每 5 分钟静默刷新一次官方额度（RPC 重放兜底链路）
       setInterval(() => this.requestQuotaRpcRefresh('periodic'), 5 * 60 * 1000);
       // 启动 3 秒后先试一次（若 interceptor 已捕获 boot 的 f.req 即可立即刷新）
       setTimeout(() => this.requestQuotaRpcRefresh('boot'), 3000);
@@ -600,7 +703,7 @@
           if (parsed.resetAt) this.sessionData.resetTimestamp = parsed.resetAt.getTime();
           // 若每周限额尚未同步，立即激活静默探针同步每周配额
           if (!this.sessionData.realQuota.weeklyResetTime || this.sessionData.realQuota.weeklyUsagePercent === null) {
-            this.spawnSilentUsageProber();
+            this.refreshUsageLedger('hint-limited');
           }
         } else if (this.sessionData.rateLimited && parsed.resetAt && parsed.resetAt.getTime() > now) {
           // 限流解除但倒计时仍在走：保持限流态直到时间耗尽

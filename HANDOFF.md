@@ -74,14 +74,17 @@ Google 会话级 A/B 分流会让 CSS 类名漂移——**任何类名选择器�
 | /usage 页 | Meta 原子类 `x9f619` 系列 | section 实底 rgb(15,15,15)、配额卡 rgb(23,23,23)、装饰 `.gradient-strip` |
 | "头像旁黑框" | `<aside aria-label="Notifications">`（32×32，左下角 0,688） | Google 通知 live-region 气泡；skin.js ghostHunt 自动透明化 + 控制台链路 |
 
-### 2.3 额度管线（MaZiqc）
+### 2.3 额度管线（v1.3.9 定案：SSR 账本为主链路）
 
-- 官方双周期额度由 batchexecute RPC **`MaZiqc`** 承载，**每次应用启动都会发出**（不必进用量页）；
-- Angular 在引导期会捕获原始 `fetch` 引用 → 运行期补丁无效 → `interceptor.js` 必须 `world:MAIN` + `document_start` 才能抢先；
-- 捕获到 `f.req` 后，tracker 按需发 `postMessage` 让拦截器用保存的**原始 fetch 引用**静默重放（零 UI）；
-- 响应解析 = **锚点式**：找"同一对象内同时含 0-100 整数与时间串"的最小分组，纯时钟→当前周期、含月日→每周限额（噪声整数混入单测在 `CHANGELOG 1.2.3` 有记录）；
-- 兜底层：输入框上方提示条解析（`sniffResetHintBar`）+ 原生用量弹窗 DOM 嗅探；
-- 显示语义：官方 5h 窗口初期恒为 0%（四舍五入滞后），故 `fatiguePercent = max(官方, 会话估算)`、角标标注"官方限额/会话估算"，重置时间照常显示官方值。
+**请勿再相信"MaZiqc 是额度 RPC"的旧结论**——2026-11-03 实机取证：MaZiqc 是会话列表 RPC；额度数据**不在任何运行期 RPC**，而是 `/usage` 页面的服务端渲染流式 JSON：
+
+1. `tracker.refreshUsageLedger()`：内容脚本 `fetch('/usage', {credentials:'include', cache:'no-store'})`；
+2. `parseUsageLedgerHtml()`：正则提取 `<script type="application/json">` → 收集 `id="usage:0"` 的 `chunk` 字符串 → 拼接 → `JSON.parse` → `findUsageInfo()` 深搜 `getUsageInfo`；
+3. `getUsageInfo.pools` 含：`GXU_FIVE_HOURLY` / `GXU_WEEKLY` 的 `percentageUsed`（0~1）与 `windowRefreshesAt`（UTC ISO）；
+4. `applyUsageLedger()`：百分比 → 展示文案（本地 HH:MM / M月d日 HH:MM）+ `resetTimestamp`（真实 epoch，倒计时/限流判定）。
+
+触发点：启动 2.5s、每轮对话 STREAM_COMPLETE（60s 节流）、每 5 分钟、挂件 🔄 同步（force）。
+兜底链（保留但非主）：interceptor 的 MaZiqc 捕获/重放（历史遗留，勿再扩展）、提示条嗅探、用量弹窗 DOM 嗅探。
 
 ---
 
@@ -141,7 +144,7 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 ## 6. 已知问题与注意事项
 
 1. **测试 1 项失败**：`Antigravity-Cat-Widget/test/personality.test.cjs` 的 `native heartbeat` 用例——本仓库带入的桌面端旧案，与扩展无关。
-2. **MaZiqc 重放依赖会话**：`f.req` 捕获于当次会话；重放失败（400）时自动退回 DOM 嗅探（提示条/弹窗）。控制台若见 `[星语喵伴] 额度RPC重放失败` 属已知降级路径。
+2. **额度账本解析依赖 `/usage` SSR 结构**：若 Google 改版（script 类型或 `usage:0`/`GXU_*` 命名变化），`refreshUsageLedger` 会解析失败并在控制台告警，此时退回兜底链（提示条/弹窗）。排查方式：IAB 打开 /usage，`document.querySelectorAll('script[type="application/json"]')` 查看 chunk 结构。
 3. **自定义壁纸体积**：storage.local 默认上限约 10MB；壁纸已压到 ≤1920×1080 JPEG，形象 ≤640×640 PNG。超限需加 `unlimitedStorage` 权限（当前未加）。
 4. **IAB 部署是桩环境**：storage 不持久、manifest 走 fetch 桩；不代表真实扩展行为。
 5. **/usage 页与图片查看器**样式按**当前**原子类/类名编写，Google 改版后需按 §2.2 重新勘察（用 skin.js 的 ghostHunt/角落诊断辅助定位）。
@@ -149,17 +152,14 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 
 ---
 
-## 7. 本次未提交改动（1.3.6 → 1.3.8）
+## 7. 本次未提交改动（v1.3.9 额度根治）
 
 ```
-M CHANGELOG.md                          # 1.3.6/1.3.7/1.3.8-ext 三条记录
-M Gemini-Web-Companion/HANDOVER.md      # v1.3.6/1.3.7/1.3.8 增补与铁律
-M Gemini-Web-Companion/content/skin.css # 毛玻璃 token、双曲线 mask、overflow-anchor
-M Gemini-Web-Companion/content/skin.js  # 标注引擎、渐隐、玻璃带、画廊壁纸、rAF→setTimeout
-M Gemini-Web-Companion/content/tracker.js # 显示语义 max(官方, 估算)+来源
-M Gemini-Web-Companion/content/widget.js  # 设置面板画廊、TT 安全壳、enabled important
-M Gemini-Web-Companion/manifest.json     # 1.3.5 → 1.3.8
-M Gemini-Web-Companion/scripts/build.js  # 画廊清单生成
+M CHANGELOG.md                            # 1.3.9-ext 条目
+M Gemini-Web-Companion/HANDOVER.md        # v1.3.9 增补（SSR 账本铁律）
+M Gemini-Web-Companion/content/tracker.js # refreshUsageLedger / parseUsageLedgerHtml / applyUsageLedger 主链路
+M Gemini-Web-Companion/content/widget.js  # 同步按钮接入账本刷新
+M Gemini-Web-Companion/manifest.json      # 1.3.8 → 1.3.9
 ```
 
 ---
@@ -169,7 +169,7 @@ M Gemini-Web-Companion/scripts/build.js  # 画廊清单生成
 1. **视觉微调**：毛玻璃浓度（0.66~0.74）、渐隐距离（`FADE_RANGE=110`）、玻璃带 blur（11px）都是单点参数；
 2. **画廊素材扩充**：往 `assets/wallpapers/`、`assets/characters/<包>/`（含 idle.png）放素材，重新构建即自动进画廊；
 3. **桌面壁纸包接入**：`Antigravity-Dream-Skin/assets/wallpapers/gemini-character-sheet-v1` 可搬进扩展资产；
-4. **额度重放加固**：若 MaZiqc `f.req` 长期失效，可考虑在重放响应 400 时自动触发一次"用量页往返"采集新的请求体；
+4. **账本解析加固**：把 `parseUsageLedgerHtml` 的匹配条件（`usage:0` 前缀、`GXU_FIVE_HOURLY`/`GXU_WEEKLY`）做成宽松匹配 + 失败时打印结构样例，便于 Google 改版后快速修复；
 5. **提交**：当前改动未提交，建议 `git add -A && git commit -m "feat(web): v1.3.8 ..."`（提交前跑一遍 `npm.cmd test`）。
 
 ---

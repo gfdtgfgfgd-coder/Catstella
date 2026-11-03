@@ -875,13 +875,15 @@
       api.storageSet({ bubbleVisible: false });
     });
 
-    // 点击同步按钮：静默重放官方额度 RPC（零 UI），并辅以 DOM 嗅探兜底
+    // 点击同步按钮：静默刷新官方用量账本（零 UI）+ RPC 重放与 DOM 嗅探兜底
     btnSyncQuota.addEventListener('click', (e) => {
       e.stopPropagation();
       playSound('press');
       btnSyncQuota.textContent = '嗅探中...';
       try {
         if (window.__KIMINO_TRACKER__) {
+          // 主链路：用量账本（真实百分比，force 跳过 60s 节流）
+          window.__KIMINO_TRACKER__.refreshUsageLedger('widget', true);
           window.__KIMINO_TRACKER__.requestQuotaRpcRefresh('widget', true);
           window.__KIMINO_TRACKER__.sniffResetHintBar();
           window.__KIMINO_TRACKER__.scrapeRealQuotaFromDom();

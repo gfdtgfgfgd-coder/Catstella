@@ -1,7 +1,7 @@
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v1.3.8 | 更新时间：2026-11-03
+> **文档版本**：v1.3.9 | 更新时间：2026-11-03
 
 ### v1.3.5 增补（对齐终修 / 壁纸复活 / 自定义形象与壁纸）· 必读
 * **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
@@ -24,6 +24,12 @@
 
 
 
+
+### v1.3.9 增补（额度实时监控根治 · SSR 账本）· 必读
+* **数据源真相**：官方额度**不在任何运行期 RPC**——`/usage` 页面的额度是服务端渲染流式 JSON：HTML 内 `<script type="application/json">` 中 `id="usage:0"` 的 chunk 拼接后含 `getUsageInfo.pools`（`GXU_FIVE_HOURLY` / `GXU_WEEKLY` 的 `percentageUsed` + `windowRefreshesAt` UTC ISO）。MaZiqc 是会话列表 RPC，与本需求无关；此前的 interceptor 捕获/重放链路仅作兜底保留。
+* **主链路**：`tracker.refreshUsageLedger(reason, force)` —— `fetch('/usage', {credentials:'include', cache:'no-store'})` → `parseUsageLedgerHtml()`（正则抠 json script → 拼 usage:0 chunk → `findUsageInfo` 深搜）→ `applyUsageLedger()`（百分比 + 本地时钟文案 + resetTimestamp 真实 epoch + 限流判定）。60s 内部节流；触发点：启动 2.5s / 每轮 STREAM_COMPLETE / 每 5 分钟 / 挂件同步按钮（force）。
+* **时区**：重置时刻来自 UTC ISO，直接 `Date.parse`（小数秒先截断到毫秒）转本地，**不要再做"IP 属地时区推断"**。
+* **禁用**：iframe 探针（`/usage` 拒绝被同源嵌入，contentDocument 跨源报错）、对 `/usage` 自身重复抓取（tracker 在 /usage 路由直接跳过账本刷新）。
 ### v1.3.8 增补（对齐铁律 / 防跳滚 / rAF 冻结）· 必读
 * **双曲线铁律**：玻璃带几何由 applyFades 统一写入（与卡片渐隐同区间 [fadeStartY, cutY]），mask 纯线性——勿恢复独立 updateGlassBand（双曲线错位根因）；
 * **滚动容器铁律**：对话滚动容器 = 从 model-response 向上 closest('infinite-scroller')（即 .chat-history，7984px）；`infinite-scroller.lr26-theme` 是侧栏滚动区（勿锚）；溢出过滤（sh>ch+50）在虚拟化+置底时会误判消失（勿用）；
