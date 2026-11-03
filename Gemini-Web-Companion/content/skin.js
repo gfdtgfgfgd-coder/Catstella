@@ -299,15 +299,26 @@
     } catch (e) {}
   };
 
-  // ============ 展开/收起按钮全域水晶重绘与精准遮罩清除 ============
+  // ============ 展开/收起按钮水晶重绘（严格保护侧边栏 + 防死循环守卫） ============
+  const PROCESSED_BTNS = new WeakSet();
   const restyleExpandButtonsAndStripMasks = () => {
     try {
-      // 1. 全局扫描所有按钮，捕获所有“展开/收起/Show more/Read more”文字或图标按钮（包括卡片外同级的按钮）
-      document.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]').forEach((el) => {
+      // 1. 仅扫描主对话区域（排除 bard-sidenav 侧边栏！）
+      const mainArea = document.querySelector('infinite-scroller.chat-history') || document.querySelector('main') || document.body;
+      if (!mainArea) return;
+
+      const candidates = mainArea.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]');
+      candidates.forEach((el) => {
+        // 门禁 1：严格排除左侧栏（绝对不碰笔记本/历史列表/底部全部）
+        if (el.closest('bard-sidenav') || el.closest('[data-test-id="side-nav"]')) return;
+
         let target = el;
         if (el.tagName && el.tagName.toLowerCase() === 'mat-icon') {
           target = el.closest('button') || el.closest('[role="button"]') || el;
         }
+        if (target.closest('bard-sidenav')) return;
+        if (PROCESSED_BTNS.has(target)) return; // 已经处理过，绝不重复触发 Mutation
+
         const text = (target.textContent || '').trim();
         const aria = target.getAttribute('aria-label') || '';
         const icon = (target.querySelector('mat-icon')?.textContent || '') + (target.querySelector('svg')?.innerHTML || '');
@@ -319,41 +330,33 @@
           /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up/i.test(text);
 
         if (isExpand) {
+          PROCESSED_BTNS.add(target);
           target.setAttribute('data-kg-expand-btn', 'true');
           const isIconOnly = (!text || text.length <= 1 || text === icon || target.querySelector('svg') || target.querySelector('mat-icon')) && text.length <= 2;
           if (isIconOnly) {
             target.setAttribute('data-kg-icon-only', 'true');
           }
 
-          // 核心安全防护：只向上清空直接包裹按钮的小工具栏（高度 <= 64px），绝不触碰卡片本身！
+          // 核心安全：只向上清空直接包裹按钮的小工具栏（高度 <= 48px），绝不触碰卡片正文或卡片本身！
           let p = target.parentElement;
-          for (let i = 0; i < 2 && p && p !== document.body; i++) {
-            // 严禁清空卡片/气泡自身背景！
+          for (let i = 0; i < 2 && p && p !== mainArea; i++) {
             if (p.hasAttribute('data-kg') && p.getAttribute('data-kg') !== 'expand-btn') break;
             const tag = (p.tagName || '').toLowerCase();
             if (tag === 'model-response' || tag === 'user-query' || tag === 'response-container' || tag === 'message-content') break;
             const h = p.getBoundingClientRect().height;
-            if (h > 64) break; // 超过 64px 必然是正文容器，立即停手！
+            if (h > 48) break; // 超过 48px 必然是内容区，立即停手！
 
-            p.style.setProperty('background', 'transparent', 'important');
-            p.style.setProperty('background-image', 'none', 'important');
-            p.style.setProperty('box-shadow', 'none', 'important');
-            p = p.parentElement;
-          }
-
-          // 清空前一个直接相连的遮罩层
-          if (target.previousElementSibling) {
-            const prev = target.previousElementSibling;
-            if (prev.getBoundingClientRect().height <= 64) {
-              prev.style.setProperty('background', 'transparent', 'important');
-              prev.style.setProperty('background-image', 'none', 'important');
-              prev.style.setProperty('box-shadow', 'none', 'important');
+            if (p.style.backgroundColor !== 'transparent') {
+              p.style.setProperty('background', 'transparent', 'important');
+              p.style.setProperty('background-image', 'none', 'important');
+              p.style.setProperty('box-shadow', 'none', 'important');
             }
+            p = p.parentElement;
           }
         }
       });
 
-      // 2. 清除纯遮罩作用的空绝对定位元素（长文折叠底部的渐变阴影条）
+      // 2. 仅在回复卡片内清除无内容的绝对定位纯遮罩条
       document.querySelectorAll('model-response, user-query').forEach((scope) => {
         scope.querySelectorAll('div, span').forEach((child) => {
           if (child.children.length === 0 && child.textContent.trim().length === 0) {

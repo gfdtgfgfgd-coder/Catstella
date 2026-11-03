@@ -480,63 +480,46 @@ html.kimino-dream-active model-response::before {
   box-shadow: none !important;
 }
 
-html.kimino-dream-active model-response :has(> button),
-html.kimino-dream-active model-response :has(> [role="button"]),
-html.kimino-dream-active model-response :is(
-  [class*="expand"],
-  [class*="collapse"],
-  [class*="button-container"],
-  [class*="read-more"],
-  [class*="show-more"],
-  [class*="see-more"]
-):not(button):not([role="button"]) {
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
+/* removed dangerous expand card wipe */
 
 /* ================================================================
-   星语喵伴 · 展开/收起按钮全域水晶重绘（彻底消除原生黑块与脏阴影）
+   星语喵伴 · 展开/收起按钮水晶药丸（主会话区专属，绝不污染侧边栏）
    ================================================================ */
-html.kimino-dream-active [data-kg-expand-btn="true"],
-html.kimino-dream-active :is(user-query, model-response) :is(
+/* 明确排除侧边栏，仅作用于主对话区中的展开/收起按钮 */
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"],
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
   button,
   [role="button"]
 ):is(
   [class*="expand"],
   [class*="collapse"],
   [class*="show-more"],
-  [class*="read-more"],
-  [aria-label*="展开"],
-  [aria-label*="收起"],
-  [aria-label*="Expand"],
-  [aria-label*="Collapse"]
-) {
+  [class*="read-more"]
+):not(bard-sidenav *) {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
   border-radius: 18px !important;
-  background-color: rgba(55, 42, 78, 0.75) !important;
-  background-image: linear-gradient(135deg, rgba(125, 95, 175, 0.35), rgba(45, 32, 68, 0.75)) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(195, 170, 240, 0.38) !important;
-  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.30), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
+  background-color: rgba(55, 42, 78, 0.85) !important;
+  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(45, 32, 68, 0.82)) !important;
   color: #ede6fc !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   padding: 5px 14px !important;
   margin: 6px 0 !important;
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(200, 175, 245, 0.45) !important;
+  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
   cursor: pointer !important;
   line-height: normal !important;
+  transform: none !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
 }
 
-/* 纯图标圆纽扣（如用户提问气泡右下角的小箭头） */
-html.kimino-dream-active [data-kg-expand-btn="true"][data-kg-icon-only="true"],
-html.kimino-dream-active user-query :is(button, [role="button"]):is([class*="expand"], [class*="collapse"], :has(mat-icon)) {
+/* 纯图标圆纽扣（如用户气泡右下角的独立小向下箭头） */
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"][data-kg-icon-only="true"] {
   width: 28px !important;
   height: 28px !important;
   min-width: 28px !important;
@@ -546,14 +529,10 @@ html.kimino-dream-active user-query :is(button, [role="button"]):is([class*="exp
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background-color: rgba(65, 50, 92, 0.78) !important;
-  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(48, 35, 72, 0.80)) !important;
-  border: 1px solid rgba(200, 175, 245, 0.45) !important;
-  box-shadow: 0 2px 8px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.3) !important;
 }
 
 /* 按钮内文字与图标颜色 */
-html.kimino-dream-active [data-kg-expand-btn="true"] :is(mat-icon, .mat-icon, span, svg, i) {
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"] :is(mat-icon, .mat-icon, span, svg, i) {
   color: #ede6fc !important;
   fill: #ede6fc !important;
   font-size: 18px !important;
@@ -562,56 +541,10 @@ html.kimino-dream-active [data-kg-expand-btn="true"] :is(mat-icon, .mat-icon, sp
   line-height: 18px !important;
 }
 
-/* 悬停微光星晕 */
-html.kimino-dream-active [data-kg-expand-btn="true"]:hover {
-  background-color: rgba(85, 65, 122, 0.88) !important;
-  border-color: rgba(225, 205, 255, 0.75) !important;
-  box-shadow: 0 4px 18px rgba(145, 105, 225, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.50) !important;
-  transform: none !important;
-}
-
-/* 彻底剥除展开/收起按钮的父级暗黑容器背景与遮罩 */
-html.kimino-dream-active :is(user-query, model-response) :is([class*="expand"], [class*="collapse"]):not(button):not([role="button"]) {
-  background: transparent !important;
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
-
-/* 全域展开文字按钮：强制重绘为星语喵伴水晶胶囊，覆盖 Google 原生白灰底色 */
-html.kimino-dream-active [data-kg-expand-btn="true"],
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller, .conversation-container) :is(
-  button,
-  [role="button"]
-):is(
-  [class*="expand"],
-  [class*="collapse"],
-  [class*="show-more"],
-  [class*="read-more"]
-),
-html.kimino-dream-active button.mat-mdc-button:has(span) {
-  /* 仅针对包含展开/收起文字的按钮 */
-}
-
-html.kimino-dream-active [data-kg-expand-btn="true"] {
-  background-color: rgba(55, 42, 78, 0.85) !important;
-  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(45, 32, 68, 0.82)) !important;
-  color: #ede6fc !important;
-  border: 1px solid rgba(200, 175, 245, 0.45) !important;
-  border-radius: 18px !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
-}
-
-html.kimino-dream-active [data-kg-expand-btn="true"] * {
-  color: #ede6fc !important;
-  fill: #ede6fc !important;
-}
-
-html.kimino-dream-active [data-kg-expand-btn="true"]:hover {
-  background-color: rgba(78, 58, 115, 0.95) !important;
-  border-color: rgba(225, 205, 255, 0.75) !important;
-  box-shadow: 0 4px 18px rgba(155, 115, 235, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+/* 悬停微光星晕（0 坐标位移、0 缩放，彻底杜绝悬停抽搐） */
+html.kimino-dream-active :is(model-response, user-query, infinite-scroller) [data-kg-expand-btn="true"]:hover {
+  background-color: rgba(85, 65, 122, 0.95) !important;
+  border-color: rgba(230, 210, 255, 0.80) !important;
+  box-shadow: 0 4px 20px rgba(160, 120, 240, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
   transform: none !important;
 }

@@ -343,7 +343,83 @@
     }
 
     // 请求 interceptor 静默重放 MaZiqc（60s 最小间隔，手动可强制，绝不打开任何界面）
+    
+    // ============ 主动静默探针 (彻底攻克实时官方额度抓取) ============
+    spawnSilentUsageProber() {
+      if (document.getElementById('kimino-usage-prober')) return;
+      try {
+        console.log('[星语喵伴] 启动静默用量探针，拉取官方最新配额...');
+        const iframe = document.createElement('iframe');
+        iframe.id = 'kimino-usage-prober';
+        iframe.style.cssText = 'position:fixed !important;width:0 !important;height:0 !important;border:none !important;opacity:0 !important;pointer-events:none !important;left:-9999px !important;top:-9999px !important;';
+        iframe.src = '/usage';
+        (document.body || document.documentElement).appendChild(iframe);
+
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              const doc = iframe.contentDocument || iframe.contentWindow?.document;
+              if (doc) {
+                this.scrapeQuotaFromDocument(doc);
+              }
+            } catch (e) {}
+            setTimeout(() => {
+              try { iframe.remove(); } catch (e) {}
+            }, 3000);
+          }, 1200);
+        };
+
+        setTimeout(() => {
+          try {
+            const el = document.getElementById('kimino-usage-prober');
+            if (el) el.remove();
+          } catch (e) {}
+        }, 8000);
+      } catch (e) {
+        console.warn('[星语喵伴] 挂载用量探针异常:', e);
+      }
+    }
+
+    scrapeQuotaFromDocument(doc) {
+      if (!doc) return;
+      try {
+        const text = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
+        if (text.includes('用量') || text.includes('限额') || text.includes('重置') || text.includes('Usage') || text.includes('limit')) {
+          let currentPct = null;
+          let currentReset = '';
+          let weeklyPct = null;
+          let weeklyReset = '';
+
+          // 匹配当前用量百分比
+          const curPctMatch = text.match(/当前(?:用量|周期)?[:：\s]*(\d{1,3})\s*%/i) || text.match(/(\d{1,3})\s*%\s*(?:已使用|used)/i);
+          if (curPctMatch) currentPct = parseInt(curPctMatch[1], 10);
+
+          // 匹配重置时间
+          const resetMatch = text.match(/([01]?\d|2[0-3])\s*[:：]\s*(\d{2})\s*(?:上午|下午|AM|PM)?\s*重置/i) ||
+                             text.match(/重置时间[:：\s]*([01]?\d|2[0-3]\s*[:：]\s*\d{2})/i);
+          if (resetMatch) currentReset = resetMatch[0].replace('重置', '').trim();
+
+          // 匹配每周限额
+          const weekPctMatch = text.match(/每周限额[:：\s]*(\d{1,3})\s*%/i);
+          if (weekPctMatch) weeklyPct = parseInt(weekPctMatch[1], 10);
+
+          if (currentPct !== null || weeklyPct !== null || currentReset) {
+            this.updateRealQuota({
+              currentUsagePercent: currentPct !== null ? currentPct : this.sessionData.realQuota.currentUsagePercent,
+              currentResetTime: currentReset || this.sessionData.realQuota.currentResetTime,
+              weeklyUsagePercent: weeklyPct !== null ? weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+              weeklyResetTime: weeklyReset || this.sessionData.realQuota.weeklyResetTime,
+              resetSource: 'silent-prober',
+              isReal: true
+            });
+            console.log('[星语喵伴] 静默探针成功解析官方配额:', currentPct, '% 重置:', currentReset);
+          }
+        }
+      } catch (e) {}
+    }
+
     requestQuotaRpcRefresh(reason = 'manual', force = false) {
+      if (!this._lastQuotaSource || force) { this.spawnSilentUsageProber(); }
       const now = Date.now();
       if (!force && now - this._lastReplayAt < 60000) return;
       this._lastReplayAt = now;
