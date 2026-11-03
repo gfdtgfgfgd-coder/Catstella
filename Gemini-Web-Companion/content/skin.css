@@ -299,7 +299,23 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
 /* Liquid Glass 渐变模糊带：由 skin.js 以 fixed 覆盖层实现（#kimino-glass-band），
    跟随 Composer 实测坐标定位——不依赖 Google 容器的 position/z-index，
    mask 渐变让模糊从 Composer 顶边向上渐进衰减。此处仅保留样式兜底。 */
-#kimino-glass-band { display: none !important; }
+/* Liquid Glass 渐变磨砂过渡带：由 skin.js 定位覆盖于 Composer 上方（#kimino-glass-band）
+   - 顶部 24px 优雅圆角 + 丝滑垂直渐隐 (0% -> 78%) + 12px 毛玻璃
+   - pointer-events: none 确保不阻挡滚轮与点击
+   - 严格重叠 Composer 上边缘 8px，彻底消除小断层与缝隙
+   - 绝不依赖 infinite-scroller mask，Firefox (Gecko) 与 Chrome 双内核完美渲染 */
+#kimino-glass-band {
+  position: fixed !important;
+  pointer-events: none !important;
+  z-index: 15 !important;
+  border-radius: 24px 24px 0 0 !important;
+  background: linear-gradient(to bottom, rgba(20, 15, 35, 0) 0%, rgba(20, 15, 35, 0.42) 40%, rgba(20, 15, 35, 0.78) 100%) !important;
+  backdrop-filter: blur(12px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
+  border-top: 1px solid rgba(180, 150, 230, 0.18) !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
 
 html.kimino-dream-active input-area-v2 {
   border-radius: 22px !important;
@@ -540,10 +556,14 @@ html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
 }
 
 /* 消除 Google MD3 原生按钮内部水波纹与高亮白底 */
-html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__ripple, .mat-mdc-button-touch-target, .mat-ripple) {
+/* 消除 Google MD3 原生按钮内部水波纹与高亮白底、强制子元素背景透明，杜绝白块与怪异阴影 */
+html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__ripple, .mat-mdc-button-touch-target, .mat-ripple, .mat-focus-indicator, .mat-mdc-button-persistent-ripple) {
   display: none !important;
 }
-html.kimino-dream-active [data-kg-expand-btn="true"] .mdc-button__label {
+html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__label, span, div, p) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
   color: #ede6fc !important;
   position: static !important;
 }

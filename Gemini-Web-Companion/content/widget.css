@@ -274,7 +274,7 @@
   to { filter: brightness(1.4); }
 }
 
-/* 429 限流倒计时警告条 */
+/* 429 限流倒计时警告条（双周期：当前 + 每周） */
 .kimino-rate-alert {
   background: rgba(225, 29, 72, 0.25);
   border: 1px solid rgba(244, 63, 94, 0.5);
@@ -284,16 +284,32 @@
   font-size: 11px;
   color: #fda4af;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 5px;
 }
 
-.kimino-alert-clock {
+.kimino-rate-alert .alert-row,
+.kimino-rate-alert .alert-week-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.kimino-rate-alert .alert-week-row {
+  font-size: 10px;
+  color: #fbcfe8;
+  border-top: 1px dashed rgba(244, 63, 94, 0.35);
+  padding-top: 4px;
+}
+
+.kimino-alert-clock,
+.kimino-alert-week {
   font-family: monospace;
   font-weight: bold;
   color: #fff;
-  font-size: 12px;
-  background: rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.35);
   padding: 2px 6px;
   border-radius: 4px;
 }

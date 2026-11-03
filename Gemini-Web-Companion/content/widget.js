@@ -704,8 +704,14 @@
           </div>
 
           <div class="kimino-rate-alert" style="display: none;">
-            <span>🚨 额度见底！倒计时:</span>
-            <span class="kimino-alert-clock">--:--:--</span>
+            <div class="alert-row">
+              <span class="alert-label">🚨 额度见底！倒计时:</span>
+              <span class="kimino-alert-clock">--:--:--</span>
+            </div>
+            <div class="alert-week-row">
+              <span class="alert-week-label">📅 每周限额重置:</span>
+              <span class="kimino-alert-week">--</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1165,7 +1171,7 @@
         } else {
           weekQuotaPct.textContent = '待同步';
           weekQuotaBar.style.width = '0%';
-          weekQuotaReset.textContent = '点左下角⚙️用量限额同步';
+          weekQuotaReset.textContent = data.realQuota.weeklyResetTime ? `重置时间: ${data.realQuota.weeklyResetTime}` : '点左下角⚙️用量限额同步';
         }
 
         // 3. 耳灯与状态机
@@ -1179,6 +1185,10 @@
           setFrame('sad');
           rateAlert.style.display = 'flex';
           alertClock.textContent = data.resetCountdownText || data.realQuota.currentResetTime || '恢复中...';
+          const alertWeek = wrapper.querySelector('.kimino-alert-week');
+          if (alertWeek) {
+            alertWeek.textContent = data.realQuota.weeklyResetTime || '周周期推算中...';
+          }
           dialogueEl.textContent = "口牙！我就说 Argon 这个电老虎撑不住吧！被你玩爆了喵！(哭)";
         } else if (curPct >= 80) {
           earGlow.classList.add('glow-exhausted');

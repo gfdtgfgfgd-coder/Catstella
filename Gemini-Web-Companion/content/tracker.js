@@ -598,6 +598,10 @@
           this.sessionData.rateLimited = true;
           this.sessionData.status = 'rate_limited';
           if (parsed.resetAt) this.sessionData.resetTimestamp = parsed.resetAt.getTime();
+          // 若每周限额尚未同步，立即激活静默探针同步每周配额
+          if (!this.sessionData.realQuota.weeklyResetTime || this.sessionData.realQuota.weeklyUsagePercent === null) {
+            this.spawnSilentUsageProber();
+          }
         } else if (this.sessionData.rateLimited && parsed.resetAt && parsed.resetAt.getTime() > now) {
           // 限流解除但倒计时仍在走：保持限流态直到时间耗尽
           this.sessionData.resetTimestamp = parsed.resetAt.getTime();
@@ -766,10 +770,14 @@
         if (tomorrow) {
           targetUtcMs += 24 * 3600 * 1000;
         } else if (!month) {
-          // 纯时刻：若在 UTC 下已过去超 1 分钟，顺延至下一个 UTC 天
-          if (targetUtcMs <= nowMs - 60000) targetUtcMs += 24 * 3600 * 1000;
+          // 纯时刻：若在 UTC 下过去超过 90 分钟，说明是下一个周期的时刻（例如明天同一时刻）
+          // 但若仅过去数分钟（<= 90 分钟），说明是刚刚到达/正在重置的当前周期，绝不跨天顺延！
+          if (targetUtcMs <= nowMs - 90 * 60000) {
+            targetUtcMs += 24 * 3600 * 1000;
+          }
         } else if (month && day) {
-          if (targetUtcMs <= nowMs - 60000) {
+          // 明确带有月日：若在 UTC 下过去超过 30 天，才考虑跨年
+          if (targetUtcMs <= nowMs - 30 * 24 * 3600 * 1000) {
             const nextUtc = new Date(targetUtcMs);
             nextUtc.setUTCFullYear(nextUtc.getUTCFullYear() + 1);
             targetUtcMs = nextUtc.getTime();
@@ -782,34 +790,36 @@
         if (tomorrow) {
           targetLocal.setDate(targetLocal.getDate() + 1);
         } else if (!month) {
-          if (targetLocal.getTime() <= nowMs - 60000) targetLocal.setDate(targetLocal.getDate() + 1);
+          if (targetLocal.getTime() <= nowMs - 90 * 60000) {
+            targetLocal.setDate(targetLocal.getDate() + 1);
+          }
         } else if (month && day) {
-          if (targetLocal.getTime() <= nowMs - 60000) targetLocal.setFullYear(targetLocal.getFullYear() + 1);
+          if (targetLocal.getTime() <= nowMs - 30 * 24 * 3600 * 1000) {
+            targetLocal.setFullYear(targetLocal.getFullYear() + 1);
+          }
         }
         const diffLocal = targetLocal.getTime() - nowMs;
 
         // 3. 自适应仲裁：UTC 还是 本地时区？
-        // Gemini 配额周期通常为 5 小时滚动窗口（或限流等待 1~6h），每周限额为 1~7 天。
+        // Gemini 配额周期通常为 5 小时滚动窗口，每周限额为 1~7 天。
         let isUtc = false;
         if (tzOffsetMin === 0) {
           isUtc = false;
         } else {
-          // 条件 A：UTC 换算后落在合理的近期重置窗口 (0 < diffUtc <= 6.5 小时)，
-          // 而本地解析却落在深过去或被顺延到了 8 小时之后（典型如东八区相差 8h）
-          const utcInRollingWindow = diffUtc > 0 && diffUtc <= 6.5 * 3600 * 1000;
-          const localFarAway = diffLocal <= 0 || diffLocal > 6.5 * 3600 * 1000;
-          if (utcInRollingWindow && localFarAway) {
+          // 仲裁核心：Gemini 滚动窗口为 5 小时，重置点必然在当前时刻附近 [-90m, +6.5h]
+          const utcInWindow = diffUtc >= -90 * 60000 && diffUtc <= 6.5 * 3600 * 1000;
+          const localInWindow = diffLocal >= -90 * 60000 && diffLocal <= 6.5 * 3600 * 1000;
+
+          if (utcInWindow && !localInWindow) {
             isUtc = true;
-          } else if (month && day) {
-            // 指定具体日期（如 11月3日09:37）：
-            // 若按本地时间当天 09:37 已经过期，而 UTC 换算到本地时间却刚好在未来（如 17:37），必为 UTC！
-            const localRawMs = new Date(now.getFullYear(), month - 1, day, h, m, 0, 0).getTime();
-            if (localRawMs <= nowMs - 60000 && diffUtc > 0) {
+          } else if (utcInWindow && localInWindow) {
+            // 两者看似都在窗口内：取距离当前时间绝对值更接近的那个
+            if (Math.abs(diffUtc) < Math.abs(diffLocal)) {
               isUtc = true;
             }
-          } else if (diffUtc > 0 && diffLocal > 0) {
-            // 两者都在未来，但滚动限流一般 <= 5h，取落在 5.5h 内的那个
-            if (diffUtc <= 5.5 * 3600 * 1000 && diffLocal > 5.5 * 3600 * 1000) {
+          } else if (!utcInWindow && !localInWindow) {
+            // 都不在 5 小时小窗口内（如每周限额 1~7 天）：比较绝对距离
+            if (Math.abs(diffUtc) < Math.abs(diffLocal)) {
               isUtc = true;
             }
           }

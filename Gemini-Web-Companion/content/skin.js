@@ -213,6 +213,7 @@
       restyleExpandButtonsAndStripMasks();
       cleanupFades();
       updatePaneGeometry();
+      updateGlassBand();
           } catch (e) {}
   };
 
@@ -301,7 +302,7 @@
       const mainArea = document.querySelector('infinite-scroller.chat-history') || document.querySelector('main') || document.body;
       if (!mainArea) return;
 
-      const candidates = mainArea.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]');
+      const candidates = mainArea.querySelectorAll('button, [role="button"], mat-icon, gem-button, [class*="expand"], [class*="collapse"], [class*="show-more"], [class*="read-more"], [class*="see-more"]');
       candidates.forEach((el) => {
         // 门禁 1：严格排除左侧栏（绝对不碰笔记本/历史列表/底部全部）
         if (el.closest('bard-sidenav') || el.closest('[data-test-id="side-nav"]')) return;
@@ -326,6 +327,10 @@
         if (isExpand) {
           PROCESSED_BTNS.add(target);
           target.setAttribute('data-kg-expand-btn', 'true');
+          target.style.removeProperty('background');
+          target.style.removeProperty('background-color');
+          target.style.removeProperty('background-image');
+          target.style.removeProperty('box-shadow');
           const isIconOnly = (!text || text.length <= 1 || text === icon || target.querySelector('svg') || target.querySelector('mat-icon')) && text.length <= 2;
           if (isIconOnly) {
             target.setAttribute('data-kg-icon-only', 'true');
@@ -369,10 +374,43 @@
   };
 
   // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
+  // ============ 底部磨砂过渡带几何定位 (#kimino-glass-band) ============
+  const updateGlassBand = () => {
+    try {
+      const rt = document.querySelector('rich-textarea');
+      if (!rt) return;
+      const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
+      const pillRect = pill.getBoundingClientRect();
+      if (!pillRect || pillRect.height === 0) return;
+
+      let glassBand = document.getElementById('kimino-glass-band');
+      if (!glassBand) {
+        glassBand = document.createElement('div');
+        glassBand.id = 'kimino-glass-band';
+        (document.body || document.documentElement).appendChild(glassBand);
+      }
+
+      // 水平对齐：从左侧栏边缘到视口右边界（与主内容区无缝对齐）
+      const nav = document.querySelector('bard-sidenav');
+      const navRight = nav ? Math.max(0, Math.round(nav.getBoundingClientRect().right)) : 0;
+      const left = navRight;
+      const width = Math.max(240, window.innerWidth - left);
+
+      // 垂直对齐：覆盖 Composer 顶边上方 76px，且向下深入 overlap 8px，彻底杜绝断层裂缝
+      const bandHeight = 76;
+      const top = Math.round(pillRect.top - bandHeight + 8);
+
+      glassBand.style.setProperty('left', left + 'px', 'important');
+      glassBand.style.setProperty('width', width + 'px', 'important');
+      glassBand.style.setProperty('top', top + 'px', 'important');
+      glassBand.style.setProperty('height', bandHeight + 'px', 'important');
+      glassBand.style.setProperty('display', 'block', 'important');
+    } catch (e) {}
+  };
+
   const cleanupFades = () => {
     try {
-      const gb = document.getElementById('kimino-glass-band');
-      if (gb) gb.remove();
+      updateGlassBand();
       document.querySelectorAll('[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background').forEach((el) => {
         if (el.style.backgroundColor === 'transparent') {
           el.style.removeProperty('background-color');
