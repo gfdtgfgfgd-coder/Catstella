@@ -227,7 +227,7 @@
       }
 
       ghostHunt();
-      stripExpandMasks();
+      restyleExpandButtonsAndStripMasks();
       cleanupFades();
       updatePaneGeometry();
           } catch (e) {}
@@ -299,37 +299,55 @@
     } catch (e) {}
   };
 
-  // ============ 展开文字暗黑脏阴影清理器 ============
-  const stripExpandMasks = () => {
+  // ============ 展开/收起按钮重绘与暗黑遮罩全域歼灭 ============
+  const restyleExpandButtonsAndStripMasks = () => {
     try {
-      document.querySelectorAll('model-response').forEach((mr) => {
-        // 1. 寻找包含“展开”或“Show more”或“Read more”文本的节点及其祖先链
-        const walker = document.createTreeWalker(mr, NodeFilter.SHOW_TEXT);
-        let node;
-        const expandEls = new Set();
-        while ((node = walker.nextNode())) {
-          const val = node.nodeValue || '';
-          if (val.includes('展开') || /show more|read more/i.test(val)) {
-            let el = node.parentElement;
-            for (let i = 0; i < 4 && el && el !== mr; i++) {
-              expandEls.add(el);
-              el = el.parentElement;
-            }
+      // 遍历所有用户气泡和模型回复
+      document.querySelectorAll('user-query, model-response').forEach((scope) => {
+        // 1. 寻找带向下的箭头、或者包含“展开/收起/Show more/Read more”文本的所有按钮或可交互节点
+        const candidates = scope.querySelectorAll('button, [role="button"], mat-icon, [class*="expand"], [class*="collapse"]');
+
+        candidates.forEach((btn) => {
+          let target = btn;
+          if (btn.tagName && btn.tagName.toLowerCase() === 'mat-icon') {
+            target = btn.closest('button') || btn.closest('[role="button"]') || btn;
           }
-        }
-        expandEls.forEach((el) => {
-          el.style.setProperty('background', 'transparent', 'important');
-          el.style.setProperty('background-image', 'none', 'important');
-          el.style.setProperty('box-shadow', 'none', 'important');
-          if (el.previousElementSibling) {
-            el.previousElementSibling.style.setProperty('background', 'transparent', 'important');
-            el.previousElementSibling.style.setProperty('background-image', 'none', 'important');
-            el.previousElementSibling.style.setProperty('box-shadow', 'none', 'important');
+          const text = (target.textContent || '').trim();
+          const aria = target.getAttribute('aria-label') || '';
+          const icon = (target.querySelector('mat-icon')?.textContent || '') + (target.querySelector('svg')?.innerHTML || '');
+
+          const isExpandBtn = text.includes('展开') || text.includes('收起') ||
+            /show more|read more|expand|collapse/i.test(text) ||
+            /展开|收起|expand|collapse/i.test(aria) ||
+            /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up|arrow_drop_down|arrow_drop_up/i.test(icon) ||
+            /expand_more|keyboard_arrow_down|expand_less|keyboard_arrow_up/i.test(text);
+
+          if (isExpandBtn) {
+            target.setAttribute('data-kg-expand-btn', 'true');
+            // 如果内部只有图标或者纯箭头符号，标记为纯图标圆钮扣
+            const isIconOnly = (!text || text.length <= 1 || text === icon || target.querySelector('svg') || target.querySelector('mat-icon')) && text.length <= 2;
+            if (isIconOnly) {
+              target.setAttribute('data-kg-icon-only', 'true');
+            }
+
+            // 向上追溯 4 层祖先，清空所有背景、阴影，打掉所有黑灰脏渐变
+            let p = target.parentElement;
+            for (let i = 0; i < 4 && p && p !== scope; i++) {
+              p.style.setProperty('background', 'transparent', 'important');
+              p.style.setProperty('background-image', 'none', 'important');
+              p.style.setProperty('box-shadow', 'none', 'important');
+              p = p.parentElement;
+            }
+            if (target.previousElementSibling) {
+              target.previousElementSibling.style.setProperty('background', 'transparent', 'important');
+              target.previousElementSibling.style.setProperty('background-image', 'none', 'important');
+              target.previousElementSibling.style.setProperty('box-shadow', 'none', 'important');
+            }
           }
         });
 
-        // 2. 清除所有可能的绝对定位遮罩层（无文本或短文本的装饰性空 div/span）
-        mr.querySelectorAll('div, span').forEach((child) => {
+        // 2. 清除 scope 内部所有纯遮罩作用的空绝对定位元素（长文折叠底部的渐变遮罩）
+        scope.querySelectorAll('div, span').forEach((child) => {
           if (child.children.length === 0 && child.textContent.trim().length <= 2) {
             try {
               const cs = getComputedStyle(child);

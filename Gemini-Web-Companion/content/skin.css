@@ -126,9 +126,9 @@ html.kimino-dream-active bard-sidenav :is(button, a, [role="button"]):hover:not(
    ================================================================ */
 /* 用户气泡真身（实机：span.user-query-bubble-with-background） */
 html.kimino-dream-active .user-query-bubble-with-background {
-  background-color: rgba(33, 26, 48, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  background-color: rgba(28, 22, 42, 0.70) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -145,9 +145,9 @@ html.kimino-dream-active :is(user-query, .user-query-container, user-query-conte
    margin auto 居中 + max-width 由 JS 按当前会话的 user-query 列宽内联写入 */
 html.kimino-dream-active model-response {
   display: block !important;
-  background-color: rgba(33, 26, 48, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  background-color: rgba(28, 22, 42, 0.70) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -213,9 +213,9 @@ html.kimino-dream-active [data-kg="query-root"] {
 
 /* 用户气泡：阅读面药丸 */
 html.kimino-dream-active [data-kg="bubble"] {
-  background-color: rgba(33, 26, 48, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  background-color: rgba(28, 22, 42, 0.70) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -224,9 +224,9 @@ html.kimino-dream-active [data-kg="bubble"] {
 /* 模型回答：阅读面卡片（标注版，同上） */
 html.kimino-dream-active [data-kg="card"] {
   display: block !important;
-  background-color: rgba(33, 26, 48, 0.45) !important;
-  backdrop-filter: blur(16px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
+  background-color: rgba(28, 22, 42, 0.70) !important;
+  backdrop-filter: blur(20px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(135%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -490,6 +490,89 @@ html.kimino-dream-active model-response :is(
   [class*="show-more"],
   [class*="see-more"]
 ):not(button):not([role="button"]) {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+
+/* ================================================================
+   星语喵伴 · 展开/收起按钮全域水晶重绘（彻底消除原生黑块与脏阴影）
+   ================================================================ */
+html.kimino-dream-active [data-kg-expand-btn="true"],
+html.kimino-dream-active :is(user-query, model-response) :is(
+  button,
+  [role="button"]
+):is(
+  [class*="expand"],
+  [class*="collapse"],
+  [class*="show-more"],
+  [class*="read-more"],
+  [aria-label*="展开"],
+  [aria-label*="收起"],
+  [aria-label*="Expand"],
+  [aria-label*="Collapse"]
+) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border-radius: 18px !important;
+  background-color: rgba(55, 42, 78, 0.75) !important;
+  background-image: linear-gradient(135deg, rgba(125, 95, 175, 0.35), rgba(45, 32, 68, 0.75)) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(195, 170, 240, 0.38) !important;
+  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.30), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
+  color: #ede6fc !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 5px 14px !important;
+  margin: 6px 0 !important;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  cursor: pointer !important;
+  line-height: normal !important;
+}
+
+/* 纯图标圆纽扣（如用户提问气泡右下角的小箭头） */
+html.kimino-dream-active [data-kg-expand-btn="true"][data-kg-icon-only="true"],
+html.kimino-dream-active user-query :is(button, [role="button"]):is([class*="expand"], [class*="collapse"], :has(mat-icon)) {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: rgba(65, 50, 92, 0.78) !important;
+  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(48, 35, 72, 0.80)) !important;
+  border: 1px solid rgba(200, 175, 245, 0.45) !important;
+  box-shadow: 0 2px 8px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.3) !important;
+}
+
+/* 按钮内文字与图标颜色 */
+html.kimino-dream-active [data-kg-expand-btn="true"] :is(mat-icon, .mat-icon, span, svg, i) {
+  color: #ede6fc !important;
+  fill: #ede6fc !important;
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+
+/* 悬停微光星晕 */
+html.kimino-dream-active [data-kg-expand-btn="true"]:hover {
+  background-color: rgba(85, 65, 122, 0.88) !important;
+  border-color: rgba(225, 205, 255, 0.75) !important;
+  box-shadow: 0 4px 18px rgba(145, 105, 225, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.50) !important;
+  transform: translateY(-1px) scale(1.03) !important;
+}
+
+/* 彻底剥除展开/收起按钮的父级暗黑容器背景与遮罩 */
+html.kimino-dream-active :is(user-query, model-response) :has(> [data-kg-expand-btn="true"]),
+html.kimino-dream-active :is(user-query, model-response) :is([class*="expand"], [class*="collapse"]):not(button):not([role="button"]) {
   background: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
