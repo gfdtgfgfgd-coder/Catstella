@@ -141,16 +141,26 @@
         mark(climbToPainted(rt) || rt.closest('input-area-v2') || rt, 'composer');
       }
 
-      // 2) 用户气泡：user-query 内第一个带背景的后代（原生是 user-query-bubble-with-background）
+      // 2) 用户气泡：确保展开前与展开后背景色完全统一（暗夜星云磨砂质感）
       document.querySelectorAll('user-query').forEach((uq) => {
         mark(uq, 'query-root');
-        let bubble = uq.querySelector('.user-query-bubble-with-background');
+        let bubble = uq.querySelector('.user-query-bubble-with-background') ||
+                     uq.querySelector('[class*="bubble"]') ||
+                     uq.querySelector('.user-query-content');
         if (!bubble) {
           for (const el of uq.querySelectorAll('*')) {
             if (hasPaint(el) && el.getBoundingClientRect().height > 16) { bubble = el; break; }
           }
         }
-        if (bubble) mark(bubble, 'bubble');
+        if (bubble) {
+          mark(bubble, 'bubble');
+          bubble.style.removeProperty('background');
+          bubble.style.setProperty('background-color', 'rgba(24, 18, 36, 0.76)', 'important');
+          bubble.style.setProperty('backdrop-filter', 'blur(25px) saturate(140%)', 'important');
+          bubble.style.setProperty('-webkit-backdrop-filter', 'blur(25px) saturate(140%)', 'important');
+          bubble.style.setProperty('border', '1px solid rgba(174, 142, 218, 0.28)', 'important');
+          bubble.style.setProperty('border-radius', '22px', 'important');
+        }
       });
 
       // 3) 列宽统一（v1.3.6 语义）：
@@ -213,7 +223,6 @@
       restyleExpandButtonsAndStripMasks();
       cleanupFades();
       updatePaneGeometry();
-      updateGlassBand();
           } catch (e) {}
   };
 
@@ -336,16 +345,21 @@
             target.setAttribute('data-kg-icon-only', 'true');
           }
 
-          // 核心安全：只向上清空直接包裹按钮的小工具栏（高度 <= 48px），绝不触碰卡片正文或卡片本身！
+          // 核心安全：只清空专职渐变遮罩层，绝不误碰任何气泡卡片正文！
           let p = target.parentElement;
-          for (let i = 0; i < 2 && p && p !== mainArea; i++) {
-            if (p.hasAttribute('data-kg') && p.getAttribute('data-kg') !== 'expand-btn') break;
+          for (let i = 0; i < 3 && p && p !== mainArea; i++) {
             const tag = (p.tagName || '').toLowerCase();
-            if (tag === 'model-response' || tag === 'user-query' || tag === 'response-container' || tag === 'message-content') break;
-            const h = p.getBoundingClientRect().height;
-            if (h > 48) break; // 超过 48px 必然是内容区，立即停手！
-
-            if (p.style.backgroundColor !== 'transparent') {
+            // 铁门：气泡或卡片本体绝对不剥离底色
+            if (tag === 'model-response' || tag === 'user-query' ||
+                p.classList.contains('user-query-bubble-with-background') ||
+                p.classList.contains('user-query-container') ||
+                (p.hasAttribute('data-kg') && p.getAttribute('data-kg') !== 'expand-btn')) {
+              break;
+            }
+            const cs = getComputedStyle(p);
+            const isMask = (cs.backgroundImage && cs.backgroundImage.includes('gradient')) ||
+                           /fade|gradient|mask|overlay|scrim/i.test(p.className || '');
+            if (isMask) {
               p.style.setProperty('background', 'transparent', 'important');
               p.style.setProperty('background-image', 'none', 'important');
               p.style.setProperty('box-shadow', 'none', 'important');
@@ -355,62 +369,30 @@
         }
       });
 
-      // 2. 仅在回复卡片内清除无内容的绝对定位纯遮罩条
+      // 2. 彻底清除回复卡片与用户气泡内的一切原生遮罩渐变条（包括包裹箭头的渐变框）
       document.querySelectorAll('model-response, user-query').forEach((scope) => {
         scope.querySelectorAll('div, span').forEach((child) => {
-          if (child.children.length === 0 && child.textContent.trim().length === 0) {
-            try {
-              const cs = getComputedStyle(child);
-              if (cs.position === 'absolute' || cs.position === 'relative') {
-                if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
-                  child.style.setProperty('display', 'none', 'important');
-                }
-              }
-            } catch (e) {}
-          }
+          if (child.classList.contains('user-query-bubble-with-background') ||
+              (child.hasAttribute('data-kg') && child.getAttribute('data-kg') !== 'expand-btn')) return;
+          try {
+            const cs = getComputedStyle(child);
+            if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
+              child.style.setProperty('background-image', 'none', 'important');
+              child.style.setProperty('background', 'transparent', 'important');
+              child.style.setProperty('box-shadow', 'none', 'important');
+            }
+          } catch (e) {}
         });
       });
     } catch (e) {}
   };
 
   // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
-  // ============ 底部磨砂过渡带几何定位 (#kimino-glass-band) ============
-  const updateGlassBand = () => {
-    try {
-      const rt = document.querySelector('rich-textarea');
-      if (!rt) return;
-      const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
-      const pillRect = pill.getBoundingClientRect();
-      if (!pillRect || pillRect.height === 0) return;
-
-      let glassBand = document.getElementById('kimino-glass-band');
-      if (!glassBand) {
-        glassBand = document.createElement('div');
-        glassBand.id = 'kimino-glass-band';
-        (document.body || document.documentElement).appendChild(glassBand);
-      }
-
-      // 水平对齐：从左侧栏边缘到视口右边界（与主内容区无缝对齐）
-      const nav = document.querySelector('bard-sidenav');
-      const navRight = nav ? Math.max(0, Math.round(nav.getBoundingClientRect().right)) : 0;
-      const left = navRight;
-      const width = Math.max(240, window.innerWidth - left);
-
-      // 垂直对齐：覆盖 Composer 顶边上方 76px，且向下深入 overlap 8px，彻底杜绝断层裂缝
-      const bandHeight = 76;
-      const top = Math.round(pillRect.top - bandHeight + 8);
-
-      glassBand.style.setProperty('left', left + 'px', 'important');
-      glassBand.style.setProperty('width', width + 'px', 'important');
-      glassBand.style.setProperty('top', top + 'px', 'important');
-      glassBand.style.setProperty('height', bandHeight + 'px', 'important');
-      glassBand.style.setProperty('display', 'block', 'important');
-    } catch (e) {}
-  };
-
+  // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
   const cleanupFades = () => {
     try {
-      updateGlassBand();
+      const gb = document.getElementById('kimino-glass-band');
+      if (gb) gb.remove();
       document.querySelectorAll('[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background').forEach((el) => {
         if (el.style.backgroundColor === 'transparent') {
           el.style.removeProperty('background-color');

@@ -134,11 +134,27 @@ html.kimino-dream-active .user-query-bubble-with-background {
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
 }
 
-html.kimino-dream-active :is(user-query, .user-query-container, user-query-content) {
+html.kimino-dream-active :is(user-query, .user-query-container) {
   background-color: transparent !important;
   background-image: none !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* 用户气泡展开前与展开后颜色完全统一，杜绝透明度/色彩断层 */
+html.kimino-dream-active :is(
+  .user-query-bubble-with-background,
+  [data-kg="bubble"],
+  user-query .user-query-bubble,
+  user-query [class*="bubble"],
+  user-query-content
+) {
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
+  border: 1px solid rgba(174, 142, 218, 0.28) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
 }
 
 /* 模型回答：阅读面卡片 —— 与气泡同列同宽同圆角（宽度由 skin.js 实测内联）
@@ -299,23 +315,8 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
 /* Liquid Glass 渐变模糊带：由 skin.js 以 fixed 覆盖层实现（#kimino-glass-band），
    跟随 Composer 实测坐标定位——不依赖 Google 容器的 position/z-index，
    mask 渐变让模糊从 Composer 顶边向上渐进衰减。此处仅保留样式兜底。 */
-/* Liquid Glass 渐变磨砂过渡带：由 skin.js 定位覆盖于 Composer 上方（#kimino-glass-band）
-   - 顶部 24px 优雅圆角 + 丝滑垂直渐隐 (0% -> 78%) + 12px 毛玻璃
-   - pointer-events: none 确保不阻挡滚轮与点击
-   - 严格重叠 Composer 上边缘 8px，彻底消除小断层与缝隙
-   - 绝不依赖 infinite-scroller mask，Firefox (Gecko) 与 Chrome 双内核完美渲染 */
-#kimino-glass-band {
-  position: fixed !important;
-  pointer-events: none !important;
-  z-index: 15 !important;
-  border-radius: 24px 24px 0 0 !important;
-  background: linear-gradient(to bottom, rgba(20, 15, 35, 0) 0%, rgba(20, 15, 35, 0.42) 40%, rgba(20, 15, 35, 0.78) 100%) !important;
-  backdrop-filter: blur(12px) saturate(130%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(130%) !important;
-  border-top: 1px solid rgba(180, 150, 230, 0.18) !important;
-  box-sizing: border-box !important;
-  display: block !important;
-}
+/* Liquid Glass 渐变模糊带：彻底回退清除独立大玻璃板，恢复纯净滚动视口 */
+#kimino-glass-band { display: none !important; }
 
 html.kimino-dream-active input-area-v2 {
   border-radius: 22px !important;
@@ -443,19 +444,36 @@ html.kimino-dream-active infinite-scroller {
 }
 
 
-/* 彻底清除展开文字背后的原生暗黑遮罩/渐变脏阴影 */
-html.kimino-dream-active :is(
+/* 彻底清除展开按钮周围原生遮罩、渐变暗底及文本截断蒙层（杜绝图 1 箭头处的黑色矩形渐变） */
+html.kimino-dream-active :is(user-query, model-response) :is(
+  [class*="fade"],
+  [class*="gradient"],
+  [class*="mask"],
+  [class*="overlay"],
+  [class*="truncat"],
+  [class*="clamp"],
   [class*="collapse"],
   [class*="collaps"],
   [class*="show-more"],
   [class*="read-more"],
-  [class*="see-more"],
-  [class*="fade-overlay"],
-  [class*="text-truncat"]
-):not(button):not([role="button"]) {
+  [class*="see-more"]
+):not(button):not([role="button"]):not([data-kg-expand-btn="true"]) {
   background: transparent !important;
+  background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+/* 消除所有原生渐变伪元素（防止 Blink 渲染缓存导致展开瞬间的原生渐变闪烁） */
+html.kimino-dream-active :is(user-query, model-response, .user-query-bubble-with-background) *::before,
+html.kimino-dream-active :is(user-query, model-response, .user-query-bubble-with-background) *::after {
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
 }
 
 html.kimino-dream-active :is(
@@ -479,8 +497,11 @@ html.kimino-dream-active :is(
 }
 
 
-/* 对话滚动视口：移除 mask-image 以彻底恢复 Firefox / Gecko 的 backdrop-filter 硬件加速与自然滚动 */
-html.kimino-dream-active infinite-scroller {
+/* 对话滚动视口底部的自然平滑透明过渡（回退至视口级纯透明渐隐，杜绝大玻璃板遮挡） */
+html.kimino-dream-active infinite-scroller.chat-history,
+html.kimino-dream-active main infinite-scroller {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
   overflow-anchor: auto !important;
 }
 
