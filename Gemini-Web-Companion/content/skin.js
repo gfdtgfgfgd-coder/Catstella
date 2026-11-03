@@ -141,14 +141,25 @@
         mark(climbToPainted(rt) || rt.closest('input-area-v2') || rt, 'composer');
       }
 
-      // 2) 用户气泡：确保展开前与展开后背景色完全统一（暗夜星云磨砂质感）
+      // 2) 用户气泡：严格仅标注唯一的实际气泡实体，彻底清空外层祖先套娃框
       document.querySelectorAll('user-query').forEach((uq) => {
         mark(uq, 'query-root');
-        let bubble = uq.querySelector('.user-query-bubble-with-background') ||
-                     uq.querySelector('[class*="bubble"]') ||
-                     uq.querySelector('.user-query-content');
+        // 彻底清空所有上层容器的背景与边框，杜绝双层套娃
+        uq.querySelectorAll('.user-query-container, user-query-content, .user-query-content, .user-query-bubble-container').forEach((p) => {
+          if (p.hasAttribute('data-kg')) p.removeAttribute('data-kg');
+          p.style.setProperty('background', 'transparent', 'important');
+          p.style.setProperty('border', 'none', 'important');
+          p.style.setProperty('box-shadow', 'none', 'important');
+          p.style.setProperty('backdrop-filter', 'none', 'important');
+          p.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        });
+
+        // 仅抓取真正的单一气泡节点（原生是 user-query-bubble-with-background）
+        let bubble = uq.querySelector('.user-query-bubble-with-background');
         if (!bubble) {
           for (const el of uq.querySelectorAll('*')) {
+            const tag = el.tagName.toLowerCase();
+            if (tag === 'user-query-content' || el.classList.contains('user-query-container') || el.classList.contains('user-query-bubble-container')) continue;
             if (hasPaint(el) && el.getBoundingClientRect().height > 16) { bubble = el; break; }
           }
         }
