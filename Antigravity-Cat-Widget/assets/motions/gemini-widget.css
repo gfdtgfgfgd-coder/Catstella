@@ -78,7 +78,7 @@
   .agy-art *, .agy-art *::after { animation: none !important; transition: none !important; }
   .agy-art .agy-motion { transform: none !important; }
 }
-@keyframes agy-breath { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-1px) scale(1.003,1.006); } }
+@keyframes agy-breath { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-4px) scale(1.015,1.015); } }
 @keyframes agy-ponder { 0%,100% { transform: rotate(-.7deg); } 50% { transform: rotate(.7deg) translateY(-1px); } }
 @keyframes agy-duang { 0%,100% { transform: translateY(0) scale(1); } 18% { transform: scale(1.02,.98); } 43% { transform: translateY(-7px) scale(.99,1.02); } 70% { transform: translateY(0) scale(1.012,.988); } }
 @keyframes agy-worry { 0%,100% { transform: rotate(-.35deg); } 50% { transform: rotate(.35deg) translateY(1px); } }
