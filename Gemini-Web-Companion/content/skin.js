@@ -55,9 +55,7 @@
           baseLayer.style.display = 'none';
         }
         document.documentElement.classList.remove('kimino-dream-active');
-        const gb = document.getElementById('kimino-glass-band');
-        if (gb) gb.remove();
-        glassBand = null;
+        cleanupFades();
       }
     } catch (e) {
       console.warn('[星语喵伴] 皮肤应用异常:', e);
@@ -273,6 +271,7 @@
     annotateTimer = setTimeout(() => {
       annotateTimer = null;
       annotate();
+      applyFades();
     }, 80);
   };
 
@@ -429,13 +428,84 @@
     } catch (e) {}
   };
 
+  // ============ 滚动联动底色渐隐（Liquid Glass 动态溶解引擎） ============
+  // 卡片/气泡进入 Composer 上方渐变区时，单卡自身平滑溶解渐隐
+  // （文字与底色自然消融，不依赖祖先全局 mask，彻底规避 Firefox 滚动容器高度错位与毛玻璃失效）
+  let fadeRaf = 0;
+  const FADE_RANGE = 96; // 渐隐区间高度 px
+
+  const getCutLineY = (composerTop) => {
+    return typeof composerTop === 'number' ? (composerTop + 6) : (window.innerHeight - 100);
+  };
+
+  const applyFades = () => {
+    try {
+      if (!document.documentElement.classList.contains('kimino-dream-active')) return;
+      const rt = document.querySelector('rich-textarea');
+      if (!rt) return;
+      const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
+      const compRect = pill.getBoundingClientRect();
+      if (!compRect || compRect.height === 0) return;
+
+      // 若上方有常驻限额提示条/横幅，切线锚到提示条顶部
+      const banner = document.querySelector('.inline-upgrade-banner-row, .gem-banner-container, [data-test-id="gem-banner-description-input"]');
+      const baseEl = (banner && banner.getBoundingClientRect().top < compRect.top && banner.getBoundingClientRect().top > 50) ? banner : pill;
+      const cutY = getCutLineY(baseEl.getBoundingClientRect().top);
+      const fadeStartY = cutY - FADE_RANGE;
+
+      const surfaces = document.querySelectorAll(
+        '[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background'
+      );
+
+      surfaces.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.height < 8) return;
+        const outOfZone = r.bottom <= fadeStartY || r.top >= cutY;
+        if (outOfZone) {
+          if (el.__kgFaded) {
+            el.style.removeProperty('-webkit-mask-image');
+            el.style.removeProperty('mask-image');
+            el.style.removeProperty('box-shadow');
+            el.style.removeProperty('border-color');
+            el.__kgFaded = false;
+            el.__kgLastGrad = '';
+          }
+          return;
+        }
+
+        // 区内：单卡沿滚动方向动态渐隐（停靠点按 12px 量化，绝大多数帧零样式重算，避免闪烁）
+        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 12) * 12);
+        const fadeEndPx = Math.min(r.height, Math.max(solidPx + 12, cutY - r.top));
+
+        const maskVal = `linear-gradient(to bottom, black 0px, black ${solidPx.toFixed(0)}px, transparent ${fadeEndPx.toFixed(0)}px)`;
+        const sig = maskVal + '|v3';
+        if (el.__kgLastGrad === sig) return;
+        el.__kgLastGrad = sig;
+
+        el.style.setProperty('-webkit-mask-image', maskVal, 'important');
+        el.style.setProperty('mask-image', maskVal, 'important');
+        el.style.setProperty('box-shadow', 'none', 'important');
+        el.style.setProperty('border-color', 'transparent', 'important');
+        el.__kgFaded = true;
+      });
+    } catch (e) {}
+  };
+
+  const scheduleFade = () => {
+    if (fadeRaf) return;
+    fadeRaf = setTimeout(() => {
+      fadeRaf = 0;
+      applyFades();
+    }, 32);
+  };
+
   // ============ 清除残留的内联样式，确保卡片恒定享受 CSS 磨砂质感 ============
   const cleanupFades = () => {
     try {
       const gb = document.getElementById('kimino-glass-band');
       if (gb) gb.remove();
       document.querySelectorAll('[data-kg="card"], model-response, [data-kg="bubble"], .user-query-bubble-with-background').forEach((el) => {
-        if (el.style.backgroundColor === 'transparent') {
+        if (el.style.backgroundColor === 'transparent' && !el.__kgFaded) {
           el.style.removeProperty('background-color');
           el.style.removeProperty('background-image');
           el.style.removeProperty('background');
@@ -473,7 +543,7 @@
       else start();
       setInterval(schedule, 15000); // 兜底轮询（无突变的形态变化）
       window.addEventListener('resize', schedule); // 视口变化 → 重测气泡列宽
-      
+      window.addEventListener('scroll', scheduleFade, { passive: true, capture: true }); // 滚动联动卡片平滑溶解
     } catch (e) {}
     console.log('[星语喵伴] Dream Skin v3 表面标注引擎就绪喵～✨');
   })();
