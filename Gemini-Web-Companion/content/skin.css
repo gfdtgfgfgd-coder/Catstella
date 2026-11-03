@@ -126,9 +126,9 @@ html.kimino-dream-active bard-sidenav :is(button, a, [role="button"]):hover:not(
    ================================================================ */
 /* 用户气泡真身（实机：span.user-query-bubble-with-background） */
 html.kimino-dream-active .user-query-bubble-with-background {
-  background-color: rgba(33, 30, 45, 0.74) !important;
-  backdrop-filter: blur(18px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
+  background-color: rgba(33, 26, 48, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -145,9 +145,9 @@ html.kimino-dream-active :is(user-query, .user-query-container, user-query-conte
    margin auto 居中 + max-width 由 JS 按当前会话的 user-query 列宽内联写入 */
 html.kimino-dream-active model-response {
   display: block !important;
-  background-color: rgba(33, 30, 45, 0.74) !important;
-  backdrop-filter: blur(18px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
+  background-color: rgba(33, 26, 48, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -213,9 +213,9 @@ html.kimino-dream-active [data-kg="query-root"] {
 
 /* 用户气泡：阅读面药丸 */
 html.kimino-dream-active [data-kg="bubble"] {
-  background-color: rgba(33, 30, 45, 0.74) !important;
-  backdrop-filter: blur(18px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
+  background-color: rgba(33, 26, 48, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
   border: 1px solid rgba(174, 142, 218, 0.28) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -224,9 +224,9 @@ html.kimino-dream-active [data-kg="bubble"] {
 /* 模型回答：阅读面卡片（标注版，同上） */
 html.kimino-dream-active [data-kg="card"] {
   display: block !important;
-  background-color: rgba(33, 30, 45, 0.74) !important;
-  backdrop-filter: blur(18px) saturate(125%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
+  background-color: rgba(33, 26, 48, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(130%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(130%) !important;
   border: 1px solid rgba(174, 142, 218, 0.16) !important;
   border-radius: 22px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
@@ -299,17 +299,7 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
 /* Liquid Glass 渐变模糊带：由 skin.js 以 fixed 覆盖层实现（#kimino-glass-band），
    跟随 Composer 实测坐标定位——不依赖 Google 容器的 position/z-index，
    mask 渐变让模糊从 Composer 顶边向上渐进衰减。此处仅保留样式兜底。 */
-#kimino-glass-band {
-  position: fixed !important;
-  pointer-events: none !important;
-  z-index: 30 !important;
-  border-radius: 20px 20px 0 0 !important;
-  backdrop-filter: blur(14px) saturate(120%) !important;
-  -webkit-backdrop-filter: blur(14px) saturate(120%) !important;
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0) 100%) !important;
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.4) 75%, rgba(0, 0, 0, 0) 100%) !important;
-  background-image: linear-gradient(to top, rgba(168, 142, 229, 0.05), transparent) !important;
-}
+#kimino-glass-band { display: none !important; }
 
 html.kimino-dream-active input-area-v2 {
   border-radius: 22px !important;
@@ -470,4 +460,37 @@ html.kimino-dream-active :is(
   background-image: none !important;
   box-shadow: none !important;
   display: none !important;
+}
+
+
+/* 对话滚动视口底部的自然平滑透明过渡（视口级纯透明渐隐，杜绝直角切痕与背景突变） */
+html.kimino-dream-active infinite-scroller {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  mask-image: linear-gradient(to bottom, black 0%, black calc(100% - 48px), transparent 100%) !important;
+  overflow-anchor: auto !important;
+}
+
+/* 彻底清除回复卡片内部所有折叠遮罩伪元素与展开按钮脏阴影 */
+html.kimino-dream-active model-response :is(div, span, p, section, message-content, response-container)::after,
+html.kimino-dream-active model-response :is(div, span, p, section, message-content, response-container)::before,
+html.kimino-dream-active model-response::after,
+html.kimino-dream-active model-response::before {
+  background: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html.kimino-dream-active model-response :has(> button),
+html.kimino-dream-active model-response :has(> [role="button"]),
+html.kimino-dream-active model-response :is(
+  [class*="expand"],
+  [class*="collapse"],
+  [class*="button-container"],
+  [class*="read-more"],
+  [class*="show-more"],
+  [class*="see-more"]
+):not(button):not([role="button"]) {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
 }

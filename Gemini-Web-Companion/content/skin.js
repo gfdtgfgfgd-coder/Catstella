@@ -227,10 +227,10 @@
       }
 
       ghostHunt();
+      stripExpandMasks();
+      cleanupFades();
       updatePaneGeometry();
-      attachFadeScroller();
-      scheduleFade(); // 渐隐 + 玻璃带几何统一在此更新
-    } catch (e) {}
+          } catch (e) {}
   };
 
   const schedule = () => {
@@ -299,128 +299,64 @@
     } catch (e) {}
   };
 
-  // ============ 对话滚动容器定位（渐隐/玻璃带的垂直锚点） ============
-  // ⚠️ 内容的真实切线是滚动容器底边，不是 Composer 顶边（两者相差 ~30px，
-  // 锚错会导致渐隐完成位置与生硬切线错位——v1.3.4 的"渐变没对齐"根因）
-  const getConversationScroller = () => {
-    // ⚠️ v1.3.8 铁律：对话滚动容器 = `infinite-scroller.chat-history`（7984px 那个），
-    // 它【不在】bard-sidenav 内；`infinite-scroller.lr26-theme`（侧栏滚动区，572 底边）
-    // 是历史的错误锚点。首选从回复卡/用户气泡向上 closest 定位，A/B 免疫。
-    const mr = document.querySelector('model-response') || document.querySelector('user-query');
-    if (mr) {
-      const sc = mr.closest('infinite-scroller');
-      if (sc) return sc;
-    }
-    const candidates = [...document.querySelectorAll('infinite-scroller')];
-    return candidates.find((e) => String(e.className).includes('chat-history') && !e.closest('bard-sidenav'))
-      || candidates.find((e) => !e.closest('bard-sidenav'))
-      || null;
-  };
-
-  const getCutLineY = (composerTop) => {
-    // 渐变带和卡片淡出终点必须严丝合缝对齐 Composer 药丸顶部（深入 6px 避免亚像素缝隙与断层）
-    return typeof composerTop === 'number' ? (composerTop + 6) : (window.innerHeight - 100);
-  };
-
-  // ============ Liquid Glass 渐变模糊带 ============
-  // ⚠️ 几何由 applyFades 统一写入（与卡片渐隐共用 [fadeStartY, cutY] 同一区间，
-  // 两条过渡曲线完全重合）——此处不再独立计算，避免双曲线错位。
-  let glassBand = null;
-
-  // ============ 滚动联动底色渐隐（Liquid Glass 核心观感） ============
-  // 卡片/气泡进入 Composer 上方渐变区时，自身底色沿滚动方向渐隐
-  // （文字保持清晰，毛玻璃 blur 由 CSS 继续承担）—— 不再靠雾罩硬糊。
-  let fadeScroller = null;
-  let fadeRaf = 0;
-  const FADE_RANGE = 110; // 切线前的渐隐距离 px
-
-  const applyFades = () => {
+  // ============ 展开文字暗黑脏阴影清理器 ============
+  const stripExpandMasks = () => {
     try {
-      if (!document.documentElement.classList.contains('kimino-dream-active')) return;
-      const rt = document.querySelector('rich-textarea');
-      if (!rt) {
-        if (glassBand) { glassBand.remove(); glassBand = null; }
-        return;
-      }
-      const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
-      // ⚠️ 切线 = 滚动容器底边（真实裁剪线），锚到 Composer 顶会错位
-      const cutY = getCutLineY(pill.getBoundingClientRect().top);
-      const fadeStartY = cutY - FADE_RANGE;
-      const surfaces = document.querySelectorAll(
-        '[data-kg="card"], [data-kg="bubble"], model-response, .user-query-bubble-with-background'
-      );
-      // Liquid Glass 带：与卡片渐隐共用 [fadeStartY, cutY] 同一几何，两曲线完全重合
-      const firstCard = document.querySelector('model-response');
-      const colRect = firstCard ? firstCard.getBoundingClientRect() : null;
-      if (!glassBand) {
-        glassBand = document.createElement('div');
-        glassBand.id = 'kimino-glass-band';
-        glassBand.setAttribute('aria-hidden', 'true');
-        (document.body || document.documentElement).appendChild(glassBand);
-      }
-      const bandLeft = colRect ? Math.round(colRect.left) : Math.round(pill.getBoundingClientRect().left);
-      const bandWidth = colRect ? Math.round(colRect.width) : Math.round(pill.getBoundingClientRect().width);
-      const bandGeom = 'position:fixed !important;pointer-events:none !important;z-index:30 !important;' +
-        'left:' + bandLeft + 'px !important;width:' + bandWidth + 'px !important;' +
-        'top:' + Math.round(fadeStartY) + 'px !important;height:' + FADE_RANGE + 'px !important;';
-      if (glassBand.__kgGeom !== bandGeom) {
-        glassBand.__kgGeom = bandGeom;
-        glassBand.style.cssText = bandGeom;
-      }
-      surfaces.forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.height < 8) return;
-        const outOfZone = r.bottom <= fadeStartY || r.top >= cutY;
-        if (outOfZone) {
-          if (el.__kgFaded) {
-            ['background-color', 'background-image', 'backdrop-filter', 'box-shadow', 'border-color'].forEach((p) => el.style.removeProperty(p));
-            el.__kgFaded = false;
-            el.__kgLastGrad = '';
+      document.querySelectorAll('model-response').forEach((mr) => {
+        // 1. 寻找包含“展开”或“Show more”或“Read more”文本的节点及其祖先链
+        const walker = document.createTreeWalker(mr, NodeFilter.SHOW_TEXT);
+        let node;
+        const expandEls = new Set();
+        while ((node = walker.nextNode())) {
+          const val = node.nodeValue || '';
+          if (val.includes('展开') || /show more|read more/i.test(val)) {
+            let el = node.parentElement;
+            for (let i = 0; i < 4 && el && el !== mr; i++) {
+              expandEls.add(el);
+              el = el.parentElement;
+            }
           }
-          return;
         }
-        // 区内：底色从 fadeStartY 起线性渐隐，至切线处全透明
-        // ⚠️ 同步渐隐 blur/阴影/描边——只隐底色不隐 blur 会留下一层"雾"
-        // （blur18 的壁纸在透明底上依旧是雾）；模糊由切线处的玻璃带接管。
-        // ⚠️ 防闪屏：渐隐停靠点按 12px 量化，量化后与上次相同则跳过写入
-        // （滚动时绝大多数帧不再触发样式重算/重绘）
-        const solidPx = Math.max(0, Math.round((fadeStartY - r.top) / 12) * 12);
-        const fadeEndPx = Math.min(r.height, Math.max(solidPx + 12, cutY - r.top));
-        const grad = 'linear-gradient(to bottom, rgba(38, 33, 50, 0.42) 0px, rgba(38, 33, 50, 0.42) ' +
-          solidPx.toFixed(0) + 'px, rgba(33, 30, 45, 0) ' + fadeEndPx.toFixed(0) + 'px)';
-        const sig = grad + '|v2';
-        if (el.__kgLastGrad === sig) return;
-        el.__kgLastGrad = sig;
-        el.style.setProperty('background-color', 'transparent', 'important');
-        el.style.setProperty('background-image', grad, 'important');
-        // 保留卡片原有 backdrop-filter 毛玻璃模糊，避免渐隐区变成生硬透明塑料纸
-        el.style.setProperty('box-shadow', 'none', 'important');
-        el.style.setProperty('border-color', 'transparent', 'important');
-        el.__kgFaded = true;
+        expandEls.forEach((el) => {
+          el.style.setProperty('background', 'transparent', 'important');
+          el.style.setProperty('background-image', 'none', 'important');
+          el.style.setProperty('box-shadow', 'none', 'important');
+          if (el.previousElementSibling) {
+            el.previousElementSibling.style.setProperty('background', 'transparent', 'important');
+            el.previousElementSibling.style.setProperty('background-image', 'none', 'important');
+            el.previousElementSibling.style.setProperty('box-shadow', 'none', 'important');
+          }
+        });
+
+        // 2. 清除所有可能的绝对定位遮罩层（无文本或短文本的装饰性空 div/span）
+        mr.querySelectorAll('div, span').forEach((child) => {
+          if (child.children.length === 0 && child.textContent.trim().length <= 2) {
+            try {
+              const cs = getComputedStyle(child);
+              if (cs.position === 'absolute' || cs.position === 'relative') {
+                if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+                  child.style.setProperty('display', 'none', 'important');
+                }
+              }
+            } catch (e) {}
+          }
+        });
       });
     } catch (e) {}
   };
 
-  const scheduleFade = () => {
-    // ⚠️ 用 setTimeout 而非 rAF：失焦/后台窗口的 rAF 会被浏览器暂停（实测 IAB/后台标签
-    // rAF 永不触发，渐隐引擎整体冻结）；setTimeout 前台 32ms 平滑，后台降频兜底。
-    if (fadeRaf) return;
-    fadeRaf = setTimeout(() => {
-      fadeRaf = 0;
-      applyFades();
-    }, 32);
-  };
-
-  const attachFadeScroller = () => {
+  // ============ 清除残留的 JS 动态渐变与直角切痕 ============
+  const cleanupFades = () => {
     try {
-      const sc = [...document.querySelectorAll('infinite-scroller')].find(
-        (e) => e.scrollHeight > e.clientHeight + 50 && !String(e.className).includes('chat-history')
-      );
-      if (sc && sc !== fadeScroller) {
-        if (fadeScroller) fadeScroller.removeEventListener('scroll', scheduleFade);
-        sc.addEventListener('scroll', scheduleFade, { passive: true });
-        fadeScroller = sc;
-      }
+      const gb = document.getElementById('kimino-glass-band');
+      if (gb) gb.remove();
+      document.querySelectorAll('[data-kg="card"], [data-kg="bubble"], model-response, .user-query-bubble-with-background').forEach((el) => {
+        if (el.__kgFaded) {
+          ['background-color', 'background-image', 'backdrop-filter', '-webkit-backdrop-filter', 'box-shadow', 'border-color'].forEach((p) => el.style.removeProperty(p));
+          el.__kgFaded = false;
+          el.__kgLastGrad = '';
+        }
+      });
     } catch (e) {}
   };
 
@@ -453,7 +389,7 @@
       else start();
       setInterval(schedule, 15000); // 兜底轮询（无突变的形态变化）
       window.addEventListener('resize', schedule); // 视口变化 → 重测气泡列宽
-      window.addEventListener('scroll', scheduleFade, { passive: true, capture: true });
+      
     } catch (e) {}
     console.log('[星语喵伴] Dream Skin v3 表面标注引擎就绪喵～✨');
   })();
