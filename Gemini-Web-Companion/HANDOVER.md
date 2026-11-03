@@ -1,7 +1,7 @@
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  
-> **文档版本**：v1.3.9 | 更新时间：2026-11-03
+> **文档版本**：v1.3.10 | 更新时间：2026-11-03
 
 ### v1.3.5 增补（对齐终修 / 壁纸复活 / 自定义形象与壁纸）· 必读
 * **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
@@ -25,6 +25,11 @@
 
 
 
+
+### v1.3.10 增补（额度恢复补强）· 必读
+* **账本重试**：refreshUsageLedger 内 3 次退避重试（0.8s/2s）；成功才计 60s 节流，全败后 30s 可再试——杜绝瞬时网络故障把进度条钉在旧值；
+* **重置即刷**：倒计时归零 → 强制 refreshUsageLedger("after-reset")（30s 防抖），额度恢复当场回显，不依赖 5 分钟轮询；
+* **提示条时间纠偏铁律**：账本新鲜（<10 分钟）时，sniffResetHintBar 只允许触发限流状态/补拉账本，**禁止改写 currentResetTime / resetTimestamp**（Google 提示条实测与账本差 1 小时）；账本过期才可兜底改写。
 ### v1.3.9 增补（额度实时监控根治 · SSR 账本）· 必读
 * **数据源真相**：官方额度**不在任何运行期 RPC**——`/usage` 页面的额度是服务端渲染流式 JSON：HTML 内 `<script type="application/json">` 中 `id="usage:0"` 的 chunk 拼接后含 `getUsageInfo.pools`（`GXU_FIVE_HOURLY` / `GXU_WEEKLY` 的 `percentageUsed` + `windowRefreshesAt` UTC ISO）。MaZiqc 是会话列表 RPC，与本需求无关；此前的 interceptor 捕获/重放链路仅作兜底保留。
 * **主链路**：`tracker.refreshUsageLedger(reason, force)` —— `fetch('/usage', {credentials:'include', cache:'no-store'})` → `parseUsageLedgerHtml()`（正则抠 json script → 拼 usage:0 chunk → `findUsageInfo` 深搜）→ `applyUsageLedger()`（百分比 + 本地时钟文案 + resetTimestamp 真实 epoch + 限流判定）。60s 内部节流；触发点：启动 2.5s / 每轮 STREAM_COMPLETE / 每 5 分钟 / 挂件同步按钮（force）。

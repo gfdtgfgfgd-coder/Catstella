@@ -372,23 +372,46 @@
     // 无跨域限制 —— 取代会被同源嵌入策略拦截的 iframe 探针。
     async refreshUsageLedger(reason, force) {
       const now = Date.now();
-      if (!force && now - (this._lastLedgerAt || 0) < 60000) return; // 60s 节流
+      // 节流：回合后 20s、其余 60s；被节流时不丢弃——安排一次延后补刷
+      const minGap = reason === 'after-turn' ? 20000 : 60000;
+      if (!force && now - (this._lastLedgerAt || 0) < minGap) {
+        if (!this._ledgerPendingTimer) {
+          const wait = Math.max(3000, minGap - (now - (this._lastLedgerAt || 0)));
+          this._ledgerPendingTimer = setTimeout(() => {
+            this._ledgerPendingTimer = null;
+            this.refreshUsageLedger('pending', false);
+          }, wait);
+        }
+        return;
+      }
       if (this._ledgerInFlight) return;
       if (location.pathname === '/usage') return; // 页面自身即数据源，避免自抓
-      this._lastLedgerAt = now;
+      if (this._ledgerPendingTimer) {
+        clearTimeout(this._ledgerPendingTimer);
+        this._ledgerPendingTimer = null;
+      }
       this._ledgerInFlight = true;
       try {
-        const res = await fetch('/usage', { credentials: 'include', cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const html = await res.text();
-        const info = this.parseUsageLedgerHtml(html);
-        if (info) {
-          this.applyUsageLedger(info, reason);
-        } else {
-          console.warn('[星语喵伴] 用量账本解析失败（页面结构可能变更），依赖兜底链路');
+        let lastErr = null;
+        // v1.3.10：瞬时网络失败（VPN 抖动等）必须重试，否则进度条会一直停在旧值
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, attempt === 1 ? 800 : 2000));
+          try {
+            const res = await fetch('/usage', { credentials: 'include', cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const html = await res.text();
+            const info = this.parseUsageLedgerHtml(html);
+            if (!info) throw new Error('parse-failed');
+            this.applyUsageLedger(info, reason);
+            this._lastLedgerAt = Date.now(); // 成功才计入节流
+            return;
+          } catch (e) {
+            lastErr = e;
+          }
         }
-      } catch (e) {
-        console.warn('[星语喵伴] 用量账本抓取失败:', e && e.message);
+        // 全部失败：30s 后允许重试（不按 60s 节流惩罚）
+        this._lastLedgerAt = Date.now() - 30000;
+        console.warn('[星语喵伴] 用量账本抓取失败（已重试 3 次）:', lastErr && lastErr.message);
       } finally {
         this._ledgerInFlight = false;
       }
@@ -683,7 +706,13 @@
         this._lastHintSignature = signature;
 
         // 1) 更新官方重置时间展示 (当前周期)
-        if (parsed.resetAt) {
+        // v1.3.10: 账本数据新鲜时，提示条时间【不得覆盖】——实测 Google 提示条
+        // 与账本/用量页存在 1 小时级错位（21:37 vs 22:37），账本才是权威值；
+        // 提示条只在账本缺失/过期（>10 分钟）时作为兜底时间源。
+        const ledgerFresh = this.sessionData.realQuota.resetSource === 'usage-ledger' &&
+          this.sessionData.realQuota.fetchedAt &&
+          (now - this.sessionData.realQuota.fetchedAt < 10 * 60 * 1000);
+        if (parsed.resetAt && !ledgerFresh) {
           this.sessionData.realQuota.currentResetTime = parsed.display;
           this.sessionData.realQuota.fetchedAt = now;
           this.sessionData.realQuota.isReal = true;
@@ -700,13 +729,13 @@
         if (parsed.limited) {
           this.sessionData.rateLimited = true;
           this.sessionData.status = 'rate_limited';
-          if (parsed.resetAt) this.sessionData.resetTimestamp = parsed.resetAt.getTime();
-          // 若每周限额尚未同步，立即激活静默探针同步每周配额
+          if (parsed.resetAt && !ledgerFresh) this.sessionData.resetTimestamp = parsed.resetAt.getTime();
+          // 若每周限额尚未同步，立即刷新账本同步每周配额
           if (!this.sessionData.realQuota.weeklyResetTime || this.sessionData.realQuota.weeklyUsagePercent === null) {
             this.refreshUsageLedger('hint-limited');
           }
-        } else if (this.sessionData.rateLimited && parsed.resetAt && parsed.resetAt.getTime() > now) {
-          // 限流解除但倒计时仍在走：保持限流态直到时间耗尽
+        } else if (this.sessionData.rateLimited && parsed.resetAt && parsed.resetAt.getTime() > now && !ledgerFresh) {
+          // 限流解除但倒计时仍在走：保持限流态直到时间耗尽（仅限账本过期时）
           this.sessionData.resetTimestamp = parsed.resetAt.getTime();
         }
 
@@ -1130,6 +1159,12 @@
           this.sessionData.status = 'idle';
           this._lastHintSignature = ''; // 允许提示条重新广播
           this.notify();
+          // v1.3.10：重置时刻已到 —— 立即强制刷账本，让进度条当场恢复
+          // （否则要等下一次 5 分钟轮询，期间一直显示旧的高占比）
+          if (!this._resetRefreshAt || Date.now() - this._resetRefreshAt > 30000) {
+            this._resetRefreshAt = Date.now();
+            this.refreshUsageLedger('after-reset', true);
+          }
         } else {
           const h = Math.floor(diff / 3600000);
           const m = Math.floor((diff % 3600000) / 60000);

@@ -1,12 +1,13 @@
 # 🐾 Catstella-web · 交接文档 (HANDOFF)
 > **仓库**：`D:\Catstella-web`（Web 扩展开发主仓，分支 `feat/browser-extension`）
-> **当前版本**：扩展 `1.3.8` | **更新时间**：2026-11-03
-> **产物**：`Gemini-Web-Companion/dist/kimino-gemini-companion.xpi`（Firefox/Zen）+ `.zip`（Edge/Chrome）
+> **当前版本**：扩展 `1.3.10` | **更新时间**：2026-11-03
+> **产物**：`Gemini-Web-Companion/dist/kimino-gemini-companion.xpi`（Firefox/Zen）+ `.zip`（Edge/Chrome）+ `kimino-dream.user.css`（Stylus）
 > **详细规范**：`Gemini-Web-Companion/HANDOVER.md`（按版本分节增补，与本文互补）
+> **本文定位**：接手者先读这份，再按需查 HANDOVER 的版本细节。含"最终定案架构 + 铁律 + 未验证清单"。
 
 ---
 
-## 0. 仓库关系（先读这段）
+## 0. 仓库关系与提交状态（先读这段）
 
 | 路径 | 状态 |
 | :-- | :-- |
@@ -14,8 +15,11 @@
 | `D:\Catstella` | 旧工作区，其工作树曾被并行会话的 stash 操作回退（扩展文件变回旧版）——**不要再在那边改扩展** |
 | 桌面端代码（Antigravity-*） | 随仓库带入，本仓库测试唯一失败项来自桌面端旧案（见 §6），与扩展无关 |
 
-本仓库已提交的基线：`eeb994a feat(web): surface annotation engine, alignment fixes, custom wallpapers and character sync`。
-工作树当前有 1.3.6→1.3.8 的未提交改动（8 个文件，详见 §7）。
+已提交基线：
+- `eeb994a` feat(web): 表面标注引擎 / 对齐修复 / 自定义壁纸与形象
+- `71dd3a1` feat(web): v1.3.9 实时额度账本（/usage SSR 流式 JSON）
+
+工作树当前有 v1.3.10 未提交改动（5 个文件，见 §7）。**提交前先跑 `npm.cmd test` 与 `node Gemini-Web-Companion/scripts/build.js`**。
 
 ---
 
@@ -36,17 +40,18 @@ Google Gemini 官方网页端（`gemini.google.com`）的双插件套件：
 manifest.json (MV3 双模板：根=Chromium，build 重写 Firefox)
 │
 ├─ content_scripts[0]  interceptor.js   ← world:MAIN, document_start
-│    先于 Angular 补丁 fetch/XHR：捕获 batchexecute（MaZiqc 额度 RPC）
-│    的 f.req 与响应；提供按需静默重放（tracker 通过 postMessage 请求）
+│    先于 Angular 补丁 fetch/XHR：被动记录 batchexecute 流量与流式状态
+│    （STREAM_START/COMPLETE → tracker 的回合感知）；历史遗留的额度 RPC
+│    捕获/重放仅作兜底，勿再扩展（额度真源见 §2.3）
 │
 └─ content_scripts[1]  document_idle（isolated world）
      ├─ shim.js       双命名空间（browser./chrome.）+ 永不 reject 的 storage 封装
      ├─ inject-bridge.js  CSP 感知的拦截器注入桥（MAIN world 不可用时的兜底，
      │                    失败即降级，绝不影响主流程）
-     ├─ tracker.js    额度管线 + 会话指标 + DOM 嗅探兜底
-     │    · MaZiqc 响应 → 锚点式解析（时间串+百分比成组）
+     ├─ tracker.js    额度账本管线（主）+ 会话指标 + DOM 嗅探兜底
+     │    · refreshUsageLedger：fetch('/usage') → SSR JSON 块 → 真实百分比/UTC 重置时刻
+     │    · 触发：启动 / 回合后(20s) / 5 分钟 / 节流时不丢弃-延后补刷 / 手动 force
      │    · 显示语义：max(官方, 会话估算) + displaySource 角标
-     │    · 每 5 分钟 / 每轮对话后（60s 节流）请求静默重放
      ├─ skin.js       皮肤引擎（表面标注 + 几何 + 渐隐 + 画廊壁纸）
      └─ widget.js     桌宠（Shadow DOM、TT 安全壳、设置面板画廊）
 ```
@@ -74,7 +79,7 @@ Google 会话级 A/B 分流会让 CSS 类名漂移——**任何类名选择器�
 | /usage 页 | Meta 原子类 `x9f619` 系列 | section 实底 rgb(15,15,15)、配额卡 rgb(23,23,23)、装饰 `.gradient-strip` |
 | "头像旁黑框" | `<aside aria-label="Notifications">`（32×32，左下角 0,688） | Google 通知 live-region 气泡；skin.js ghostHunt 自动透明化 + 控制台链路 |
 
-### 2.3 额度管线（v1.3.9 定案：SSR 账本为主链路）
+### 2.3 额度管线（v1.3.10 定案：SSR 账本为主链路）
 
 **请勿再相信"MaZiqc 是额度 RPC"的旧结论**——2026-11-03 实机取证：MaZiqc 是会话列表 RPC；额度数据**不在任何运行期 RPC**，而是 `/usage` 页面的服务端渲染流式 JSON：
 
@@ -83,7 +88,12 @@ Google 会话级 A/B 分流会让 CSS 类名漂移——**任何类名选择器�
 3. `getUsageInfo.pools` 含：`GXU_FIVE_HOURLY` / `GXU_WEEKLY` 的 `percentageUsed`（0~1）与 `windowRefreshesAt`（UTC ISO）；
 4. `applyUsageLedger()`：百分比 → 展示文案（本地 HH:MM / M月d日 HH:MM）+ `resetTimestamp`（真实 epoch，倒计时/限流判定）。
 
-触发点：启动 2.5s、每轮对话 STREAM_COMPLETE（60s 节流）、每 5 分钟、挂件 🔄 同步（force）。
+**v1.3.10 可靠性加固（Edge 实测通过"对话完成后实时刷新"）**：
+- 抓取失败 **3 次退避重试**（0.8s/2s），成功才计节流，全败 30s 后可再试；
+- 回合后刷新节流 **20s**，被节流时**安排延后补刷（不丢请求）**；
+- 倒计时归零 → **强制拉账本**（额度窗恢复当场回显）；
+- **提示条时间纠偏**：账本新鲜（<10 分钟）时，Google 输入框提示条的重置时间**禁止覆盖**账本（实测两者存在 1 小时级错位，21:37 vs 22:37）；账本过期才允许兜底。
+
 兜底链（保留但非主）：interceptor 的 MaZiqc 捕获/重放（历史遗留，勿再扩展）、提示条嗅探、用量弹窗 DOM 嗅探。
 
 ---
@@ -121,7 +131,9 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 ```
 
 **IAB 实机验证套路**（ZCode 内置浏览器，已登录账号）：
-以 `new Function(源码)` 注入 `shim 桩 + skin.js + widget.js + tracker.js`（勿用模板字符串混拼载荷，用 `'(...' + JSON.stringify(src) + '...)'` 纯拼接）；桩 `KIMINO_API` 提供内存 storage + `fetch` 返回 `assets/manifest.json` 内容；`getURL` 把角色帧映射成 data URL。当前 IAB 里保持了一份常驻部署（用户要求随时查看效果），真实浏览器验收以用户端为准。
+以 `new Function(源码)` 注入 `shim 桩 + skin.js + widget.js + tracker.js`（勿用模板字符串混拼载荷，用 `'(...' + JSON.stringify(src) + '...)'` 纯拼接）；桩 `KIMINO_API` 提供内存 storage + `fetch` 返回 `assets/manifest.json` 内容；`getURL` 把角色帧映射成 data URL。
+
+⚠️ **IAB 风控红线（2026-11-03 实锤）**：在该登录态会话里用"AI 的口吻"与 Gemini 对话，会触发 Google 的**反代/反蒸馏/反自动化风控**（Safety Filter 识别出会话有 LLM 操控指纹），表现为：消息被模板话术回绝、回复生成被应用回滚、甚至整段对话被限制。**IAB 只做 DOM/UI/脚本注入验证，禁止用它做对话类测试**；对话与额度链路验收一律在用户自己的 Edge/Firefox 实装环境进行。
 
 ---
 
@@ -141,36 +153,44 @@ edge://extensions/ → 开发者模式 → 加载解压缩的扩展 → dist/chr
 
 ---
 
-## 6. 已知问题与注意事项
+## 6. 已知问题与待验证清单
 
 1. **测试 1 项失败**：`Antigravity-Cat-Widget/test/personality.test.cjs` 的 `native heartbeat` 用例——本仓库带入的桌面端旧案，与扩展无关。
-2. **额度账本解析依赖 `/usage` SSR 结构**：若 Google 改版（script 类型或 `usage:0`/`GXU_*` 命名变化），`refreshUsageLedger` 会解析失败并在控制台告警，此时退回兜底链（提示条/弹窗）。排查方式：IAB 打开 /usage，`document.querySelectorAll('script[type="application/json"]')` 查看 chunk 结构。
+2. **额度账本解析依赖 `/usage` SSR 结构**：若 Google 改版（script 类型或 `usage:0`/`GXU_*` 命名变化），`refreshUsageLedger` 会解析失败并在控制台告警，此时退回兜底链（提示条/弹窗）。排查方式：`document.querySelectorAll('script[type="application/json"]')` 查看 chunk 结构。
 3. **自定义壁纸体积**：storage.local 默认上限约 10MB；壁纸已压到 ≤1920×1080 JPEG，形象 ≤640×640 PNG。超限需加 `unlimitedStorage` 权限（当前未加）。
-4. **IAB 部署是桩环境**：storage 不持久、manifest 走 fetch 桩；不代表真实扩展行为。
+4. **IAB 部署是桩环境且会触发风控**：storage 不持久、manifest 走 fetch 桩；`/app` 整页刷新会清掉注入；**切勿在 IAB 里做对话测试**（见 §4 红线）。
 5. **/usage 页与图片查看器**样式按**当前**原子类/类名编写，Google 改版后需按 §2.2 重新勘察（用 skin.js 的 ghostHunt/角落诊断辅助定位）。
 6. **真实 Firefox 的 `world:MAIN`**：Firefox 128+ 支持；更老版本退回 isolated + inject-bridge（CSP 可能拦截 → 仅 DOM 嗅探，功能降级不崩溃）。
+7. **待用户实测（Edge 实装）**：
+   - [x] 对话完成后实时刷新额度（已确认正常）；
+   - [ ] **5h 额度窗重置后**进度条是否自动回落（v1.3.10 已加"倒计时归零强制刷新"，待实测）；
+   - [ ] **每周额度重置后**是否自动更新；
+   - [ ] **新开浏览器会话**后首屏是否正确显示（账本启动 2.5s 应拉取；若偶发网络失败，3 次重试 + 30s 后再试兜底）；
+   - [ ] Firefox/Zen 上账本 fetch 是否受 CSP 影响（Chromium 内容脚本不受页面 CSP 约束；Gecko 若有异常则需主世界桥兜底）。
+8. **Edge 曾出现"需手动开一次用量限额才准"**：疑为账本 fetch 偶发失败/返回旧 SSR 时无重试的旧行为；v1.3.10 重试 + 回合后刷新已覆盖。若复现：看控制台是否有 `用量账本抓取失败`，有则抓 URL/状态码反馈。
 
 ---
 
-## 7. 本次未提交改动（v1.3.9 额度根治）
+## 7. 本次未提交改动（v1.3.10）
 
 ```
-M CHANGELOG.md                            # 1.3.9-ext 条目
-M Gemini-Web-Companion/HANDOVER.md        # v1.3.9 增补（SSR 账本铁律）
-M Gemini-Web-Companion/content/tracker.js # refreshUsageLedger / parseUsageLedgerHtml / applyUsageLedger 主链路
-M Gemini-Web-Companion/content/widget.js  # 同步按钮接入账本刷新
-M Gemini-Web-Companion/manifest.json      # 1.3.8 → 1.3.9
+M CHANGELOG.md                            # 1.3.9 + 1.3.10 条目（1.3.9 条目在 71dd3a1 提交中缺失，已补回）
+M Gemini-Web-Companion/HANDOVER.md        # v1.3.9 / v1.3.10 增补
+M Gemini-Web-Companion/content/tracker.js # 账本重试 / 重置即刷 / 回合后 20s + 延后补刷 / 提示条时间纠偏
+M Gemini-Web-Companion/manifest.json      # 1.3.9 → 1.3.10
+M HANDOFF.md                              # 本文件（v1.3.10 定案 + IAB 风控红线 + 待验证清单）
 ```
 
 ---
 
 ## 8. 下一步建议
 
-1. **视觉微调**：毛玻璃浓度（0.66~0.74）、渐隐距离（`FADE_RANGE=110`）、玻璃带 blur（11px）都是单点参数；
-2. **画廊素材扩充**：往 `assets/wallpapers/`、`assets/characters/<包>/`（含 idle.png）放素材，重新构建即自动进画廊；
-3. **桌面壁纸包接入**：`Antigravity-Dream-Skin/assets/wallpapers/gemini-character-sheet-v1` 可搬进扩展资产；
-4. **账本解析加固**：把 `parseUsageLedgerHtml` 的匹配条件（`usage:0` 前缀、`GXU_FIVE_HOURLY`/`GXU_WEEKLY`）做成宽松匹配 + 失败时打印结构样例，便于 Google 改版后快速修复；
-5. **提交**：当前改动未提交，建议 `git add -A && git commit -m "feat(web): v1.3.8 ..."`（提交前跑一遍 `npm.cmd test`）。
+1. **Edge/实装验收（最高优先）**：按 §6.7 的清单逐项实测（窗口重置、新会话首屏、周额度重置）；有问题先看控制台 `[星语喵伴]` 日志。
+2. **账本解析加固**：`parseUsageLedgerHtml` 的匹配条件（`usage:0` 前缀、`GXU_FIVE_HOURLY`/`GXU_WEEKLY`）做宽松匹配 + 失败时打印结构样例，便于 Google 改版后快速修复。
+3. **无感额度兜底（若实装仍偶发失败）**：可加 background.js 隐藏 tab 方案——失败 N 次后 `chrome.tabs.create({url:'/usage', active:false})`，/usage 页 content script 抓 DOM（`[data-testid="current-usage"]`）写 storage 后由后台关标签页。
+4. **视觉微调**：毛玻璃浓度（0.66~0.74）、渐隐距离（`FADE_RANGE=110`）、玻璃带 blur（11px）都是单点参数。
+5. **画廊素材扩充**：往 `assets/wallpapers/`、`assets/characters/<包>/`（含 idle.png）放素材，重新构建即自动进画廊。
+6. **提交**：`git add -A && git commit -m "feat(web): v1.3.10 quota ledger hardening ..."`（提交前跑 `npm.cmd test` + `node scripts/build.js`）。
 
 ---
 

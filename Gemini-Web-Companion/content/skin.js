@@ -216,7 +216,11 @@
           delete pill.__kgOffsetX;
         } catch (e) {}
       }
-      document.querySelectorAll('details, .thought-container, [data-test-id="thinking-process"]').forEach((d) => mark(d, 'thinking'));
+      document.querySelectorAll('details, .thought-container, [data-test-id*="thought" i], [data-test-id*="thinking" i], [class*="thought" i], [class*="thinking" i]').forEach((d) => {
+        if (!d.closest('model-response')) return;
+        if (d.classList.contains('thought-content') || d.classList.contains('thought-body') || d.classList.contains('thought-text')) return;
+        mark(d, 'thinking');
+      });
 
       // 4) /usage 路由配额卡（按内容锚定，不按原子类）
       if (location.pathname === '/usage') {
@@ -242,7 +246,7 @@
     annotateTimer = setTimeout(() => {
       annotateTimer = null;
       annotate();
-    }, 700);
+    }, 80);
   };
 
   // ============ 左下角幽灵色块侦探 ============

@@ -1,5 +1,23 @@
 # 更新记录
 
+## 1.3.10-ext · 额度恢复补强：重试 / 重置即刷 / 提示条时间纠偏（feat/browser-extension） / 2026-11-03
+
+- **瞬时失败重试**：`refreshUsageLedger` 增加 3 次退避重试（0.8s/2s）——VPN 抖动等 `Failed to fetch` 不再让进度条停在旧值；成功才计入节流，全败后 30s 允许再试。
+- **重置时刻立即刷新**：倒计时归零时强制拉账本（30s 防抖），5h 额度窗一恢复进度条当场回落，无需等 5 分钟轮询；`rateLimited` 由账本百分比重新判定。
+- **回合后刷新不丢弃**：after-turn 刷新节流降至 20s；被节流时安排「延后补刷」（取最近可执行时刻，不丢请求）——实机观测确认每轮对话结束后账本会在 ≤20s 内刷新。
+- **提示条时间不得覆盖账本**：实测 Google 输入框提示条的重置时间与账本/用量页存在 1 小时级错位（21:37 vs 22:37）。规则：账本数据新鲜（<10 分钟）时提示条只提供限流状态信号，绝不改写重置时间与 epoch；账本过期时提示条才作为兜底时间源。
+- **实机验证（IAB，真实扩展全套）**：21:37 窗口重置后账本返回 5h 0% @ 02:37、周 82% @ 11月3日23:37，倒计时解除；随后发消息，额度真实 0% → 2%（账本 fetchedAt 随回合推进），实时监控链路成立。
+- dist 重建，版本 1.3.10。
+
+## 1.3.9-ext · 额度实时监控根治：SSR 账本抓取（feat/browser-extension） / 2026-11-03
+
+- **实机破案（IAB 全链路取证）**：官方额度数据**不在任何运行期 RPC**（MaZiqc 实为会话列表 RPC；9 个启动 RPC、WIZ_global_data、localStorage/IndexedDB/CacheStorage 全部排除）。真相：`/usage` 页面的额度是**服务端渲染的流式 JSON 块**——HTML 中 `<script type="application/json">` 里 `id="usage:0"` 的 `chunk` 字符串拼接后为 `getUsageInfo.pools`（`GXU_FIVE_HOURLY` / `GXU_WEEKLY` 的 `percentageUsed` + `windowRefreshesAt` UTC ISO）。
+- **新主链路 `refreshUsageLedger()`**：内容脚本 `fetch('/usage', {credentials:'include', cache:'no-store'})` → 正则提取 JSON 脚本块 → 拼接 usage:0 chunk → 深搜 `getUsageInfo` → 真实百分比 + UTC 重置时刻。零 UI、零导航、无跨域/iframe 限制（iframe 探针因同源嵌入被拦，已移除）。
+- **触发点**：启动后 2.5s、每轮对话 STREAM_COMPLETE 后、每 5 分钟、挂件 🔄 同步按钮（force）。
+- **时区根治**：重置时刻来自 ISO UTC，直接转本地显示，倒计时锚定真实 epoch，不再有 IP 属地时区误差。
+- **实机验证**：账本返回 5h 100% @ 21:37、周 82% @ 11月3日23:37、TIER1，与 /usage 页面完全一致；挂件渲染红色 100% 条 + 哭泣帧 + 倒计时。
+- dist 重建（含 Stylus UserCSS），版本 1.3.9。
+
 ## 1.3.8-ext · 对齐铁律 + 防跳滚 + rAF 冻结修复（feat/browser-extension） / 2026-11-03
 
 - **双曲线错位根除**：玻璃带与卡片渐隐此前各算各的几何（带=Composer 基、卡=切线基），两条过渡曲线错位。现 `applyFades` 统一写入带几何 `[fadeStartY, cutY]`（与卡片渐隐完全同区间），带 mask 改纯线性渐变——模糊曲线与底色渐隐曲线**完全重合**；`updateGlassBand` 独立函数废除。

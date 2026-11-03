@@ -242,16 +242,21 @@ html.kimino-dream-active model-response {
   margin: 14px auto !important;
   box-sizing: border-box !important;
   width: 100% !important;
+  max-width: min(768px, 100%) !important;
 }
 
 /* 思维链折叠卡：card 面 */
 /* 思考窗口：强制胶囊化，杜绝初次挂载时 100% 满宽拉伸闪烁 */
 html.kimino-dream-active :is(
   details:not([open]),
-  .thought-container,
-  [data-test-id="thinking-process"],
   [data-kg="thinking"]:not([open]),
-  .thought-box
+  .thought-container:not([open]),
+  .thought-box:not([open]),
+  [data-test-id*="thought" i]:not([open]),
+  [data-test-id*="thinking" i]:not([open]),
+  [class*="thought" i]:not([open]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
+  [class*="thinking" i]:not([open]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
+  model-response :is(details:not([open]), [class*="thought" i]:not([open]):not(p):not(span):not(code), [class*="thinking" i]:not([open]):not(p):not(span):not(code))
 ) {
   width: fit-content !important;
   max-width: 100% !important;
