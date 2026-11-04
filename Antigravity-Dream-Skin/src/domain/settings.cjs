@@ -1,5 +1,5 @@
 const os=require("node:os"),path=require("node:path"),{readJson,writeJson,finite,bool}=require("../../../shared/storage.cjs");
-const THEME_PRESETS=["violet","pink","ocean","onyx"];const DEFAULT_SETTINGS={enabled:false,themePreset:"violet",outputMode:"transparent",positionX:50,positionY:50,zoom:1,fit:"adaptive",scrim:12,opacity:55,wallpaperId:"gemini-character-sheet-v1",wallpaperFile:"",slideshow:true,slideshowIntervalMinutes:5,uiLanguage:"zh-CN",transition:"fade",protectEditor:true,protectTerminal:true};
+const THEME_PRESETS=["violet","pink","ocean","onyx"];const DEFAULT_SETTINGS={enabled:false,themePreset:"violet",outputMode:"transparent",positionX:50,positionY:50,zoom:1,fit:"adaptive",scrim:12,opacity:55,wallpaperId:"gemini-character-sheet-v1",wallpaperFile:"",slideshow:true,slideshowIntervalMinutes:5,uiLanguage:"en",transition:"fade",protectEditor:true,protectTerminal:true};
 class DreamSkinSettings{
  constructor(file=path.join(os.homedir(),".antigravity-dream-skin/settings.json")){this.filePath=file;this.data=this.sanitize(readJson(file,DEFAULT_SETTINGS));}
  // 先合并入参、再逐项校验已知字段、保留未污染的扩展字段——绝不丢弃合法配置（含 autoRotate 等旧字段）。
