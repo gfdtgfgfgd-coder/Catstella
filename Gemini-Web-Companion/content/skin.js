@@ -171,11 +171,31 @@
         });
 
         // 仅抓取真正的单一气泡节点（原生是 user-query-bubble-with-background）
-        let bubble = uq.querySelector('.user-query-bubble-with-background');
+        // 编辑态特判（实机 2026-11-05 勘察）：兜底扫描会把 .edit-form 内的
+        // rich-textarea 误标为气泡 → 外层 edit-form 描边 + 内层玻璃 = 双框漏底。
+        // 编辑态改为整体标注 .edit-form（保持原生 40px 圆角），并清掉内层内联玻璃。
+        const editForm = uq.querySelector('.edit-form.rich-edit-form');
+        let bubble = null;
+        if (editForm) {
+          uq.querySelectorAll('.edit-form rich-textarea, .edit-form .ql-editor, .edit-form .ql-container').forEach((el) => {
+            if (el.hasAttribute('data-kg')) el.removeAttribute('data-kg');
+            el.style.removeProperty('background');
+            el.style.removeProperty('background-color');
+            el.style.removeProperty('backdrop-filter');
+            el.style.removeProperty('-webkit-backdrop-filter');
+            el.style.removeProperty('border');
+            el.style.removeProperty('border-radius');
+            el.style.removeProperty('box-shadow');
+          });
+          bubble = editForm;
+        } else {
+          bubble = uq.querySelector('.user-query-bubble-with-background');
+        }
         if (!bubble) {
           for (const el of uq.querySelectorAll('*')) {
             const tag = el.tagName.toLowerCase();
             if (tag === 'user-query-content' || el.classList.contains('user-query-container') || el.classList.contains('user-query-bubble-container')) continue;
+            if (el.closest('.edit-form.rich-edit-form')) continue; // 编辑态内层绝不兜底标注
             if (hasPaint(el) && el.getBoundingClientRect().height > 16) { bubble = el; break; }
           }
         }
@@ -186,7 +206,7 @@
           bubble.style.setProperty('backdrop-filter', 'blur(25px) saturate(140%)', 'important');
           bubble.style.setProperty('-webkit-backdrop-filter', 'blur(25px) saturate(140%)', 'important');
           bubble.style.setProperty('border', '1px solid rgba(174, 142, 218, 0.28)', 'important');
-          bubble.style.setProperty('border-radius', '22px', 'important');
+          bubble.style.setProperty('border-radius', editForm ? '40px' : '22px', 'important');
         }
       });
 

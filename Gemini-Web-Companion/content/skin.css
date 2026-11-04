@@ -266,7 +266,10 @@ html.kimino-dream-active model-response {
   max-width: min(768px, 100%) !important;
 }
 
-/* 思维链折叠卡：单层水晶胶囊（仅最外层根容器，绝不递归匹配子元素，杜绝三明治多层胶囊） */
+/* 思维链折叠卡：单层水晶胶囊（仅最外层根容器，绝不递归匹配子元素，杜绝三明治多层胶囊）
+   实机 2026-11-05 探针铁证：思考药丸嵌在 [data-kg="card"]（0.76+blur25）内部，
+   胶囊自身再叠 0.66+blur16 → 双层玻璃叠加变暗 = 黑块。
+   处理：胶囊改为卡片上的微透幽灵芯片（轻着色、无二次 blur）。 */
 html.kimino-dream-active :is(
   details:not([open]):not(details *):not([data-kg="thinking"] *),
   [data-kg="thinking"]:not([open]):not([data-kg="thinking"] *),
@@ -278,10 +281,10 @@ html.kimino-dream-active :is(
   display: inline-flex !important;
   align-items: center !important;
   border-radius: 20px !important;
-  background-color: rgba(38, 33, 50, 0.66) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(174, 142, 218, 0.16) !important;
+  background-color: rgba(38, 33, 50, 0.30) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(174, 142, 218, 0.25) !important;
   padding: 8px 16px !important;
   margin: 8px 0 !important;
   box-sizing: border-box !important;
@@ -342,10 +345,10 @@ html.kimino-dream-active :is(details[open], [data-kg="thinking"][open]) {
   max-width: 100% !important;
   display: block !important;
   border-radius: 16px !important;
-  background-color: rgba(38, 33, 50, 0.66) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(174, 142, 218, 0.16) !important;
+  background-color: rgba(38, 33, 50, 0.30) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(174, 142, 218, 0.25) !important;
   padding: 10px 14px !important;
   margin: 8px 0 !important;
   box-sizing: border-box !important;
@@ -393,11 +396,12 @@ html.kimino-dream-active [data-kg="card"] {
   width: 100% !important;
 }
 
-/* 思维链折叠卡 */
+/* 思维链折叠卡（标注版：微透幽灵芯片，杜绝卡片内双层玻璃变暗黑块） */
 html.kimino-dream-active [data-kg="thinking"] {
-  background-color: rgba(38, 33, 50, 0.66) !important;
-  backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(174, 142, 218, 0.16) !important;
+  background-color: rgba(38, 33, 50, 0.30) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(174, 142, 218, 0.25) !important;
   border-radius: 12px !important;
   padding: 10px 14px !important;
   margin: 8px 0 !important;
@@ -505,6 +509,155 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
   color: #ede6fc !important;
+}
+
+/* ================================================================
+   4.55 上传附件预览卡（实机 2026-11-05 勘察定稿）：图片本体 100% 清晰透出
+   ─────────────────────────────────────────────────────────────
+   Gemini 真实结构（IAB paste 实测）：
+   uploader-file-preview > div.file-preview-container >
+   gem-media-attachment.gem-attachment > mat-basic-chip >
+   img.gem-attachment-style-img（blob 图）+ span.gem-attachment-content + 关闭钮
+   根因：上方 4.5 的 [class*="attachment" i] 玻璃卡规则命中
+   img.gem-attachment-style-img 本体（类名含 attachment）与内层容器，
+   深底渐变 + backdrop-filter 直接叠画在缩略图上 → 黑块吞图；
+   mat-basic-chip 另带原生白底（rgba(255,255,255,.12)）→ 白药丸叠加。
+   处理：预览内层整体剥离，图片即卡片；引用卡规则不受影响。
+   ================================================================ */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  uploader-file-preview,
+  uploader-file-preview *,
+  [class*="attachment-preview-wrapper" i],
+  gem-media-attachment,
+  gem-media-attachment *,
+  mat-basic-chip,
+  mat-basic-chip *
+):not(button):not([role="button"]):not([class*="close" i]) {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 缩略图本体：自然清晰、原生圆角，杜绝一切暗化/模糊滤镜 */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  img.gem-attachment-style-img,
+  gem-media-attachment img,
+  uploader-file-preview img
+) {
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  border-radius: 20px !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* ================================================================
+   4.6 消息编辑态（实机 2026-11-05 勘察定稿）：清除 Google 原生蓝
+   ─────────────────────────────────────────────────────────────
+   Gemini 真实结构（IAB 修改按钮实测）：
+   user-query > div.user-query-container.edit-mode
+     ├─ div.query-content.edit-mode > div.edit-container > div.edit-form.rich-edit-form
+     │    （原生蓝边框 rgb(31,59,155)；内层 rich-textarea 已由皮肤正常接管）
+     └─ div.edit-container > div.edit-button-area
+          ├─ gem-button.cancel-button（透明文字钮，无问题）
+          └─ gem-button.update-button > button.mdc-button--unelevated
+               （原生蓝实底 rgb(31,59,155)，与星语紫玻璃美学严重冲突）
+   ================================================================ */
+/* 编辑态双框根治（实机 2026-11-05 探针铁证）：skin.js 兜底扫描曾把内层
+   rich-textarea 误标为气泡（内联 0.76 玻璃），叠加 edit-form 描边 → 双框漏底。
+   现由 skin.js 在编辑态改标 .edit-form 为气泡（保持原生 40px 圆角），
+   此处 CSS 与其同绘：外层 = 唯一玻璃卡，内层归零。
+   加宽（用户反馈 2026-11-05）：原生编辑框仅 484px 且右侧对齐，
+   拉通到对话列全宽，与上方气泡/下方 composer 对齐。 */
+html.kimino-dream-active .edit-form.rich-edit-form {
+  width: 100% !important;
+  max-width: 100% !important;
+  background-color: rgba(24, 18, 36, 0.76) !important;
+  background-image: none !important;
+  backdrop-filter: blur(25px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
+  border: 1px solid rgba(174, 142, 218, 0.28) !important;
+  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
+}
+
+/* 内层 rich-textarea / ql 容器：彻底归零（CSS 兜底，配合 skin.js 清内联） */
+html.kimino-dream-active .edit-form.rich-edit-form :is(rich-textarea, .ql-container, .ql-editor) {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html.kimino-dream-active .edit-button-area button.mdc-button {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* 更新按钮：星语紫水晶实底药丸（禁用态自动降透明度） */
+html.kimino-dream-active .edit-button-area .update-button button.mdc-button {
+  background-image: linear-gradient(135deg, rgba(139, 106, 214, 0.92), rgba(94, 63, 165, 0.92)) !important;
+  background-color: rgba(94, 63, 165, 0.92) !important;
+  color: #f2ebff !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 2px 12px rgba(90, 60, 150, 0.35) !important;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+html.kimino-dream-active .edit-button-area .update-button button.mdc-button:disabled {
+  background-image: linear-gradient(135deg, rgba(139, 106, 214, 0.38), rgba(94, 63, 165, 0.38)) !important;
+  background-color: rgba(94, 63, 165, 0.38) !important;
+  color: rgba(242, 235, 255, 0.55) !important;
+  box-shadow: none !important;
+}
+
+html.kimino-dream-active .edit-button-area .update-button button.mdc-button:not(:disabled):hover {
+  opacity: 1 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 16px rgba(110, 78, 180, 0.5) !important;
+}
+
+/* 取消按钮：透明文字钮 + 常亮可见（对齐关闭钮规范） */
+html.kimino-dream-active .edit-button-area .cancel-button button.mdc-button {
+  color: #ede6fc !important;
+  opacity: 0.88 !important;
+}
+
+html.kimino-dream-active .edit-button-area .cancel-button button.mdc-button:hover {
+  opacity: 1 !important;
+  color: #ffffff !important;
+}
+
+/* 编辑态按钮内部水波纹/高亮层全部透明（对齐 913 行按钮规范） */
+html.kimino-dream-active .edit-button-area button.mdc-button :is(span, .mat-ripple, .mat-mdc-button-ripple, .mat-mdc-button-persistent-ripple, .mat-mdc-focus-indicator),
+html.kimino-dream-active .edit-button-area button.mdc-button::before,
+html.kimino-dream-active .edit-button-area button.mdc-button::after {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* 编辑态内的附件缩略图（user-query-file-carousel）同样剥离一切遮罩底 */
+html.kimino-dream-active user-query .edit-mode :is(
+  [class*="file-preview" i],
+  [class*="carousel" i],
+  [class*="attachment" i],
+  [class*="thumbnail" i]
+):not(button):not([role="button"]) {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* 引用块及输入框右上角关闭/取消/删除按钮（X 号）：常态常驻高亮显示 (0.88)，hover 升至 100% 并微光放大 */

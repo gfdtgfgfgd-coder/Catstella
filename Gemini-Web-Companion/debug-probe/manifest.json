@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "星语探针 · Catstella Debug Probe",
+  "version": "0.1.0",
+  "description": "只读 DOM 采样探针：抓思维链药丸 / 上传预览 / 编辑态的最终计算样式并回传本机收集器（127.0.0.1）。不做任何页面交互与对话操作。",
+  "permissions": [],
+  "host_permissions": [
+    "*://gemini.google.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://gemini.google.com/*"],
+      "js": ["probe.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
