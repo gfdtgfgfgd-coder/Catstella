@@ -7,6 +7,7 @@ async function installTheme(config){
  if(!root)return{applied:false,reason:"unsupported-root"};
  const image=new Image();image.src=config.image;await image.decode();
  if(!root.isConnected)return{applied:false,reason:"detached-root"};
+ document.querySelectorAll('#agy-dream-wallpaper-v2').forEach(el => el.remove());
  const saved=[],seen=new WeakSet();
  const protect=".monaco-editor,.cm-editor,.xterm,.integrated-terminal,textarea,pre,code,[contenteditable=true],[role=dialog],[role=menu],[role=listbox]";
  const layer=document.createElement("div");layer.id="agy-dream-wallpaper-v2";layer.setAttribute("aria-hidden","true");
@@ -46,31 +47,31 @@ async function installTheme(config){
  html.agy-dream-active-v2 .md-sticky-message-bleed {box-shadow:none!important;}
  html.agy-dream-active-v2 .agy-sheet :has(>.md-sticky-message-bleed){position:relative!important;top:auto!important;}
 
- /* User Message Bubble - Liquid Dream Glass */
+ /* User Message Bubble - Liquid Dream Glass (High Readability) */
  html.agy-dream-active-v2 .agy-user-bubble-frame {background:transparent!important;border:none!important;box-shadow:none!important;}
  html.agy-dream-active-v2 :is(.agy-user-bubble,[data-testid="user-message-bubble"],user-query,.user-query) {
    background-color:transparent!important;
    background-image:var(--agy-ui-user-bubble)!important;
-   backdrop-filter:blur(20px) saturate(140%)!important;
-   -webkit-backdrop-filter:blur(20px) saturate(140%)!important;
+   backdrop-filter:blur(28px) saturate(140%)!important;
+   -webkit-backdrop-filter:blur(28px) saturate(140%)!important;
    border:1px solid var(--agy-ui-user-border)!important;
    border-radius:16px!important;
-   box-shadow:0 4px 20px rgba(16,12,27,0.45),inset 0 1px 0 rgba(227,212,255,0.28)!important;
-   padding:8px 14px!important;
+   box-shadow:0 6px 24px rgba(12,9,22,0.5),inset 0 1px 0 rgba(227,212,255,0.32)!important;
+   padding:10px 16px!important;
    color:var(--agy-ui-user-color)!important;
  }
  html.agy-dream-active-v2 :is(.agy-user-bubble,[data-testid="user-message-bubble"],user-query,.user-query) [data-quotable="true"] {
    color:var(--agy-ui-user-color)!important;
-   text-shadow:0 1px 2px rgba(0,0,0,0.5)!important;
+   text-shadow:0 1px 2px rgba(0,0,0,0.55)!important;
    font-weight:450!important;
  }
  html.agy-dream-active-v2 :is(.agy-user-bubble,[data-testid="user-message-bubble"]) .user-input-buttons-container {
    background-color:var(--agy-ui-surface)!important;
-   backdrop-filter:blur(12px)!important;
-   -webkit-backdrop-filter:blur(12px)!important;
+   backdrop-filter:blur(14px)!important;
+   -webkit-backdrop-filter:blur(14px)!important;
    border:1px solid var(--agy-ui-user-border)!important;
    border-radius:9999px!important;
-   box-shadow:0 2px 10px rgba(0,0,0,0.3)!important;
+   box-shadow:0 2px 10px rgba(0,0,0,0.35)!important;
  }
 
  /* Thinking & Tool Calls - Single Layer Frosted Crystal Pills */
@@ -101,27 +102,30 @@ async function installTheme(config){
    box-shadow:inset 0 1px 0 rgba(227,212,255,0.22),0 10px 30px rgba(16,12,27,0.35)!important;
    transition:border-color 0.25s ease,box-shadow 0.25s ease!important;
  }
- /* Composer focus glow on the OUTER frame instead of invading inner pills */
+ /* Outer card dream-like starlight glow on focus */
  html.agy-dream-active-v2 .agy-sheet .surface-composer:focus-within {
-   border-color:rgba(189,162,242,0.65)!important;
-   box-shadow:0 0 0 1px rgba(189,162,242,0.45),0 12px 36px rgba(16,12,27,0.45),inset 0 1px 0 rgba(227,212,255,0.3)!important;
+   border-color:rgba(189,162,242,0.85)!important;
+   box-shadow:0 0 0 1px rgba(189,162,242,0.55),0 0 24px rgba(189,162,242,0.35),0 12px 36px rgba(16,12,27,0.5),inset 0 1px 0 rgba(227,212,255,0.4)!important;
  }
  html.agy-dream-active-v2 .agy-sheet .surface-composer-card {
    border-radius:21px!important;
    background:transparent!important;
  }
- /* Eliminate black block inside composer: ensure editable input is 100% transparent without harsh focus borders */
+ /* Eliminate black block and internal focus outline inside composer */
  html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"],.w-full) {
    background-color:transparent!important;
    background-image:none!important;
    backdrop-filter:none!important;
    -webkit-backdrop-filter:none!important;
  }
- html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"]):focus,
- html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"]):focus-visible {
+ html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"],input):focus,
+ html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"],input):focus-visible {
    outline:none!important;
    box-shadow:none!important;
    border-color:transparent!important;
+ }
+ html.agy-dream-active-v2 .surface-composer *:focus-visible {
+   outline:none!important;
  }
  html.agy-dream-active-v2 .surface-composer :is([data-testid="model-selector-trigger"],[data-testid="permissions-selector-trigger"]) {
    background-color:var(--agy-ui-pill-bg)!important;
@@ -138,43 +142,57 @@ async function installTheme(config){
  html.agy-dream-active-v2 :is([data-testid="input-attachment"],.group\\/attachment) {
    background-color:var(--agy-ui-surface)!important;
    border:1px solid var(--agy-ui-glass-border)!important;
-   border-radius:12px!important;
-   backdrop-filter:blur(12px)!important;
-   -webkit-backdrop-filter:blur(12px)!important;
-   box-shadow:0 4px 14px rgba(10,8,20,0.3)!important;
-   padding:2px!important;
-   transition:transform 0.2s ease!important;
+   border-radius:14px!important;
+   backdrop-filter:blur(14px)!important;
+   -webkit-backdrop-filter:blur(14px)!important;
+   box-shadow:0 4px 16px rgba(10,8,20,0.35)!important;
+   padding:3px!important;
+   transition:transform 0.2s ease,border-color 0.2s ease!important;
+   overflow:visible!important;
  }
  html.agy-dream-active-v2 :is([data-testid="input-attachment"],.group\\/attachment):hover {
-   transform:scale(1.02);
-   border-color:rgba(189,162,242,0.5)!important;
+   transform:scale(1.03);
+   border-color:rgba(189,162,242,0.65)!important;
  }
- html.agy-dream-active-v2 [data-testid="input-attachment"] img {
-   width:64px!important;
-   height:64px!important;
-   min-width:64px!important;
-   min-height:64px!important;
-   border-radius:9px!important;
+ html.agy-dream-active-v2 :is([data-testid="input-attachment"],.group\\/attachment) img {
+   width:76px!important;
+   height:76px!important;
+   min-width:76px!important;
+   min-height:76px!important;
+   border-radius:11px!important;
    object-fit:cover!important;
+   display:block!important;
  }
- html.agy-dream-active-v2 [data-testid="input-attachment-remove"] {
-   width:22px!important;
-   height:22px!important;
-   background-color:var(--agy-ui-surface)!important;
-   border:1px solid var(--agy-ui-glass-border)!important;
+ html.agy-dream-active-v2 :is([data-testid="input-attachment-remove"],.group\\/attachment button) {
+   width:24px!important;
+   height:24px!important;
+   min-width:24px!important;
+   min-height:24px!important;
+   background-color:rgba(28,22,44,0.95)!important;
+   border:1.5px solid rgba(189,162,242,0.65)!important;
    border-radius:9999px!important;
-   top:-6px!important;
-   right:-6px!important;
-   opacity:0.9!important;
+   top:-8px!important;
+   right:-8px!important;
+   opacity:1!important;
    display:flex!important;
    align-items:center!important;
    justify-content:center!important;
-   transition:opacity 0.15s ease,background-color 0.15s ease!important;
+   box-shadow:0 2px 8px rgba(0,0,0,0.45)!important;
+   cursor:pointer!important;
+   z-index:20!important;
+   transition:transform 0.15s ease,background-color 0.15s ease,border-color 0.15s ease!important;
  }
- html.agy-dream-active-v2 [data-testid="input-attachment-remove"]:hover {
-   opacity:1!important;
-   background-color:var(--agy-ui-hover)!important;
-   border-color:rgba(189,162,242,0.6)!important;
+ html.agy-dream-active-v2 :is([data-testid="input-attachment-remove"],.group\\/attachment button):hover {
+   transform:scale(1.15)!important;
+   background-color:rgba(60,44,90,0.98)!important;
+   border-color:rgba(215,190,255,0.9)!important;
+ }
+ html.agy-dream-active-v2 :is([data-testid="input-attachment-remove"],.group\\/attachment button) svg {
+   width:14px!important;
+   height:14px!important;
+   stroke:#fdfcff!important;
+   color:#fdfcff!important;
+   stroke-width:2.5!important;
  }
 
  /* Overview Floating Panel */
@@ -261,11 +279,11 @@ async function installTheme(config){
  variable(document.body,"--agy-ui-selected",dark?"#443754":"#e5d8f6");
  variable(document.body,"--agy-ui-reading",dark?"#211e2df5":"#fffafff5");
  variable(document.body,"--agy-ui-hover",dark?"#a58ade1c":"#b494e526");
- variable(document.body,"--agy-ui-glass",dark?"linear-gradient(165deg,rgba(46,36,68,0.78),rgba(20,16,32,0.90))":"linear-gradient(165deg,rgba(255,250,255,0.92),rgba(235,224,248,0.85))");
- variable(document.body,"--agy-ui-glass-border",dark?"rgba(189,162,242,0.28)":"rgba(174,142,218,0.35)");
- variable(document.body,"--agy-ui-user-bubble",dark?"linear-gradient(145deg,rgba(50,38,74,0.90),rgba(26,18,42,0.95))":"linear-gradient(145deg,rgba(255,255,255,0.95),rgba(238,228,250,0.90))");
- variable(document.body,"--agy-ui-user-border",dark?"rgba(189,162,242,0.38)":"rgba(174,142,218,0.45)");
- variable(document.body,"--agy-ui-user-color",dark?"#fdfcff":"#1c1828");
+ variable(document.body,"--agy-ui-glass",dark?"linear-gradient(165deg,rgba(36,28,54,0.92),rgba(18,14,28,0.96))":"linear-gradient(165deg,rgba(255,250,255,0.95),rgba(238,228,250,0.92))");
+ variable(document.body,"--agy-ui-glass-border",dark?"rgba(189,162,242,0.32)":"rgba(174,142,218,0.38)");
+ variable(document.body,"--agy-ui-user-bubble",dark?"linear-gradient(145deg,rgba(48,34,74,0.94),rgba(24,18,38,0.97))":"linear-gradient(145deg,rgba(255,255,255,0.97),rgba(240,232,252,0.94))");
+ variable(document.body,"--agy-ui-user-border",dark?"rgba(189,162,242,0.45)":"rgba(174,142,218,0.48)");
+ variable(document.body,"--agy-ui-user-color",dark?"#ffffff":"#1c1828");
  variable(document.body,"--agy-ui-pill-bg",dark?"rgba(165,138,222,0.14)":"rgba(255,255,255,0.65)");
  variable(document.body,"--agy-ui-pill-border",dark?"rgba(174,142,218,0.28)":"rgba(174,142,218,0.35)");
  variable(document.body,"--agy-ui-pill-hover",dark?"rgba(165,138,222,0.25)":"rgba(255,255,255,0.85)");
@@ -339,7 +357,7 @@ async function installTheme(config){
   }
  }
  function schedule(){clearTimeout(timer);timer=setTimeout(scan,160);}
- function update(next){config=next;root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");layer.style.opacity=String(config.opacity??.55);layer.style.backgroundColor="transparent";layer.style.backgroundImage='linear-gradient(rgba(20,15,35,'+config.scrim+'),rgba(20,15,35,'+config.scrim+')),url("'+config.image+'")';layer.style.backgroundSize=config.fit==="adaptive"?"100% 100%,cover":"100% 100%,"+config.fit;layer.style.backgroundColor=config.fit==="adaptive"?(dark?"#242033":"#ede4f7"):"transparent";scan();}
+ function update(next){config=next;root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});layer.style.opacity=String(config.opacity??.55);layer.style.backgroundColor="transparent";layer.style.backgroundImage='linear-gradient(rgba(20,15,35,'+config.scrim+'),rgba(20,15,35,'+config.scrim+')),url("'+config.image+'")';layer.style.backgroundSize=config.fit==="adaptive"?"100% 100%,cover":"100% 100%,"+config.fit;layer.style.backgroundColor=config.fit==="adaptive"?(dark?"#242033":"#ede4f7"):"transparent";scan();}
  function destroy(){
   active=false;clearTimeout(timer);observer?.disconnect();resize?.disconnect();
   document.querySelectorAll('#agy-dream-style-v2, #agy-dream-wallpaper-v2').forEach(el => el.remove());
@@ -348,6 +366,7 @@ async function installTheme(config){
   saved.length=0;
   delete window[key];return{removed:true};
  }
+ document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el => el.remove());
  document.head.append(style);document.body.prepend(layer);document.documentElement.classList.add("agy-dream-active-v2");
  update(config);observer=new MutationObserver(schedule);observer.observe(root,{childList:true,subtree:true});resize=new ResizeObserver(schedule);resize.observe(root);
  const status=()=>({applied:active&&root.isConnected&&layer.isConnected&&style.isConnected,protected:root.querySelectorAll("[data-agy-dream-protect]").length,surfaces:root.querySelectorAll("[data-agy-dream-clear]").length,trackedChanges:saved.length});

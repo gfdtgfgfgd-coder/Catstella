@@ -2,7 +2,7 @@ const { discover, Cdp } = require("../../../shared/host.cjs");
 const { installTheme } = require("../host/theme.cjs");
 class HostController {
   constructor(loader, onStatus, options = {}) {
-    this.owner = require("node:crypto").randomUUID();
+    this.owner = options.owner || require("node:crypto").randomUUID();
     this.loader = loader;
     this.onStatus = onStatus;
     this.discover = options.discover || discover;

@@ -249,6 +249,10 @@
     save({ dreamSkin: { outputMode: $("dream-output-mode").checked ? "glass" : "transparent" } });
   };
 
+  if ($("uiLanguage")) $("uiLanguage").onchange = () => {
+    save({ dreamSkin: { uiLanguage: $("uiLanguage").value } }, "已切换界面语言");
+  };
+
   // 彩蛋与测试按钮
   if ($("preview-proud")) $("preview-proud").onclick = () => { api.command("preview-reaction:proud"); $("saved").textContent = "已触发「得意」表情展示~"; };
   if ($("preview-crying")) $("preview-crying").onclick = () => { api.command("preview-reaction:crying"); $("saved").textContent = "已触发「委屈」表情展示~"; };
