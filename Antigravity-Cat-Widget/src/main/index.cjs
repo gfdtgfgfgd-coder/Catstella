@@ -24,7 +24,7 @@ else{
  const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(),audio=new AudioManager();
  const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
  const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
- const skinController=new HostController(skinManager,()=>{publish();updateMenu();});
+ const skinController=new HostController(skinManager,()=>{publish();updateMenu();},{owner:"starsuite-desktop-host"});
  const localization=new LocalizationController(()=>{publish();},{dict:localizationDict});
  const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版基米乃","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
  let cachedCharacterPacks=null,cachedWallpapers=null,lastPackScan=0,lastWallScan=0;

@@ -23,7 +23,7 @@ async function installTheme(config){
  html.agy-dream-active-v2 :is(.bg-sidebar,[role=navigation],aside) :is([aria-selected=true],[aria-current=true],[data-state=active],[class~="bg-sidebar-muted"],[class~="bg-sidebar-secondary"]) {background-color:var(--agy-ui-selected)!important;background-image:none!important;box-shadow:inset 3px 0 #bda2f2,inset 0 0 0 1px #bda2f238;border-radius:9px;}
  html.agy-dream-active-v2 :is(button,a,[role=tab]):hover:not(:disabled) {outline-color:#b99bea;background-color:var(--agy-ui-hover);}
  html.agy-dream-active-v2 :is([role=tab][aria-selected=true],[role=tab][data-state=active]) {background:var(--agy-ui-selected)!important;box-shadow:inset 0 -2px #b99bea;}
- html.agy-dream-active-v2 :is(button,a,input,textarea,[contenteditable=true]):focus-visible {outline:2px solid #b49aee;outline-offset:2px;}
+ html.agy-dream-active-v2 :is(button,a,input):focus-visible {outline:2px solid #b49aee;outline-offset:2px;}
  html.agy-dream-active-v2 :is([role=menu],[role=dialog],[role=listbox]) {background-color:var(--agy-ui-surface)!important;border-color:#ae8eda38!important;box-shadow:0 8px 28px #15101f38;}
  html.agy-dream-active-v2 .agy-sheet {border-radius:22px;overflow:hidden;box-shadow:inset 0 0 0 1px #c5afe626;}
  html.agy-dream-active-v2 [data-agy-dream-welcome] { padding-top:0!important;justify-content:flex-end!important;padding-bottom:28px!important; }
@@ -99,8 +99,30 @@ async function installTheme(config){
    -webkit-backdrop-filter:blur(24px) saturate(130%)!important;
    border:1px solid var(--agy-ui-glass-border)!important;
    box-shadow:inset 0 1px 0 rgba(227,212,255,0.22),0 10px 30px rgba(16,12,27,0.35)!important;
+   transition:border-color 0.25s ease,box-shadow 0.25s ease!important;
  }
- html.agy-dream-active-v2 .agy-sheet .surface-composer-card {border-radius:21px!important;}
+ /* Composer focus glow on the OUTER frame instead of invading inner pills */
+ html.agy-dream-active-v2 .agy-sheet .surface-composer:focus-within {
+   border-color:rgba(189,162,242,0.65)!important;
+   box-shadow:0 0 0 1px rgba(189,162,242,0.45),0 12px 36px rgba(16,12,27,0.45),inset 0 1px 0 rgba(227,212,255,0.3)!important;
+ }
+ html.agy-dream-active-v2 .agy-sheet .surface-composer-card {
+   border-radius:21px!important;
+   background:transparent!important;
+ }
+ /* Eliminate black block inside composer: ensure editable input is 100% transparent without harsh focus borders */
+ html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"],.w-full) {
+   background-color:transparent!important;
+   background-image:none!important;
+   backdrop-filter:none!important;
+   -webkit-backdrop-filter:none!important;
+ }
+ html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"]):focus,
+ html.agy-dream-active-v2 .surface-composer :is([contenteditable="true"],textarea,[data-lexical-editor="true"]):focus-visible {
+   outline:none!important;
+   box-shadow:none!important;
+   border-color:transparent!important;
+ }
  html.agy-dream-active-v2 .surface-composer :is([data-testid="model-selector-trigger"],[data-testid="permissions-selector-trigger"]) {
    background-color:var(--agy-ui-pill-bg)!important;
    border:1px solid var(--agy-ui-pill-border)!important;
@@ -110,6 +132,69 @@ async function installTheme(config){
  html.agy-dream-active-v2 .surface-composer :is([data-testid="model-selector-trigger"],[data-testid="permissions-selector-trigger"]):hover {
    background-color:var(--agy-ui-pill-hover)!important;
    border-color:rgba(189,162,242,0.4)!important;
+ }
+
+ /* Attachment Thumbnails Enlarged & Polished */
+ html.agy-dream-active-v2 :is([data-testid="input-attachment"],.group\\/attachment) {
+   background-color:var(--agy-ui-surface)!important;
+   border:1px solid var(--agy-ui-glass-border)!important;
+   border-radius:12px!important;
+   backdrop-filter:blur(12px)!important;
+   -webkit-backdrop-filter:blur(12px)!important;
+   box-shadow:0 4px 14px rgba(10,8,20,0.3)!important;
+   padding:2px!important;
+   transition:transform 0.2s ease!important;
+ }
+ html.agy-dream-active-v2 :is([data-testid="input-attachment"],.group\\/attachment):hover {
+   transform:scale(1.02);
+   border-color:rgba(189,162,242,0.5)!important;
+ }
+ html.agy-dream-active-v2 [data-testid="input-attachment"] img {
+   width:64px!important;
+   height:64px!important;
+   min-width:64px!important;
+   min-height:64px!important;
+   border-radius:9px!important;
+   object-fit:cover!important;
+ }
+ html.agy-dream-active-v2 [data-testid="input-attachment-remove"] {
+   width:22px!important;
+   height:22px!important;
+   background-color:var(--agy-ui-surface)!important;
+   border:1px solid var(--agy-ui-glass-border)!important;
+   border-radius:9999px!important;
+   top:-6px!important;
+   right:-6px!important;
+   opacity:0.9!important;
+   display:flex!important;
+   align-items:center!important;
+   justify-content:center!important;
+   transition:opacity 0.15s ease,background-color 0.15s ease!important;
+ }
+ html.agy-dream-active-v2 [data-testid="input-attachment-remove"]:hover {
+   opacity:1!important;
+   background-color:var(--agy-ui-hover)!important;
+   border-color:rgba(189,162,242,0.6)!important;
+ }
+
+ /* Overview Floating Panel */
+ html.agy-dream-active-v2 .animate-overview-panel {
+   background-color:transparent!important;
+   background-image:var(--agy-ui-glass)!important;
+   backdrop-filter:blur(24px) saturate(135%)!important;
+   -webkit-backdrop-filter:blur(24px) saturate(135%)!important;
+   border:1px solid var(--agy-ui-glass-border)!important;
+   border-radius:16px!important;
+   box-shadow:0 12px 36px rgba(12,9,22,0.45),inset 0 1px 0 rgba(227,212,255,0.22)!important;
+ }
+ html.agy-dream-active-v2 .animate-overview-panel :is(.bg-card,.bg-muted) {
+   background-color:transparent!important;
+ }
+ html.agy-dream-active-v2 .animate-overview-panel [class*="border-border"] {
+   border-color:var(--agy-ui-glass-border)!important;
+ }
+ html.agy-dream-active-v2 .animate-overview-panel [class*="hover:bg-"]:hover {
+   background-color:var(--agy-ui-hover)!important;
  }
 
  /* Assistant Reading Surface */
@@ -233,7 +318,8 @@ async function installTheme(config){
   for(const el of root.querySelectorAll("div,main,section,aside,nav,header,form,textarea,pre,code,[contenteditable=true],[role=dialog],[role=menu],[role=listbox]")){
    if(!area.scope.contains(el))continue;
    if(seen.has(el)||el===layer||el===style||el.closest("#agy-dream-wallpaper-v2"))continue;
-   if(el.closest(".agy-user-bubble,[data-testid='user-message-bubble'],.agy-user-bubble-frame,[data-testid='user-input-step']"))continue;
+   for(const p of area.scope.querySelectorAll(".surface-composer [data-agy-dream-protect],.surface-composer [data-agy-dream-card]")){p.removeAttribute("data-agy-dream-protect");p.removeAttribute("data-agy-dream-card");p.style.removeProperty("--agy-dream-old-bg");p.style.removeProperty("--agy-dream-card-bg");}
+   if(el.closest(".agy-user-bubble,[data-testid='user-message-bubble'],.agy-user-bubble-frame,[data-testid='user-input-step'],.surface-composer,form"))continue;
    const rect=el.getBoundingClientRect();if(rect.width<1||rect.height<1)continue;
    const css=getComputedStyle(el),bg=css.backgroundColor;
    nativeBackgrounds.set(el,bg);

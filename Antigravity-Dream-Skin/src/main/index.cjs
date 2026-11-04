@@ -9,7 +9,7 @@ else{
  const settings=new DreamSkinSettings(path.join(dataDir,"settings.json")),manager=new WallpaperManager({userDir:path.join(dataDir,"wallpapers")});
  if(process.argv.includes("--enable"))settings.update({enabled:true});
  if(process.argv.includes("--disable"))settings.update({enabled:false});
- const controller=new HostController(manager,()=>{if(win&&!win.isDestroyed())win.webContents.send("dream:state",snapshot());});
+ const controller=new HostController(manager,()=>{if(win&&!win.isDestroyed())win.webContents.send("dream:state",snapshot());},{owner:"starsuite-desktop-host"});
  const snapshot=()=>{
   let wallpaper=null,wallpaperError=null,activeId=null;
   try{const pack=manager.verifyIntegrity(settings.get("wallpaperId"));wallpaper=pack.name;activeId=pack.id;}catch(error){wallpaperError=error.message;}
