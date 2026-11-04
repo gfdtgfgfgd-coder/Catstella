@@ -8,6 +8,8 @@ class HostController {
     this.discover = options.discover || discover;
     this.createClient = options.createClient || (url => new Cdp(url));
     this.client = null;
+    this.primaryUrl = null;
+    this.extraClients = new Map();
     this.settings = { enabled: false };
     this.status = { connected: false, applied: false, message: "等待连接 Antigravity" };
     this.signature = null;
@@ -33,17 +35,75 @@ class HostController {
       await this.runTick(revision);
     } while (!this.stopping && revision !== this.revision);
   }
+  async syncSecondaryTargets(targets, settings, signature, revision) {
+    if (!Array.isArray(targets) || targets.length <= 1) {
+      for (const [url, entry] of this.extraClients.entries()) {
+        entry.client?.close();
+        this.extraClients.delete(url);
+      }
+      return;
+    }
+    const activeUrls = new Set();
+    for (const target of targets) {
+      const wsUrl = target?.webSocketDebuggerUrl;
+      if (!wsUrl || wsUrl === this.primaryUrl) continue;
+      activeUrls.add(wsUrl);
+      let entry = this.extraClients.get(wsUrl);
+      if (!entry || entry.client.closed) {
+        try {
+          entry = { client: this.createClient(wsUrl), signature: null };
+          this.extraClients.set(wsUrl, entry);
+        } catch { continue; }
+      }
+      try {
+        const cur = await entry.client.evaluate(
+          "({ready:document.readyState,themed:!!window.__agyDreamSkinV2?.status().applied,owner:window.__agyDreamSkinV2?.owner})"
+        );
+        if (revision !== this.revision || this.stopping) return;
+        if (!settings.enabled) {
+          if (cur.themed && cur.owner === this.owner) {
+            await entry.client.evaluate("window.__agyDreamSkinV2?.destroy()");
+          }
+          entry.signature = null;
+          continue;
+        }
+        if (cur.themed && cur.owner !== this.owner) continue;
+        if (!cur.themed || entry.signature !== signature) {
+          const payload = { ...this.loader.payload(settings), owner: this.owner };
+          await entry.client.evaluate("(" + installTheme.toString() + ")(" + JSON.stringify(payload) + ")");
+          entry.signature = signature;
+        }
+      } catch {
+        entry.client?.close();
+        this.extraClients.delete(wsUrl);
+      }
+    }
+    for (const [url, entry] of this.extraClients.entries()) {
+      if (!activeUrls.has(url)) {
+        entry.client?.close();
+        this.extraClients.delete(url);
+      }
+    }
+  }
   async runTick(revision) {
     const settings = { ...this.settings };
     try {
+      let foundTargets = null;
       if (!this.client || this.client.closed) {
         const found = await this.discover();
         if (!found) {
           this.report({ connected: false, applied: false, message: "请先打开 Antigravity，检测到后自动连接" });
           return;
         }
-        this.client = this.createClient(found.target.webSocketDebuggerUrl);
+        this.primaryUrl = found.target.webSocketDebuggerUrl;
+        this.client = this.createClient(this.primaryUrl);
         this.signature = null;
+        foundTargets = found.targets || null;
+      } else if (this.discover === discover) {
+        try {
+          const found = await this.discover();
+          foundTargets = found?.targets || null;
+        } catch {}
       }
       const current = await this.client.evaluate(
         "({ready:document.readyState,themed:!!window.__agyDreamSkinV2?.status().applied,owner:window.__agyDreamSkinV2?.owner})"
@@ -54,6 +114,7 @@ class HostController {
           await this.client.evaluate("window.__agyDreamSkinV2?.destroy()");
         }
         this.signature = null;
+        if (foundTargets) await this.syncSecondaryTargets(foundTargets, settings, null, revision);
         this.report({
           connected: true, applied: false,
           message: current.themed && current.owner !== this.owner
@@ -76,9 +137,11 @@ class HostController {
           message: result.applied ? "已应用到真实 Antigravity · 可随时关闭" : "宿主布局已变化，等待重新应用"
         });
       }
+      if (foundTargets) await this.syncSecondaryTargets(foundTargets, settings, signature, revision);
     } catch (error) {
       this.client?.close();
       this.client = null;
+      this.primaryUrl = null;
       this.signature = null;
       this.report({ connected: false, applied: false, message: "暂未接入：" + error.message });
     }
@@ -104,6 +167,15 @@ class HostController {
       }
     } catch {}
     this.client?.close();
+    for (const [, entry] of this.extraClients.entries()) {
+      try {
+        if (entry.client && !entry.client.closed) {
+          await entry.client.evaluate("window.__agyDreamSkinV2?.owner===" + JSON.stringify(this.owner) + " ? window.__agyDreamSkinV2.destroy() : null");
+        }
+      } catch {}
+      entry.client?.close();
+    }
+    this.extraClients.clear();
   }
 }
 module.exports = { HostController };

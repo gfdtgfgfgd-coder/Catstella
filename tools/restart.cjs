@@ -46,7 +46,8 @@ function probeLock(){
   }
   if(!free)throw new Error("单例锁迟迟未释放，请手动检查旧实例进程后再试");
   console.log("[3/3] 基于当前源码重新拉起…");
-  spawnApp(kind);
+  const flags=process.argv.slice(3).filter(f=>["--enable","--disable","--quit","--background","--settings","--settings-byok","--enable-byok","--disable-byok"].includes(f));
+  spawnApp(kind,flags);
   console.log(`✔ ${KIND_LABEL[kind]} 已基于当前源码平滑重启。`);
  }catch(error){
   console.error("✘ 重启失败："+error.message);

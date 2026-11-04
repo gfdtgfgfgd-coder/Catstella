@@ -5,22 +5,85 @@
   let active = null;
   let generation = 0;
 
+  // BYOK state
+  let byokMounted = false;
+  let selectedProviderId = "";
+  let keyRevealed = false;
+  let editingModelOriginalId = null;
+  const pingingKeys = new Set();
+
   // 1. 无边框窗口控制
   if ($("win-min-btn")) $("win-min-btn").onclick = () => api.command("settings-minimize");
   if ($("win-close-btn")) $("win-close-btn").onclick = () => api.command("settings-close");
 
-  // 1.5 侧边导航：分页切换并记忆上次所在页
-  const navItems = [...document.querySelectorAll(".nav-item")];
-  const pages = [...document.querySelectorAll(".page")];
+  // 1.5 动态条件挂载 BYOK 标签页（严格遵循零侵入：未启用时完全不渲染 DOM）
+  let navItems = [];
+  let pages = [];
+
+  function refreshNavLists() {
+    navItems = [...document.querySelectorAll(".nav-item")];
+    pages = [...document.querySelectorAll(".page")];
+    navItems.forEach(b => {
+      b.onclick = () => showPage(b.dataset.page);
+    });
+  }
+
   function showPage(name) {
     if (!pages.some(p => p.dataset.page === name)) name = "overview";
     navItems.forEach(b => b.classList.toggle("active", b.dataset.page === name));
     pages.forEach(p => p.classList.toggle("active", p.dataset.page === name));
-    const scroller = $("content-scroll"); if (scroller) scroller.scrollTop = 0;
+    const scroller = $("content-scroll");
+    if (scroller) scroller.scrollTop = 0;
     try { localStorage.setItem("cat_settings_page", name); } catch {}
   }
-  navItems.forEach(b => b.onclick = () => showPage(b.dataset.page));
-  showPage((() => { try { return localStorage.getItem("cat_settings_page"); } catch { return null; } })() || "overview");
+
+  function mountByokIfAvailable() {
+    const isAvailable = data?.byok?.available === true;
+    const hintEl = $("clickCatAction-hint");
+    if (hintEl) {
+      hintEl.textContent = isAvailable
+        ? "选择切换页面：依次查看反重力额度、Web 伴侣用量、BYOK 网关与对话。"
+        : "选择切换页面：依次查看反重力额度、Web 伴侣用量、喵言喵语陪伴对话与本机统计。";
+    }
+    if (!isAvailable || byokMounted) return;
+
+    const navTpl = $("byok-nav-template");
+    const pageTpl = $("byok-page-template");
+    const sideNav = $("side-nav");
+    const scrollContainer = $("content-scroll");
+    if (!navTpl || !pageTpl || !sideNav || !scrollContainer) return;
+
+    const spacer = sideNav.querySelector(".nav-spacer");
+    sideNav.insertBefore(navTpl.content.cloneNode(true), spacer || null);
+    scrollContainer.appendChild(pageTpl.content.cloneNode(true));
+    byokMounted = true;
+    selectedProviderId = data.byok.activeProviderId || data.byok.providers?.[0]?.id || "deepseek";
+    refreshNavLists();
+    bindByokEvents();
+  }
+
+  refreshNavLists();
+  mountByokIfAvailable();
+  const resolveInitialPage = () => {
+    const hash = (window.location.hash || "").replace(/^#/, "").trim();
+    if (hash === "byok" || hash === "models") return "models";
+    if (hash) return hash;
+    try { return localStorage.getItem("cat_settings_page") || "overview"; } catch { return "overview"; }
+  };
+  showPage(resolveInitialPage());
+  if (api.onNavigate) {
+    api.onNavigate(target => {
+      mountByokIfAvailable();
+      showPage(target === "byok" ? "models" : target);
+    });
+  }
+  window.addEventListener("hashchange", () => {
+    const hash = (window.location.hash || "").replace(/^#/, "").trim();
+    if (hash) {
+      mountByokIfAvailable();
+      showPage(hash === "byok" ? "models" : hash);
+    }
+  });
 
   // 2. 音效选项填充
   for (const p of data.presets || []) {
@@ -34,7 +97,8 @@
     "characterPack", "hostWindowOnly", "standaloneDesktopMode", "easterEggs", "scale", "alwaysOnTop",
     "snap", "reducedMotion", "clickThrough", "bubbleOn", "turnCostOn",
     "turnCostDurationMs", "sound", "soundSet", "volume", "manualQuota",
-    "manualPercent", "manualWeeklyPercent", "clickCatAction"
+    "manualPercent", "manualWeeklyPercent", "clickCatAction",
+    "syncCharacter", "syncWallpaper", "syncInteraction", "petDisplayMode"
   ];
   const original = Object.fromEntries(keys.map(key => [key, data.settings[key]]));
   const originalDreamSkin = data.dreamSkin ? { ...data.dreamSkin } : null;
@@ -138,7 +202,9 @@
     gallery.innerHTML = "";
 
     for (const wall of walls) {
-      const normCurrent = (currentWallpaper || "").replace(/\\/g, "/").toLowerCase(); const normPath = (wall.filePath || "").replace(/\\/g, "/").toLowerCase(); const isCurrent = normCurrent.endsWith("/" + wall.fileName.toLowerCase()) || normCurrent === normPath || normCurrent === wall.fileName.toLowerCase();
+      const normCurrent = (currentWallpaper || "").replace(/\\/g, "/").toLowerCase();
+      const normPath = (wall.filePath || "").replace(/\\/g, "/").toLowerCase();
+      const isCurrent = normCurrent.endsWith("/" + wall.fileName.toLowerCase()) || normCurrent === normPath || normCurrent === wall.fileName.toLowerCase();
       const card = document.createElement("div");
       card.className = "gallery-card" + (isCurrent ? " active" : "");
       card.setAttribute("role", "button");
@@ -165,15 +231,889 @@
     }
   }
 
-  const snapPoints = [1, 3, 5, 10, 15, 30, 60];
-  function dampedSnap(val) {
-    for (const p of snapPoints) {
-      if (Math.abs(val - p) <= 1.2) return p;
+  // 5.5 双端联动看板与状态胶囊渲染
+  function renderDualCompanionStatus() {
+    const wc = data?.webCompanion || {};
+    const wq = wc.quota || null;
+    const pillClass = wc.online ? "sync-pill online" : (wq ? "sync-pill cached" : "sync-pill offline");
+    const pillText = wc.online
+      ? (wc.active ? "🟢 Web 伴侣活跃同步中" : "🟢 Web 伴侣已连接")
+      : (wq ? "🟣 已缓存 Web 快照（浏览器未打开）" : `⚪ 等待浏览器扩展连接 (${wc.port ? "127.0.0.1:" + wc.port : "本地桥接"})`);
+
+    for (const id of ["overview-bridge-pill", "pet-bridge-pill", "quota-bridge-pill"]) {
+      const el = $(id);
+      if (el) {
+        el.className = pillClass;
+        el.textContent = pillText;
+      }
     }
-    return val;
+
+    // AGY 用量卡片
+    const q = data?.quotaWindows || {};
+    const gData = q.gemini || q;
+    const manual = data?.settings?.manualQuota === true;
+    const isArgon = Boolean(q.modelInfo?.modelName?.toLowerCase().includes("argon"));
+    const fiveVal = manual ? data.settings.manualPercent : (isArgon ? (q.argon?.fiveHour ?? gData?.fiveHour) : gData?.fiveHour);
+    const weekVal = manual ? data.settings.manualWeeklyPercent : (isArgon ? (q.argon?.weekly ?? gData?.weekly) : gData?.weekly);
+    if ($("dq-agy-model")) $("dq-agy-model").textContent = q.modelInfo?.modelName || (manual ? "手动记录" : "本机读取");
+    if ($("dq-agy-5h")) $("dq-agy-5h").textContent = typeof fiveVal === "number" ? `${Math.round(fiveVal)}%` : "—";
+    if ($("dq-agy-week")) $("dq-agy-week").textContent = typeof weekVal === "number" ? `${Math.round(weekVal)}%` : "—";
+    if ($("dq-agy-steps")) {
+      const argonBrief = typeof q.argon?.weekly === "number" ? ` · 🪐 Argon 余 ${Math.round(q.argon.weekly)}%` : "";
+      $("dq-agy-steps").textContent = `${data?.ledger?.todaySteps || 0} 步${argonBrief}`;
+    }
+
+    // Web 用量卡片
+    if ($("dq-web-model")) {
+      $("dq-web-model").textContent = wq?.displaySource === "official"
+        ? "官方账本"
+        : (wq?.lastModel || (wc.online ? "已连接" : "待同步"));
+    }
+    if ($("dq-web-5h")) {
+      $("dq-web-5h").textContent = wq
+        ? (typeof wq.fiveHourUsedPct === "number" ? `已用 ${wq.fiveHourUsedPct}% (余 ${Math.max(0, 100 - wq.fiveHourUsedPct)}%)` : `${wq.window5hTotal} 次`)
+        : "—";
+    }
+    if ($("dq-web-daily")) {
+      $("dq-web-daily").textContent = wq
+        ? (typeof wq.weeklyUsedPct === "number" ? `已用 ${wq.weeklyUsedPct}% (余 ${Math.max(0, 100 - wq.weeklyUsedPct)}%)` : (wq.dailyTotal ? `${wq.dailyTotal} / ${wq.dailyBudget || 150} 次` : "待同步"))
+        : "—";
+    }
+    if ($("dq-web-split")) {
+      $("dq-web-split").textContent = wq
+        ? (wq.resetHint ? `重置 ${wq.resetHint} · 第 ${wq.sessionTurns || 0} 轮` : `第 ${wq.sessionTurns || 0} 轮 · ~${((wq.sessionTokensEst || 0) / 1000).toFixed(1)}k`)
+        : "—";
+    }
+  }
+
+  // =========================================================================
+  // 6. BYOK 双栏视图渲染与交互控制器
+  // =========================================================================
+  const STATUS_LAMP = {
+    online: { dot: "🟢", label: "联通正常" },
+    warning: { dot: "🟡", label: "未测试或待配置" },
+    error: { dot: "🔴", label: "连接失败" },
+    disabled: { dot: "⚪", label: "已禁用" }
+  };
+
+  function getSelectedProvider() {
+    const providers = data?.byok?.providers || [];
+    return providers.find(p => p.id === selectedProviderId) || providers[0] || null;
+  }
+
+  function renderByokPanel() {
+    if (!byokMounted || !data?.byok?.available) return;
+    const byok = data.byok;
+    const providers = byok.providers || [];
+    if (providers.length && !providers.some(p => p.id === selectedProviderId)) {
+      selectedProviderId = byok.activeProviderId || providers[0].id;
+    }
+
+    if ($("byok-gateway-banner")) {
+      const routeText = byok.activeProvider?.enabled
+        ? ` · 当前活跃路由：${byok.activeProvider.name} / ${byok.activeProvider.activeModel || "默认"}`
+        : "";
+      $("byok-gateway-banner").textContent = byok.gatewayOnline
+        ? `🟢 本地网关运行中 · ${byok.endpoint}${routeText}`
+        : `🔴 本地网关未就绪 · 目标端点 ${byok.endpoint}`;
+    }
+    if ($("byok-today-stat")) {
+      $("byok-today-stat").textContent = `今日请求 ${byok.todayRequests || 0} 次`;
+    }
+
+    // 网关进阶配置开关同步
+    const gw = byok.gateway || {};
+    if ($("byok-cfg-mcp") && document.activeElement !== $("byok-cfg-mcp")) {
+      $("byok-cfg-mcp").checked = gw.mcpBridgeEnabled === true;
+    }
+    if ($("byok-cfg-portal") && document.activeElement !== $("byok-cfg-portal")) {
+      $("byok-cfg-portal").checked = gw.hostPortalEnabled !== false;
+    }
+    if ($("byok-cfg-failover") && document.activeElement !== $("byok-cfg-failover")) {
+      $("byok-cfg-failover").checked = gw.failoverEnabled !== false;
+    }
+    if ($("byok-cfg-token") && document.activeElement !== $("byok-cfg-token")) {
+      $("byok-cfg-token").checked = gw.gatewayTokenEnabled === true;
+    }
+    const tokenOn = gw.gatewayTokenEnabled === true;
+    if ($("byok-copy-gw-token")) $("byok-copy-gw-token").hidden = !tokenOn;
+    if ($("byok-regen-gw-token")) $("byok-regen-gw-token").hidden = !tokenOn;
+    if ($("byok-cfg-token-hint")) {
+      $("byok-cfg-token-hint").textContent = tokenOn && gw.gatewayTokenMasked
+        ? `已启用专属口令（${gw.gatewayTokenMasked}）· 客户端需携带此 Bearer Token`
+        : "可选：要求本机客户端携带网关专属 Bearer Token，外部网页 Origin 已默认拦截";
+    }
+
+    // 左栏：渲染供应商列表
+    const listEl = $("byok-provider-list");
+    if (listEl) {
+      listEl.innerHTML = "";
+      for (const p of providers) {
+        const lamp = STATUS_LAMP[p.status] || STATUS_LAMP.warning;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "byok-prov-item" + (p.id === selectedProviderId ? " active" : "");
+        btn.setAttribute("role", "option");
+        btn.setAttribute("aria-selected", String(p.id === selectedProviderId));
+        btn.title = `${p.name} · ${lamp.label}`;
+
+        const left = document.createElement("span");
+        left.className = "byok-prov-left";
+        const dot = document.createElement("span");
+        dot.className = "byok-dot";
+        dot.textContent = lamp.dot;
+        const nm = document.createElement("span");
+        nm.className = "byok-prov-name";
+        nm.textContent = p.name;
+        left.append(dot, nm);
+
+        const meta = document.createElement("span");
+        meta.className = "byok-prov-meta";
+        meta.textContent = p.balance?.formatted
+          ? p.balance.formatted
+          : (typeof p.pingMs === "number" ? `${p.pingMs}ms` : `${p.models.length}`);
+
+        btn.append(left, meta);
+        btn.onclick = async () => {
+          if (selectedProviderId !== p.id) {
+            selectedProviderId = p.id;
+            keyRevealed = false;
+            if ($("byok-api-key")) {
+              $("byok-api-key").type = "password";
+              $("byok-api-key").value = "";
+              delete $("byok-api-key").dataset.dirty;
+            }
+            if ($("byok-key-eye")) $("byok-key-eye").textContent = "👁️";
+            if (p.enabled) {
+              try { data.byok = await api.byok("setActiveProvider", { providerId: p.id }); } catch {}
+            }
+            renderByokPanel();
+          }
+        };
+        listEl.appendChild(btn);
+      }
+    }
+
+    // 右栏：渲染当前选中的供应商详情
+    const prov = getSelectedProvider();
+    const detailCol = $("byok-detail-col");
+    if (!prov) {
+      if (detailCol) detailCol.hidden = true;
+      return;
+    }
+    if (detailCol) detailCol.hidden = false;
+
+    $("byok-prov-title").textContent = prov.name;
+    $("byok-prov-badge").textContent = prov.builtin ? "内置预设" : "自定义";
+    const balChip = $("byok-prov-balance");
+    if (balChip) {
+      const balText = prov.balance?.formatted || "";
+      balChip.hidden = !balText;
+      balChip.textContent = balText ? `💰 ${balText}` : "";
+    }
+    if (document.activeElement !== $("byok-prov-enabled")) $("byok-prov-enabled").checked = prov.enabled === true;
+    if (document.activeElement !== $("byok-prov-name")) $("byok-prov-name").value = prov.name;
+    if (document.activeElement !== $("byok-protocol")) $("byok-protocol").value = prov.protocol || "openai";
+    if (document.activeElement !== $("byok-base-url")) $("byok-base-url").value = prov.baseUrl || "";
+
+    const keyInput = $("byok-api-key");
+    if (keyInput && document.activeElement !== keyInput && keyInput.dataset.dirty !== "true" && !keyRevealed) {
+      keyInput.value = "";
+      keyInput.placeholder = prov.hasApiKey
+        ? `${prov.apiKeyMasked}（已本地安全存储 · 输入新值覆盖）`
+        : (prov.id === "ollama" ? "本地 Ollama 可留空" : "输入 API Key (例如 sk-...)");
+    }
+
+    const lamp = STATUS_LAMP[prov.status] || STATUS_LAMP.warning;
+    const statusLine = $("byok-prov-status-line");
+    if (statusLine) {
+      let msg = `${lamp.dot} 状态：${lamp.label}`;
+      if (typeof prov.pingMs === "number") msg += ` · 最近延迟 ${prov.pingMs} ms`;
+      if (prov.balance?.formatted) msg += ` · 账户余额/额度：${prov.balance.formatted}`;
+      if (prov.lastError) msg += ` · 诊断：${prov.lastError}`;
+      statusLine.textContent = msg;
+    }
+
+    // 渲染模型卡片列表
+    if ($("byok-model-count")) $("byok-model-count").textContent = `${prov.models.length} 个模型`;
+    const activeProvId = byok.activeProvider?.id || byok.activeProviderId;
+    const activeModId = byok.activeProvider?.activeModel || byok.activeModelId;
+    const modelListEl = $("byok-model-list");
+    if (modelListEl) {
+      modelListEl.innerHTML = "";
+      for (const m of prov.models) {
+        const pingKey = `${prov.id}::${m.id}`;
+        const isPinging = pingingKeys.has(pingKey);
+        const mPing = prov.modelPings?.[m.id];
+        const isDefaultActive = activeProvId === prov.id && activeModId === m.id && m.enabled !== false;
+
+        const card = document.createElement("div");
+        card.className = "byok-model-card"
+          + (m.enabled === false ? " disabled-model" : "")
+          + (isDefaultActive ? " active-route-model" : "")
+          + (isPinging ? " is-pinging" : "");
+
+        const main = document.createElement("div");
+        main.className = "byok-model-main";
+
+        const idSpan = document.createElement("span");
+        idSpan.className = "byok-model-id";
+        idSpan.textContent = m.id;
+
+        const badges = document.createElement("div");
+        badges.className = "byok-badges";
+
+        if (isDefaultActive) {
+          const defB = document.createElement("span");
+          defB.className = "byok-badge active-route";
+          defB.textContent = "⭐ 默认活跃";
+          badges.appendChild(defB);
+        }
+
+        if (m.contextLength) {
+          const ctxB = document.createElement("span");
+          ctxB.className = "byok-badge ctx";
+          ctxB.textContent = m.contextLength;
+          badges.appendChild(ctxB);
+        }
+
+        for (const tag of m.tags || []) {
+          const tb = document.createElement("span");
+          const cls = tag === "视觉" ? "tag-vision" : tag === "推理" ? "tag-reason" : "tag-tools";
+          tb.className = `byok-badge ${cls}`;
+          tb.textContent = tag;
+          badges.appendChild(tb);
+        }
+
+        if (isPinging) {
+          const pb = document.createElement("span");
+          pb.className = "byok-badge ping-busy";
+          pb.textContent = "⚡ 测速中…";
+          badges.appendChild(pb);
+        } else if (mPing) {
+          const pb = document.createElement("span");
+          if (mPing.status === "online" && typeof mPing.pingMs === "number") {
+            pb.className = "byok-badge ping-ok";
+            pb.textContent = `⚡ ${mPing.pingMs} ms`;
+          } else if (mPing.status === "error") {
+            pb.className = "byok-badge ping-err";
+            pb.textContent = `🔴 ${mPing.error || "连接失败"}`;
+            pb.title = mPing.error || "连接失败";
+          }
+          if (pb.textContent) badges.appendChild(pb);
+        }
+
+        main.append(idSpan, badges);
+
+        const actions = document.createElement("div");
+        actions.className = "byok-model-actions";
+
+        const starBtn = document.createElement("button");
+        starBtn.type = "button";
+        starBtn.className = "byok-act-btn" + (isDefaultActive ? " active-star" : "");
+        starBtn.title = isDefaultActive ? "当前默认活跃路由模型" : "设为网关默认活跃模型（同步气泡与 Claude Code 回退）";
+        starBtn.textContent = isDefaultActive ? "⭐" : "☆";
+        starBtn.onclick = async () => {
+          try {
+            data.byok = await api.byok("setActiveModel", { providerId: prov.id, modelId: m.id });
+            renderByokPanel();
+            $("saved").textContent = `已将 ${prov.name} / ${m.id} 设为默认活跃模型`;
+          } catch (err) {
+            $("saved").textContent = err?.message || "切换默认模型失败";
+          }
+        };
+
+        const pingBtn = document.createElement("button");
+        pingBtn.type = "button";
+        pingBtn.className = "byok-act-btn";
+        pingBtn.title = "一键连通性测速 Ping";
+        pingBtn.textContent = "⚡";
+        pingBtn.disabled = isPinging;
+        pingBtn.onclick = () => triggerModelPing(prov.id, m.id);
+
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "byok-act-btn";
+        editBtn.title = "编辑模型";
+        editBtn.textContent = "✏️";
+        editBtn.onclick = () => openModelDialog(prov.id, m);
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "byok-act-btn danger";
+        delBtn.title = "删除模型";
+        delBtn.textContent = "🗑️";
+        delBtn.onclick = async () => {
+          try {
+            data.byok = await api.byok("deleteModel", { providerId: prov.id, modelId: m.id });
+            renderByokPanel();
+            $("saved").textContent = `已删除模型 ${m.id}`;
+          } catch (err) {
+            $("saved").textContent = err?.message || "删除模型失败";
+          }
+        };
+
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        toggle.setAttribute("switch", "");
+        toggle.checked = m.enabled !== false;
+        toggle.title = m.enabled !== false ? "点击禁用该模型" : "点击启用该模型";
+        toggle.onchange = async () => {
+          try {
+            data.byok = await api.byok("upsertModel", {
+              providerId: prov.id,
+              previousModelId: m.id,
+              model: { ...m, enabled: toggle.checked }
+            });
+            renderByokPanel();
+            $("saved").textContent = `${m.id} 已${toggle.checked ? "启用" : "禁用"}`;
+          } catch (err) {
+            $("saved").textContent = err?.message || "更新失败";
+          }
+        };
+
+        actions.append(pingBtn, starBtn, editBtn, delBtn, toggle);
+        card.append(main, actions);
+        modelListEl.appendChild(card);
+      }
+    }
+  }
+
+  let byokSaveChain = Promise.resolve();
+
+  function saveCurrentProvider(customMsg) {
+    byokSaveChain = byokSaveChain.then(async () => {
+      const prov = getSelectedProvider();
+      if (!prov) return;
+      const keyInput = $("byok-api-key");
+      const payload = {
+        id: prov.id,
+        name: $("byok-prov-name").value.trim() || prov.name,
+        enabled: $("byok-prov-enabled").checked,
+        baseUrl: $("byok-base-url").value.trim(),
+        protocol: $("byok-protocol").value,
+        setActive: $("byok-prov-enabled").checked
+      };
+      let submittedApiKey;
+      if (keyInput && keyInput.dataset.dirty === "true") {
+        submittedApiKey = keyInput.value.trim();
+        payload.apiKey = submittedApiKey;
+      }
+      try {
+        data.byok = await api.byok("upsertProvider", payload);
+        if (keyInput && submittedApiKey !== undefined && keyInput.value.trim() === submittedApiKey) {
+          delete keyInput.dataset.dirty;
+          if (!keyRevealed) keyInput.value = "";
+        }
+        renderByokPanel();
+        $("saved").textContent = customMsg || `已保存「${payload.name}」配置`;
+      } catch (err) {
+        $("saved").textContent = err?.message || "保存供应商配置失败";
+      }
+    });
+    return byokSaveChain;
+  }
+
+  async function triggerModelPing(providerId, modelId) {
+    const pingKey = `${providerId}::${modelId || "*"}`;
+    pingingKeys.add(pingKey);
+    renderByokPanel();
+    $("saved").textContent = `正在测速 ${modelId || providerId}…`;
+    try {
+      const res = await api.byok("ping", { providerId, modelId });
+      if (res?.snapshot) data.byok = res.snapshot;
+      $("saved").textContent = res?.ok
+        ? `⚡ 测速成功：${modelId || providerId} 延迟 ${res.pingMs} ms`
+        : `🔴 测速失败：${res?.error || "无法连接"}`;
+    } catch (err) {
+      $("saved").textContent = `🔴 测速异常：${err?.message || "请求失败"}`;
+    } finally {
+      pingingKeys.delete(pingKey);
+      renderByokPanel();
+    }
+  }
+
+  function openModelDialog(providerId, existingModel = null) {
+    const dlg = $("byok-model-dialog");
+    if (!dlg) return;
+    editingModelOriginalId = existingModel ? existingModel.id : null;
+    $("byok-model-dialog-title").textContent = existingModel ? "编辑模型" : "添加模型";
+    $("dlg-model-id").value = existingModel ? existingModel.id : "";
+    $("dlg-model-ctx").value = ["32K", "64K", "128K", "200K", "1M"].includes(existingModel?.contextLength)
+      ? existingModel.contextLength
+      : "128K";
+    const tags = existingModel?.tags || ["工具"];
+    $("dlg-tag-vision").checked = tags.includes("视觉");
+    $("dlg-tag-reason").checked = tags.includes("推理");
+    $("dlg-tag-tools").checked = tags.includes("工具");
+    dlg.returnValue = "";
+    dlg.showModal();
+  }
+
+  function attachDialogLightDismissFallback(dialog) {
+    if (!dialog || ("closedBy" in HTMLDialogElement.prototype)) return;
+    let pointerDownOutside = false;
+    dialog.addEventListener("pointerdown", e => {
+      if (e.target !== dialog) { pointerDownOutside = false; return; }
+      const r = dialog.getBoundingClientRect();
+      pointerDownOutside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    });
+    dialog.addEventListener("pointerup", e => {
+      if (!pointerDownOutside || e.target !== dialog) return;
+      pointerDownOutside = false;
+      const r = dialog.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
+        dialog.close("dismiss");
+      }
+    });
+  }
+
+  function bindByokEvents() {
+    for (const dlgId of ["byok-provider-dialog", "byok-model-dialog", "byok-env-dialog"]) {
+      attachDialogLightDismissFallback($(dlgId));
+    }
+
+    // 接入代码片段 Popover 菜单
+    const snippetsPopover = $("byok-snippets-popover");
+    if (snippetsPopover) {
+      snippetsPopover.querySelectorAll("[data-snippet]").forEach(btn => {
+        btn.onclick = async () => {
+          const kind = btn.dataset.snippet;
+          try {
+            const snippets = await api.byok("getSnippets", { providerId: getSelectedProvider()?.id });
+            const text = kind === "endpoint"
+              ? ((data?.byok?.endpoint || "http://127.0.0.1:3920") + "/v1")
+              : (snippets?.[kind] || "");
+            if (text) {
+              await navigator.clipboard.writeText(text);
+              $("saved").textContent = `已复制「${btn.textContent.trim()}」到剪贴板`;
+            }
+          } catch (err) {
+            $("saved").textContent = err?.message || "复制接入配置失败";
+          } finally {
+            try { snippetsPopover.hidePopover?.(); } catch {}
+          }
+        };
+      });
+    }
+
+    // 网关进阶配置开关 (Switch read .checked on change)
+    const bindGatewaySwitch = (id, key, onLabel, offLabel) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("change", async () => {
+        try {
+          data.byok = await api.byok("updateGatewayConfig", { [key]: el.checked });
+          renderByokPanel();
+          $("saved").textContent = el.checked ? onLabel : offLabel;
+        } catch (err) {
+          $("saved").textContent = err?.message || "更新网关配置失败";
+          renderByokPanel();
+        }
+      });
+    };
+    bindGatewaySwitch("byok-cfg-mcp", "mcpBridgeEnabled", "已注册 Antigravity MCP 会诊桥插件（重载宿主窗口即可调用）", "已移除 Antigravity MCP 会诊桥插件");
+    bindGatewaySwitch("byok-cfg-portal", "hostPortalEnabled", "已开启反重力设置页只读传送门", "已关闭反重力设置页传送门");
+    bindGatewaySwitch("byok-cfg-failover", "failoverEnabled", "已开启上游 429/5xx 自动容灾回退", "已关闭自动容灾回退");
+    bindGatewaySwitch("byok-cfg-token", "gatewayTokenEnabled", "已启用本机网关专属安全口令", "已停用本机网关专属口令");
+
+    if ($("byok-copy-gw-token")) {
+      $("byok-copy-gw-token").onclick = async () => {
+        try {
+          const res = await api.byok("revealGatewayToken");
+          if (res?.gatewayToken) {
+            await navigator.clipboard.writeText(res.gatewayToken);
+            $("saved").textContent = "已复制网关专属 Bearer 口令";
+          }
+        } catch (err) {
+          $("saved").textContent = err?.message || "读取网关口令失败";
+        }
+      };
+    }
+
+    if ($("byok-regen-gw-token")) {
+      $("byok-regen-gw-token").onclick = async () => {
+        try {
+          data.byok = await api.byok("updateGatewayConfig", { gatewayTokenEnabled: true, regenerateToken: true });
+          renderByokPanel();
+          const res = await api.byok("revealGatewayToken");
+          if (res?.gatewayToken) await navigator.clipboard.writeText(res.gatewayToken);
+          $("saved").textContent = "已轮换网关专属口令并复制到剪贴板";
+        } catch (err) {
+          $("saved").textContent = err?.message || "轮换网关口令失败";
+        }
+      };
+    }
+
+    // 一键探测本地 Ollama
+    if ($("byok-discover-ollama-btn")) {
+      $("byok-discover-ollama-btn").onclick = async () => {
+        const btn = $("byok-discover-ollama-btn");
+        btn.disabled = true;
+        $("saved").textContent = "正在扫描本地 127.0.0.1:11434 Ollama 实例…";
+        try {
+          const res = await api.byok("discoverOllama");
+          if (res?.snapshot) data.byok = res.snapshot;
+          if (res?.ok) {
+            selectedProviderId = "ollama";
+            renderByokPanel();
+            $("saved").textContent = res.total
+              ? `🦙 已连接本地 Ollama：同步 ${res.total} 个模型（新增 ${res.added} 个）`
+              : "🦙 本地 Ollama 在线，但尚未拉取任何模型（可执行 ollama pull）";
+          } else {
+            $("saved").textContent = `未检测到运行中的本地 Ollama（${res?.error || "127.0.0.1:11434 未响应"}）`;
+          }
+        } catch (err) {
+          $("saved").textContent = err?.message || "探测 Ollama 失败";
+        } finally {
+          btn.disabled = false;
+        }
+      };
+    }
+
+    // 扫描并确认导入本机环境变量 API Key
+    const envDlg = $("byok-env-dialog");
+    const envListEl = $("byok-env-list");
+    if ($("byok-scan-env-btn") && envDlg && envListEl) {
+      $("byok-scan-env-btn").onclick = async () => {
+        try {
+          const res = await api.byok("scanEnvKeys");
+          const found = res?.found || [];
+          if (!found.length) {
+            $("saved").textContent = "未在本机环境变量中检测到 DeepSeek / Anthropic / OpenAI / OpenRouter / SiliconFlow 密钥";
+            return;
+          }
+          envListEl.innerHTML = "";
+          for (const item of found) {
+            const row = document.createElement("label");
+            row.className = "byok-env-item";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.setAttribute("switch", "");
+            cb.value = item.providerId;
+            cb.checked = !item.alreadyConfigured;
+            const info = document.createElement("span");
+            info.className = "byok-env-info";
+            const title = document.createElement("b");
+            title.textContent = `${item.providerName || item.name} (${item.envVar || item.envName})`;
+            const sub = document.createElement("small");
+            sub.textContent = `${item.maskedKey || item.masked}${item.alreadyConfigured ? " · 本地已有密钥（勾选将覆盖）" : " · 本地未配置"}`;
+            info.append(title, sub);
+            row.append(info, cb);
+            envListEl.appendChild(row);
+          }
+          envDlg.returnValue = "";
+          envDlg.showModal();
+        } catch (err) {
+          $("saved").textContent = err?.message || "扫描环境变量失败";
+        }
+      };
+      envDlg.addEventListener("close", async () => {
+        const choice = envDlg.returnValue;
+        envDlg.returnValue = "";
+        if (choice !== "confirm") return;
+        const providerIds = [...envListEl.querySelectorAll('input[type="checkbox"]')].filter(c => c.checked).map(c => c.value);
+        if (!providerIds.length) {
+          $("saved").textContent = "未选择需要导入的环境变量密钥";
+          return;
+        }
+        try {
+          const res = await api.byok("importEnvKeys", { providerIds });
+          if (res?.snapshot) data.byok = res.snapshot;
+          renderByokPanel();
+          const count = typeof res?.imported === "number" ? res.imported : (res?.imported?.length || 0);
+          $("saved").textContent = `🔑 已加密导入 ${count} 项环境变量 API Key`;
+        } catch (err) {
+          $("saved").textContent = err?.message || "导入环境变量失败";
+        }
+      });
+    }
+
+    // 查询真实账户余额 / 额度
+    if ($("byok-check-balance-btn")) {
+      $("byok-check-balance-btn").onclick = async () => {
+        const prov = getSelectedProvider();
+        if (!prov) return;
+        const btn = $("byok-check-balance-btn");
+        btn.disabled = true;
+        $("saved").textContent = `正在查询「${prov.name}」账户余额…`;
+        try {
+          await saveCurrentProvider();
+          const res = await api.byok("fetchBalance", { providerId: prov.id });
+          if (res?.snapshot) data.byok = res.snapshot;
+          renderByokPanel();
+          if (res?.balance?.ok) {
+            $("saved").textContent = `💰 ${prov.name} 账户余额：${res.balance.formatted}`;
+          } else {
+            $("saved").textContent = `${prov.name} 暂不支持自动查余或查询失败（${res?.balance?.error || "无公开个人余额接口"}）`;
+          }
+        } catch (err) {
+          $("saved").textContent = err?.message || "查询余额失败";
+        } finally {
+          btn.disabled = false;
+        }
+      };
+    }
+
+    if ($("byok-prov-enabled")) {
+      $("byok-prov-enabled").onchange = () => {
+        saveCurrentProvider($("byok-prov-enabled").checked ? "已启用供应商" : "已禁用供应商");
+      };
+    }
+
+    for (const id of ["byok-prov-name", "byok-protocol", "byok-base-url"]) {
+      if ($(id)) $(id).onchange = () => saveCurrentProvider();
+    }
+
+    if ($("byok-api-key")) {
+      $("byok-api-key").oninput = () => {
+        $("byok-api-key").dataset.dirty = "true";
+      };
+      $("byok-api-key").onkeydown = e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          saveCurrentProvider("已加密保存 API Key");
+        }
+      };
+    }
+
+    if ($("byok-save-provider-btn")) {
+      $("byok-save-provider-btn").onclick = () => saveCurrentProvider("已加密保存供应商与 API Key");
+    }
+
+    if ($("byok-key-eye")) {
+      $("byok-key-eye").onclick = async () => {
+        await byokSaveChain;
+        const prov = getSelectedProvider();
+        const keyInput = $("byok-api-key");
+        if (!prov || !keyInput) return;
+        if (!keyRevealed) {
+          keyRevealed = true;
+          keyInput.type = "text";
+          $("byok-key-eye").textContent = "🙈";
+          if (keyInput.dataset.dirty !== "true" && prov.hasApiKey) {
+            try {
+              const res = await api.byok("revealKey", { providerId: prov.id });
+              keyInput.value = res?.apiKey || "";
+            } catch {}
+          }
+        } else {
+          keyRevealed = false;
+          keyInput.type = "password";
+          if (keyInput.dataset.dirty !== "true") keyInput.value = "";
+          $("byok-key-eye").textContent = "👁️";
+          renderByokPanel();
+        }
+      };
+    }
+
+    if ($("byok-delete-provider-btn")) {
+      $("byok-delete-provider-btn").onclick = async () => {
+        const prov = getSelectedProvider();
+        if (!prov) return;
+        try {
+          data.byok = await api.byok("deleteProvider", { providerId: prov.id });
+          selectedProviderId = data.byok.activeProviderId || data.byok.providers?.[0]?.id || "";
+          renderByokPanel();
+          $("saved").textContent = `已移除供应商「${prov.name}」`;
+        } catch (err) {
+          $("saved").textContent = err?.message || "移除失败";
+        }
+      };
+    }
+
+    if ($("byok-refresh-all-btn")) {
+      $("byok-refresh-all-btn").onclick = async () => {
+        const enabled = (data?.byok?.providers || []).filter(p => p.enabled);
+        if (!enabled.length) {
+          $("saved").textContent = "尚未启用任何供应商";
+          return;
+        }
+        $("saved").textContent = `正在批量检测 ${enabled.length} 个已启用供应商并同步余额…`;
+        for (const p of enabled) {
+          await triggerModelPing(p.id, p.models.find(m => m.enabled)?.id || null);
+          try {
+            const balRes = await api.byok("fetchBalance", { providerId: p.id });
+            if (balRes?.snapshot) data.byok = balRes.snapshot;
+          } catch {}
+        }
+        renderByokPanel();
+      };
+    }
+
+    if ($("byok-fetch-models-btn")) {
+      $("byok-fetch-models-btn").onclick = async () => {
+        const prov = getSelectedProvider();
+        if (!prov) return;
+        const btn = $("byok-fetch-models-btn");
+        btn.disabled = true;
+        btn.textContent = "⏳ 拉取中…";
+        $("saved").textContent = `正在从 ${prov.baseUrl}/v1/models 拉取模型列表…`;
+        try {
+          await saveCurrentProvider();
+          const res = await api.byok("fetchModels", { providerId: prov.id });
+          if (res?.snapshot) data.byok = res.snapshot;
+          renderByokPanel();
+          $("saved").textContent = `拉取完成：新增 ${res.added} 个模型（共 ${res.total} 个，延迟 ${res.pingMs} ms）`;
+        } catch (err) {
+          $("saved").textContent = err?.message || "拉取模型列表失败";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "📥 从 /v1/models 拉取";
+        }
+      };
+    }
+
+    // 添加供应商模态框
+    const provDlg = $("byok-provider-dialog");
+    const tplSelect = $("dlg-prov-template");
+    if (tplSelect) {
+      tplSelect.onchange = () => {
+        const val = tplSelect.value;
+        const preset = (data?.byok?.presets || []).find(p => p.id === val);
+        if (preset) {
+          $("dlg-prov-name").value = preset.name;
+          $("dlg-prov-url").value = preset.baseUrl;
+          $("dlg-prov-protocol").value = preset.protocol;
+        } else {
+          $("dlg-prov-name").value = "";
+          $("dlg-prov-url").value = "";
+          $("dlg-prov-protocol").value = "openai";
+        }
+      };
+    }
+    if ($("byok-add-provider-btn") && provDlg) {
+      $("byok-add-provider-btn").onclick = () => {
+        tplSelect.value = "custom";
+        $("dlg-prov-name").value = "";
+        $("dlg-prov-url").value = "";
+        $("dlg-prov-protocol").value = "openai";
+        $("dlg-prov-key").value = "";
+        provDlg.returnValue = "";
+        provDlg.showModal();
+      };
+      provDlg.addEventListener("close", async () => {
+        const choice = provDlg.returnValue;
+        provDlg.returnValue = "";
+        if (choice !== "confirm") return;
+        const tpl = tplSelect.value;
+        const name = $("dlg-prov-name").value.trim();
+        const baseUrl = $("dlg-prov-url").value.trim();
+        const protocol = $("dlg-prov-protocol").value;
+        const apiKey = $("dlg-prov-key").value.trim();
+        if (!baseUrl) {
+          $("saved").textContent = "请填写有效的 Base URL";
+          return;
+        }
+        const id = tpl !== "custom" && !(data.byok.providers || []).some(p => p.id === tpl)
+          ? tpl
+          : `custom-${Date.now().toString(36)}`;
+        try {
+          data.byok = await api.byok("upsertProvider", {
+            id,
+            name: name || id,
+            enabled: true,
+            baseUrl,
+            protocol,
+            apiKey,
+            setActive: true
+          });
+          selectedProviderId = id;
+          renderByokPanel();
+          $("saved").textContent = `已添加供应商「${name || id}」`;
+        } catch (err) {
+          $("saved").textContent = err?.message || "添加供应商失败";
+        }
+      });
+    }
+
+    // 添加 / 编辑模型模态框
+    const modelDlg = $("byok-model-dialog");
+    if ($("byok-add-model-btn") && modelDlg) {
+      $("byok-add-model-btn").onclick = () => {
+        const prov = getSelectedProvider();
+        if (prov) openModelDialog(prov.id, null);
+      };
+      modelDlg.addEventListener("close", async () => {
+        const choice = modelDlg.returnValue;
+        modelDlg.returnValue = "";
+        if (choice !== "confirm") return;
+        const prov = getSelectedProvider();
+        const modelId = $("dlg-model-id").value.trim();
+        if (!prov || !modelId) {
+          $("saved").textContent = "模型标识不能为空";
+          return;
+        }
+        const tags = [];
+        if ($("dlg-tag-vision").checked) tags.push("视觉");
+        if ($("dlg-tag-reason").checked) tags.push("推理");
+        if ($("dlg-tag-tools").checked) tags.push("工具");
+        try {
+          data.byok = await api.byok("upsertModel", {
+            providerId: prov.id,
+            previousModelId: editingModelOriginalId,
+            model: {
+              id: modelId,
+              name: modelId,
+              contextLength: $("dlg-model-ctx").value,
+              tags,
+              enabled: true
+            }
+          });
+          renderByokPanel();
+          $("saved").textContent = `已保存模型 ${modelId}`;
+        } catch (err) {
+          $("saved").textContent = err?.message || "保存模型失败";
+        }
+      });
+    }
+  }
+
+  // 1 小时 (1..60m) 真实比例磁吸阻尼曲线：靠近刻度点平滑产生吸附阻力，松手精准归位整数分钟
+  const MAJOR_STOPS = [1, 5, 10, 15, 30, 45, 60];
+  const MINOR_STOPS = [3, 20, 25, 35, 40, 50, 55];
+
+  function magneticDamp(raw) {
+    for (const stop of MAJOR_STOPS) {
+      const diff = raw - stop;
+      const ad = Math.abs(diff);
+      if (ad <= 1.55) {
+        if (ad <= 0.65) return { visual: stop, committed: stop };
+        const t = (ad - 0.65) / 0.9; // 0..1
+        const eased = stop + Math.sign(diff) * Math.pow(t, 2.2) * 1.55;
+        return { visual: eased, committed: Math.round(eased) };
+      }
+    }
+    for (const stop of MINOR_STOPS) {
+      if (Math.abs(raw - stop) <= 0.45) {
+        return { visual: stop, committed: stop };
+      }
+    }
+    const clamped = Math.max(1, Math.min(60, raw));
+    return { visual: clamped, committed: Math.round(clamped) };
+  }
+
+  function formatIntervalLabel(minutes) {
+    const m = Math.max(1, Math.min(60, Math.round(minutes)));
+    return m === 60 ? "1 小时 (60 分钟)" : `${m} 分钟`;
+  }
+
+  function syncIntervalSliderVisual(visualVal, committedVal) {
+    const slider = $("slideshow-interval");
+    if (!slider) return;
+    const pct = Math.max(0, Math.min(100, ((visualVal - 1) / 59) * 100));
+    slider.style.setProperty("--slider-pct", `${pct.toFixed(2)}%`);
+    if ($("slideshow-interval-value")) {
+      $("slideshow-interval-value").textContent = formatIntervalLabel(committedVal);
+    }
+    document.querySelectorAll(".ruler-tick[data-val]").forEach(btn => {
+      btn.classList.toggle("active", Number(btn.dataset.val) === committedVal);
+    });
   }
 
   function render() {
+    mountByokIfAvailable();
+
     // 渲染常规表单控件
     for (const key of keys) {
       const el = $(key);
@@ -191,8 +1131,13 @@
     if (data.dreamSkin) {
       const ds = data.dreamSkin;
       if (document.activeElement !== $("slideshow-enabled")) $("slideshow-enabled").checked = ds.slideshow !== false;
-      if (document.activeElement !== $("slideshow-interval")) $("slideshow-interval").value = ds.slideshowIntervalMinutes || 5;
-      $("slideshow-interval-value").textContent = $("slideshow-interval").value + " 分钟";
+      const savedMinutes = Math.max(1, Math.min(60, Math.round(Number(ds.slideshowIntervalMinutes) || 5)));
+      if (document.activeElement !== $("slideshow-interval")) {
+        $("slideshow-interval").value = savedMinutes;
+        syncIntervalSliderVisual(savedMinutes, savedMinutes);
+      } else {
+        syncIntervalSliderVisual(Number($("slideshow-interval").value) || savedMinutes, savedMinutes);
+      }
       if (document.activeElement !== $("dream-opacity")) $("dream-opacity").value = ds.opacity ?? 22;
       $("dream-opacity-value").textContent = $("dream-opacity").value + "%";
       if (document.activeElement !== $("dream-scrim")) $("dream-scrim").value = ds.scrim ?? 25;
@@ -205,9 +1150,10 @@
       document.querySelectorAll(".theme-card[data-theme]").forEach(card => card.classList.toggle("active", card.dataset.theme === currentTheme));
     }
 
-    // 渲染两个全新画廊
+    renderDualCompanionStatus();
     renderCharacterGallery();
     renderWallpaperGallery();
+    renderByokPanel();
   }
 
   function stop() {
@@ -231,23 +1177,37 @@
   if ($("open-wallpaper-dir")) $("open-wallpaper-dir").onclick = () => api.command("open-wallpaper-dir");
   if ($("next-wallpaper")) $("next-wallpaper").onclick = async () => { await api.command("next-wallpaper"); $("saved").textContent = "已切换至下一张壁纸～"; };
 
-  // 轮播与滑块绑定
+  // 轮播与 1h 真实比例磁吸滑块绑定
   $("slideshow-enabled").onchange = () => save({ dreamSkin: { slideshow: $("slideshow-enabled").checked } });
 
+  let lastSavedInterval = Number(data?.dreamSkin?.slideshowIntervalMinutes) || 5;
   $("slideshow-interval").oninput = () => {
     const raw = Number($("slideshow-interval").value);
-    const snapped = dampedSnap(raw);
-    $("slideshow-interval").value = snapped;
-    $("slideshow-interval-value").textContent = snapped + " 分钟";
-    save({ dreamSkin: { slideshowIntervalMinutes: snapped } });
+    const { visual, committed } = magneticDamp(raw);
+    $("slideshow-interval").value = visual;
+    syncIntervalSliderVisual(visual, committed);
+    if (committed !== lastSavedInterval) {
+      lastSavedInterval = committed;
+      save({ dreamSkin: { slideshowIntervalMinutes: committed } }, `轮播间隔已设为 ${formatIntervalLabel(committed)}`);
+    }
   };
 
-  document.querySelectorAll(".damped-ticks span").forEach(span => {
-    span.onclick = () => {
-      const val = Number(span.getAttribute("data-val"));
+  $("slideshow-interval").onchange = () => {
+    const raw = Number($("slideshow-interval").value);
+    const { committed } = magneticDamp(raw);
+    $("slideshow-interval").value = committed;
+    syncIntervalSliderVisual(committed, committed);
+    lastSavedInterval = committed;
+    save({ dreamSkin: { slideshowIntervalMinutes: committed } }, `轮播间隔已设为 ${formatIntervalLabel(committed)}`);
+  };
+
+  document.querySelectorAll(".ruler-tick[data-val]").forEach(btn => {
+    btn.onclick = () => {
+      const val = Number(btn.getAttribute("data-val"));
       $("slideshow-interval").value = val;
-      $("slideshow-interval-value").textContent = val + " 分钟";
-      save({ dreamSkin: { slideshowIntervalMinutes: val } });
+      lastSavedInterval = val;
+      syncIntervalSliderVisual(val, val);
+      save({ dreamSkin: { slideshowIntervalMinutes: val } }, `轮播间隔已设为 ${formatIntervalLabel(val)}`);
     };
   });
 

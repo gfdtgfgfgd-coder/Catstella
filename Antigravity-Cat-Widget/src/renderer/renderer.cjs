@@ -6,7 +6,15 @@
  function armBubble(){clearTimeout(autoHide);if(!closed)autoHide=setTimeout(()=>{closed=true;consecutiveClicks=0;render();},6500);}
  function bubbleVisibility(open){const bubble=$("bubble");if(lastBubbleOpen===open)return;lastBubbleOpen=open;clearTimeout(hideAnimation);bubble.inert=!open;bubble.setAttribute("aria-hidden",String(!open));if(open){bubble.hidden=false;void bubble.offsetWidth;requestAnimationFrame(()=>{if(lastBubbleOpen)bubble.dataset.open="true";});}else{bubble.dataset.open="false";hideAnimation=setTimeout(()=>{if(!lastBubbleOpen)bubble.hidden=true;},snapshot?.settings.reducedMotion?0:180);}}
  function stopReaction(){clearTimeout(eggTimer);if(mascot.dataset.expression){delete mascot.dataset.expression;talkState=null;}}
- const pages=["quota","claudeGpt","talk","today","latest"],format=v=>typeof v==="number"?v.toLocaleString():"—";
+ const hasWebData=()=>Boolean(snapshot?.webCompanion?.online||snapshot?.webCompanion?.quota);
+ const getPages=()=>{
+  const list=["quota"];
+  if(hasWebData())list.push("webQuota");
+  if(snapshot?.byok?.available)list.push("claudeGpt");
+  list.push("talk","today","latest");
+  return list;
+ };
+ const format=v=>typeof v==="number"?v.toLocaleString():"—";
  function stopSound(){gesture++;if(currentSound){currentSound.pause();currentSound.currentTime=0;currentSound=null;}}
  async function play(kind){
   const token=++gesture;if(currentSound)currentSound.pause();if(!snapshot?.settings.sound||snapshot.settings.volume===0)return;
@@ -14,7 +22,8 @@
   currentSound=new Audio(payload.url);currentSound.volume=payload.effectiveVolume;currentSound.play().catch(()=>{});
  }
  function render(){
-  if(!snapshot)return;const s=snapshot.settings,l=snapshot.ledger;
+  if(!snapshot)return;const s=snapshot.settings,l=snapshot.ledger,pages=getPages();
+  if(!pages.includes(selected))selected="quota";
   const pack=s.characterPack==="lin-cat"?"lin-cat":"gemini-star-v1";
   // 帧图 URL 全部携带内容指纹版本号：资产更新即缓存失效，根治"偶尔变回老立绘"。
   const artKey=pack+":"+(snapshot.artVersion||"0");
@@ -35,23 +44,22 @@
    if(angryEl)angryEl.src=base+files.angry+v;
   }
   mascot.style.setProperty("--agy-width",(snapshot.displayScale||s.scale)+"px");mascot.style.setProperty("--agy-shift",(snapshot.artShift||0)+"px");mascot.dataset.state=snapshot.state;mascot.dataset.dock=snapshot.dockSide||"";mascot.dataset.facing=snapshot.facing||"left";mascot.dataset.reducedMotion=String(s.reducedMotion);
-  bubbleVisibility(!closed&&s.bubbleOn);for(const id of ["quota","value","detail"])$(id).hidden=true;  $("page").textContent=(pages.indexOf(selected)+1)+" / "+pages.length;
+  bubbleVisibility(!closed&&s.bubbleOn);for(const id of ["quota","web-quota-panel","byok-panel","value","detail"])if($(id))$(id).hidden=true;$("page").textContent=(pages.indexOf(selected)+1)+" / "+pages.length;
   if(temporary){$("title").textContent=temporary.title;$("value").hidden=false;$("value").textContent=temporary.body;$("detail").hidden=!temporary.detail;$("detail").textContent=temporary.detail||"";$("meta").textContent=temporary.meta||"";return;}
-  if(selected==="quota"||selected==="claudeGpt"){
+  if(selected==="quota"){
    $("quota").hidden=false;
-   const isClaude=selected==="claudeGpt";
-   $("title").textContent=isClaude?"Claude & GPT":"Gemini Models";
+   $("title").textContent="Gemini Models";
    const q=snapshot.quotaWindows;
    const tag=$("model-tag");
    if(tag){
-    if(!isClaude&&q?.modelInfo){
+    if(q?.modelInfo){
      tag.hidden=false;
      tag.innerHTML='<span>'+q.modelInfo.modelName+'</span><span class="thinking-badge">思考: '+q.modelInfo.thinking+'</span>';
     }else{
      tag.hidden=true;
     }
    }
-   const gData=isClaude?q?.claudeGpt:(q?.gemini||q);
+   const gData=q?.gemini||q;
    const fiveVal=s.manualQuota?s.manualPercent:gData?.fiveHour;
    const weekVal=s.manualQuota?s.manualWeeklyPercent:gData?.weekly;
    const fiveReset=s.manualQuota?"":gData?.fiveHourReset||"";
@@ -68,8 +76,58 @@
     const rEl=$(suffix===""?"reset-5h":"reset-week");
     if(rEl)rEl.textContent=resetStr;
    }
-   $("caption").textContent=s.manualQuota?"手动记录":q?.stale?"上次读取 · 待更新":q?.cached?"上次读取":"";
-   $("meta").textContent=isClaude?"第三方模型额度通道 · 点此刷新":"官方模型额度通道 · 点此刷新";
+   const wc=snapshot.webCompanion;
+   const webBrief=wc?.quota?(typeof wc.quota.fiveHourUsedPct==="number"?(" · Web 5h 已用 "+wc.quota.fiveHourUsedPct+"%"):(wc.quota.dailyTotal?(" · Web 今日 "+wc.quota.dailyTotal+" 次"):"")):"";
+   $("caption").textContent=(s.manualQuota?"手动记录":q?.stale?"上次读取 · 待更新":q?.cached?"上次读取":"")+webBrief;
+   $("meta").textContent="官方模型额度通道 · 点此刷新";
+  }else if(selected==="webQuota"){
+   const wc=snapshot.webCompanion||{},wq=wc.quota||{};
+   $("web-quota-panel").hidden=false;
+   $("title").textContent="Gemini Web · 伴侣";
+   $("web-status-text").textContent=wc.online?(wc.active?"🟢 网页活跃同步中":"🟢 浏览器已联动"):"⚪ 缓存快照（离线）";
+   $("web-model-badge").textContent=wq.displaySource==="official"?"官方账本":(wq.lastModel||"Web");
+   if(typeof wq.fiveHourUsedPct==="number"){
+    if($("web-5h-label"))$("web-5h-label").textContent="当前用量 (5h)";
+    $("web-5h-count").textContent="已用 "+wq.fiveHourUsedPct+"% (余 "+Math.max(0,100-wq.fiveHourUsedPct)+"%)";
+   }else{
+    if($("web-5h-label"))$("web-5h-label").textContent="近 5h 调用";
+    $("web-5h-count").textContent=(wq.window5hTotal??0)+" 次";
+   }
+   if(typeof wq.weeklyUsedPct==="number"){
+    if($("web-daily-label"))$("web-daily-label").textContent="每周限额 (1w)";
+    $("web-daily-count").textContent="已用 "+wq.weeklyUsedPct+"% (余 "+Math.max(0,100-wq.weeklyUsedPct)+"%)";
+   }else if(wq.dailyTotal){
+    if($("web-daily-label"))$("web-daily-label").textContent="今日累计对话";
+    $("web-daily-count").textContent=(wq.dailyTotal??0)+" / "+(wq.dailyBudget||150)+" 次";
+   }else{
+    if($("web-daily-label"))$("web-daily-label").textContent="每周限额 (1w)";
+    $("web-daily-count").textContent="待同步";
+   }
+   if(wq.sessionTurns||wq.sessionTokensEst){
+    if($("web-split-label"))$("web-split-label").textContent="当前会话负载";
+    $("web-model-split").textContent="第 "+(wq.sessionTurns||0)+" 轮 · ~"+((wq.sessionTokensEst||0)/1000).toFixed(1)+"k";
+   }else{
+    if($("web-split-label"))$("web-split-label").textContent="当前会话负载";
+    $("web-model-split").textContent=wq.flashCount||wq.thinkingCount||wq.proCount?((wq.flashCount||0)+" / "+(wq.thinkingCount||0)+" / "+(wq.proCount||0)):"第 0 轮";
+   }
+   $("meta").textContent=wq.resetHint?("重置时间: "+wq.resetHint):(wc.online?"与浏览器扩展实时联动中":"打开 Gemini 网页即可自动同步");
+  }else if(selected==="claudeGpt"){
+   const b=snapshot.byok||{},ap=b.activeProvider,choices=Array.isArray(b.enabledModelChoices)?b.enabledModelChoices:[];
+   const statusMap={online:"🟢 联通正常",warning:"🟡 待测速",error:"🔴 连接异常",disabled:"⚪ 未启用"};
+   $("byok-panel").hidden=false;
+   $("title").textContent=ap?.name?("BYOK · "+ap.name):"BYOK 模型网关";
+   $("byok-status-text").textContent=ap?(statusMap[ap.status]||"🟡 待测速"):"⚪ 未配置供应商";
+   $("byok-model-badge").textContent=ap?.activeModel||"未选模型";
+   $("byok-model-badge").title="点击打开模型网关设置";
+   const canCycle=choices.length>1;
+   if($("byok-model-prev"))$("byok-model-prev").hidden=!canCycle;
+   if($("byok-model-next"))$("byok-model-next").hidden=!canCycle;
+   const balText=ap?.balance?.formatted||"";
+   if($("byok-balance-row"))$("byok-balance-row").hidden=!balText;
+   if($("byok-balance-badge")&&balText)$("byok-balance-badge").textContent=balText;
+   $("byok-ping").textContent=typeof ap?.pingMs==="number"?("⚡ "+ap.pingMs+" ms"):(ap?.enabled?"点此测速":"未启用");
+   $("byok-requests").textContent=(typeof b.todayRequests==="number"?b.todayRequests:0)+" 次";
+   $("meta").textContent=(b.gatewayOnline?("网关 127.0.0.1:"+b.port):"网关离线")+" · 点卡片测速查余";
   }else if(selected==="today"){
    $("title").textContent="今日用量 · 本机";$("value").hidden=false;$("value").textContent=format(l.todayTokens.total);$("detail").hidden=false;
    $("detail").textContent="输入 "+format(l.todayTokens.prompt)+" · 缓存 "+format(l.todayTokens.cache)+" · 输出 "+format(l.todayTokens.output);
@@ -81,12 +139,16 @@
   if(selected!=="talk")$("value").classList.remove("agy-phrase");
  }
  function message(title,body,detail="",ms=4500,meta=""){clearTimeout(timeout);temporary={title,body,detail,meta};closed=false;render();if(ms>0)timeout=setTimeout(()=>{temporary=null;render();},ms);}
- function select(delta){armBubble();clearTimeout(timeout);temporary=null;closed=false;selected=pages[(pages.indexOf(selected)+delta+pages.length)%pages.length];api.save({bubblePage:selected});render();}
+ function select(delta){const pages=getPages();armBubble();clearTimeout(timeout);temporary=null;closed=false;selected=pages[(pages.indexOf(selected)+delta+pages.length)%pages.length];api.save({bubblePage:selected});render();}
  $("prev").onclick=()=>select(-1);$("next").onclick=()=>select(1);$("close").onclick=()=>{clearTimeout(autoHide);closed=true;consecutiveClicks=0;render();};$("toggle").onclick=()=>{closed=!closed;if(!snapshot.settings.bubbleOn)api.save({bubbleOn:true});armBubble();render();};$("settings").onclick=()=>api.command("settings");$("quota").onclick=()=>api.command("quota-refresh");
+ if($("byok-panel"))$("byok-panel").onclick=()=>api.command("byok-ping-active");
+ if($("byok-model-prev"))$("byok-model-prev").onclick=e=>{e.stopPropagation();armBubble();api.command("byok-cycle-prev");};
+ if($("byok-model-next"))$("byok-model-next").onclick=e=>{e.stopPropagation();armBubble();api.command("byok-cycle-next");};
+ if($("byok-model-badge"))$("byok-model-badge").onclick=e=>{e.stopPropagation();api.command("byok-open-settings");};
+ if($("web-quota-panel"))$("web-quota-panel").onclick=()=>select(1);
  window.addEventListener("contextmenu",e=>{e.preventDefault();api.command("menu");});
  $("bubble").addEventListener("pointerenter",()=>clearTimeout(autoHide));$("bubble").addEventListener("pointerleave",armBubble);
  const motion=$("motion");
- let spring;
  function animatePress(pressed){motion.dataset.pressed=String(pressed);}
  function activate(){
   const action = snapshot?.settings?.clickCatAction || "talk";
@@ -101,10 +163,6 @@
     return;
   }
 
-  // 默认或「切换喵言喵语」：
-  // 第1次摸头：看 Gemini Models 额度
-  // 第2次摸头：看 Claude & GPT Models 额度
-  // 第3次及以后：喵言喵语聊天 + 差分表情
   if (closed) {
     consecutiveClicks = 1;
     closed = false;
@@ -118,7 +176,11 @@
   consecutiveClicks++;
   armBubble();
 
-  if (consecutiveClicks === 2) {
+  if (consecutiveClicks === 2 && hasWebData()) {
+    selected = "webQuota";
+    api.save({ bubblePage: "webQuota", bubbleOn: true });
+    render();
+  } else if ((consecutiveClicks === 2 || consecutiveClicks === 3) && snapshot?.byok?.available && selected !== "claudeGpt" && selected !== "talk") {
     selected = "claudeGpt";
     api.save({ bubblePage: "claudeGpt", bubbleOn: true });
     render();
@@ -130,8 +192,7 @@
     render();
     reaction(false, true);
   }
-}
- function showQuota(){clearTimeout(timeout);temporary=null;closed=false;armBubble();selected="quota";api.save({bubblePage:"quota",bubbleOn:true});render();}
+ }
  motion.addEventListener("pointerdown",e=>{if(e.button!==0)return;pointer={id:e.pointerId,x:e.screenX,y:e.screenY,moved:false};motion.setPointerCapture(e.pointerId);animatePress(true);api.pointer({action:"down",point:{x:e.screenX,y:e.screenY}});play("press");});
  motion.addEventListener("pointermove",e=>{
   if(pointer){if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>8)pointer.moved=true;api.pointer({action:"move",point:{x:e.screenX,y:e.screenY}});return;}
@@ -142,7 +203,7 @@
  motion.addEventListener("keydown",e=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();activate();reaction(false,true);}});
  window.addEventListener("mousemove",e=>{const active=!!e.target.closest(".interactive");if(hit!==active){hit=active;api.hit(active);}});
  window.addEventListener("mouseleave",()=>{hit=false;api.hit(false);});
- 
+
   function reloadImages(){
     const ts=Date.now();
     for(const img of document.querySelectorAll(".agy-frame, .agy-expression")){

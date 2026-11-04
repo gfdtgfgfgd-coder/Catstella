@@ -43,7 +43,10 @@
               <div>
                 <p class="hero-tag">GEMINI STAR / COMPANION</p>
                 <h1>星语套件</h1>
-                <span id="source" class="hero-sub">正在读取状态…</span>
+                <div class="hero-meta-row">
+                  <span id="source" class="hero-sub">正在读取状态…</span>
+                  <span id="overview-bridge-pill" class="sync-pill offline">⚪ Web 伴侣待连接</span>
+                </div>
               </div>
               <button id="refresh" class="btn" type="button">🔄 刷新状态</button>
             </div>
@@ -87,6 +90,21 @@
             </div>
 
             <div class="card">
+              <h3>双端联动与样式同步 <span class="sync-pill offline" id="pet-bridge-pill">⚪ 等待 Web 扩展</span></h3>
+              <label class="row">
+                <span class="row-text"><b>双端桌宠显示策略</b><small>决定桌面端与 Gemini 网页端猫娘同屏时的显示逻辑</small></span>
+                <select id="petDisplayMode" class="wide-select">
+                  <option value="both">双端同显（各自独立驻留）</option>
+                  <option value="prefer-desktop">桌面优先（套件在线时隐藏 Web 猫猫）</option>
+                  <option value="prefer-web">焦点互斥（浏览 Gemini 网页时隐藏桌面猫猫）</option>
+                </select>
+              </label>
+              <label class="row"><span class="row-text"><b>同步角色形态样式</b><small>开启后双端共用同一套猫娘形象（林猫 / 魔猫）；关闭后两端可各自独立穿搭</small></span><input id="syncCharacter" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>同步壁纸图库与自动轮播</b><small>开启后 Web 端实时同步桌面端壁纸与轮播节奏；关闭后两端使用各自独立的壁纸</small></span><input id="syncWallpaper" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>同步互动偏好</b><small>开启后点击猫猫的动作模式在双端保持一致</small></span><input id="syncInteraction" type="checkbox"></label>
+            </div>
+
+            <div class="card">
               <h3>外观与行为</h3>
               <div class="row column"><div class="row-head"><span class="row-text"><b>角色大小</b></span><output id="scale-value"></output></div><input id="scale" type="range" min="140" max="360" step="10"></div>
               <label class="row"><span class="row-text"><b>无宿主时退守桌面显示</b><small>反重力未打开时桌宠留在桌面，而不是隐藏</small></span><input id="standaloneDesktopMode" type="checkbox"></label>
@@ -120,11 +138,23 @@
               <h3>自动轮播</h3>
               <label class="row"><span class="row-text"><b>启用壁纸自动轮播</b></span><input id="slideshow-enabled" type="checkbox"></label>
               <div class="row column">
-                <div class="row-head"><span class="row-text"><b>轮播间隔</b></span><output id="slideshow-interval-value">5 分钟</output></div>
+                <div class="row-head"><span class="row-text"><b>轮播间隔</b><small>1 小时真实时间比例刻度 · 靠近节点自动磁吸阻尼</small></span><output id="slideshow-interval-value">5 分钟</output></div>
                 <div class="damped-slider-wrap">
-                  <input id="slideshow-interval" class="damped-range" type="range" min="1" max="60" step="1" value="5">
-                  <div class="damped-ticks">
-                    <span data-val="1">1m</span><span data-val="3">3m</span><span data-val="5">5m</span><span data-val="10">10m</span><span data-val="15">15m</span><span data-val="30">30m</span><span data-val="60">60m</span>
+                  <input id="slideshow-interval" class="damped-range proportional-1h" type="range" min="1" max="60" step="0.1" value="5">
+                  <div class="damped-ticks proportional-ruler" id="slideshow-ruler">
+                    <button type="button" class="ruler-tick" data-val="1" style="--pos:0"><i></i><span>1m</span></button>
+                    <button type="button" class="ruler-tick" data-val="5" style="--pos:0.067797"><i></i><span>5m</span></button>
+                    <button type="button" class="ruler-tick" data-val="10" style="--pos:0.152542"><i></i><span>10m</span></button>
+                    <button type="button" class="ruler-tick" data-val="15" style="--pos:0.237288"><i></i><span>15m</span></button>
+                    <span class="ruler-pip" style="--pos:0.322034"></span>
+                    <span class="ruler-pip" style="--pos:0.406780"></span>
+                    <button type="button" class="ruler-tick" data-val="30" style="--pos:0.491525"><i></i><span>30m</span></button>
+                    <span class="ruler-pip" style="--pos:0.576271"></span>
+                    <span class="ruler-pip" style="--pos:0.661017"></span>
+                    <button type="button" class="ruler-tick" data-val="45" style="--pos:0.745763"><i></i><span>45m</span></button>
+                    <span class="ruler-pip" style="--pos:0.830508"></span>
+                    <span class="ruler-pip" style="--pos:0.915254"></span>
+                    <button type="button" class="ruler-tick" data-val="60" style="--pos:1"><i></i><span>1h</span></button>
                   </div>
                 </div>
               </div>
@@ -166,7 +196,7 @@
             <div class="card">
               <label class="row"><span class="row-text"><b>点击猫猫时</b></span>
                 <select id="clickCatAction"><option value="talk">切换陪伴 · 对话</option><option value="cyclePages">切换页面（额度页）</option></select></label>
-              <p class="hint" id="clickCatAction-hint">选择切换页面：第 1 次释放 Gemini Models，第 2 次看 Claude &amp; GPT，第 3 次回到对话。</p>
+              <p class="hint" id="clickCatAction-hint">选择切换页面：依次查看反重力额度、Web 伴侣用量与陪伴对话。</p>
               <label class="row"><span class="row-text"><b>显示单轮模型花费提示</b><small>只统计标志性模型的单轮花费</small></span><input id="turnCostOn" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>提示停留时长</b></span>
                 <select id="turnCostDurationMs"><option value="3000">3 秒</option><option value="5000">5 秒</option><option value="10000">10 秒</option><option value="0">直到手动关闭</option></select></label>
@@ -197,11 +227,29 @@
           <section class="page" data-page="quota">
             <h2 class="page-title">用量</h2>
             <div class="card">
+              <h3>双端用量实时看板 <span class="sync-pill offline" id="quota-bridge-pill">⚪ Web 未同步</span></h3>
+              <div class="dual-quota-grid">
+                <div class="dual-quota-box">
+                  <div class="dq-head"><b>🪐 Antigravity 客户端</b><span id="dq-agy-model" class="chip">本机读取</span></div>
+                  <div class="dq-stat-row"><span>5 小时剩余额度</span><strong id="dq-agy-5h">—</strong></div>
+                  <div class="dq-stat-row"><span>1 周剩余额度</span><strong id="dq-agy-week">—</strong></div>
+                  <div class="dq-stat-row"><span>今日模型步骤</span><strong id="dq-agy-steps">0 步</strong></div>
+                </div>
+                <div class="dual-quota-box">
+                  <div class="dq-head"><b>🌐 Gemini Web 网页端</b><span id="dq-web-model" class="chip">待连接</span></div>
+                  <div class="dq-stat-row"><span>5 小时周期额度</span><strong id="dq-web-5h">—</strong></div>
+                  <div class="dq-stat-row"><span>每周周期额度</span><strong id="dq-web-daily">—</strong></div>
+                  <div class="dq-stat-row"><span>当前会话 / 重置</span><strong id="dq-web-split">—</strong></div>
+                </div>
+              </div>
+              <p class="hint">桌宠气泡现已内置「Gemini Web · 伴侣」专页，翻页或连点猫猫即可在同一只桌宠中同屏查看双端额度。</p>
+            </div>
+            <div class="card">
+              <h3>手动额度兜底（Antigravity）</h3>
               <label class="row"><span class="row-text"><b>启用手动额度记录</b><small>打开 Gemini Models 窗口读不到时，以手动记录为准</small></span><input id="manualQuota" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>5 小时剩余 %</b></span><input id="manualPercent" type="number" min="0" max="100" step="1"></label>
               <label class="row"><span class="row-text"><b>1 周剩余 %</b></span><input id="manualWeeklyPercent" type="number" min="0" max="100" step="1"></label>
             </div>
-            <div class="card dashed"><h3>双端用量联动 <span class="chip">规划中</span></h3><p class="hint">在同一只桌宠里同时查看 agy 与 Web 端用量，且可选互斥显示。</p></div>
           </section>
 
           <!-- 关于 -->
@@ -212,9 +260,9 @@
               <p class="hint">桌宠 + 反重力梦幻皮肤 + Web 伴侣。作者 lynnfei &amp; Monokumakuki。</p>
             </div>
             <div class="card dashed">
-              <h3>路线图 <span class="chip">占位</span></h3>
+              <h3>路线图 <span class="chip">持续进化</span></h3>
               <ul class="roadmap">
-                <li>桌宠与皮肤的联动 / 解耦设置</li>
+                <li>✓ 双端桌宠与壁纸样式联动 / 解耦设置</li>
                 <li>在线更新与联网下载样式、壁纸</li>
                 <li>自动碎碎念</li>
                 <li>双端记忆与人格同步</li>
@@ -232,6 +280,235 @@
       </div>
     </div>
   </div>
+
+  <!-- BYOK 条件动态挂载模板：未启用 BYOK 时完全不渲染到 DOM，保持 100% 零侵入 -->
+  <template id="byok-nav-template">
+    <button type="button" class="nav-item" data-page="models" id="nav-models"><span class="nav-ico">🔌</span><span>模型网关</span></button>
+  </template>
+
+  <template id="byok-page-template">
+    <section class="page" data-page="models" id="page-models">
+      <div class="byok-topbar">
+        <div>
+          <h2 class="page-title byok-heading">第三方模型网关 <span class="chip">BYOK</span></h2>
+          <p class="byok-sub" id="byok-gateway-banner">正在握手本地网关…</p>
+        </div>
+        <div class="byok-topbar-actions">
+          <span class="byok-stat-pill" id="byok-today-stat">今日请求 0 次</span>
+          <button type="button" class="btn small" id="byok-discover-ollama-btn" title="扫描 127.0.0.1:11434 本地 Ollama 已装模型">🦙 探测 Ollama</button>
+          <button type="button" class="btn small" id="byok-scan-env-btn" title="扫描本机环境变量中的 API Key">🔑 导入环境变量</button>
+          <button type="button" class="btn small" id="byok-snippets-btn" popovertarget="byok-snippets-popover">📋 接入片段 ▾</button>
+          <div id="byok-snippets-popover" class="byok-popover" popover>
+            <div class="byok-popover-title">一键复制客户端接入配置</div>
+            <button type="button" class="byok-pop-item" data-snippet="endpoint">🔗 复制 OpenAI /v1 网关地址</button>
+            <button type="button" class="byok-pop-item" data-snippet="claudePowerShell">⚡ 复制 Claude Code 配置 (PowerShell)</button>
+            <button type="button" class="byok-pop-item" data-snippet="claudeBash">🐚 复制 Claude Code 配置 (Bash / Zsh)</button>
+            <button type="button" class="byok-pop-item" data-snippet="openaiSdk">🐍 复制 OpenAI SDK 接入代码</button>
+            <button type="button" class="byok-pop-item" data-snippet="curlChat">🧪 复制 cURL 连通测试命令</button>
+          </div>
+        </div>
+      </div>
+
+      <details class="byok-adv-details">
+        <summary>🛡️ 网关进阶能力 · Antigravity MCP 会诊桥 · 传送门 · 容灾与口令</summary>
+        <div class="byok-adv-grid">
+          <label class="byok-adv-row">
+            <span class="row-text">
+              <b>Antigravity MCP 模型会诊桥</b>
+              <small>在托管插件目录自动注册 <code>byok_chat</code> 与 <code>byok_council</code> 多模型并发会诊工具</small>
+            </span>
+            <input id="byok-cfg-mcp" type="checkbox" switch>
+          </label>
+          <label class="byok-adv-row">
+            <span class="row-text">
+              <b>反重力设置页只读传送门</b>
+              <small>仅在 Antigravity「Settings → Models」页内嵌状态卡，不暴露任何密钥</small>
+            </span>
+            <input id="byok-cfg-portal" type="checkbox" switch>
+          </label>
+          <label class="byok-adv-row">
+            <span class="row-text">
+              <b>上游 429 / 5xx 自动容灾回退</b>
+              <small>主选供应商限流或断连时自动顺延至下一个已启用的备用供应商</small>
+            </span>
+            <input id="byok-cfg-failover" type="checkbox" switch>
+          </label>
+          <div class="byok-adv-row">
+            <span class="row-text">
+              <b>本机网关安全口令 (<code>sk-catstella-...</code>)</b>
+              <small id="byok-cfg-token-hint">可选：要求本机客户端携带网关专属 Bearer Token，外部网页 Origin 已默认拦截</small>
+            </span>
+            <div class="byok-token-controls">
+              <button type="button" class="btn small" id="byok-copy-gw-token" hidden>📋 复制口令</button>
+              <button type="button" class="btn small" id="byok-regen-gw-token" hidden title="重新生成网关口令">🔄 轮换</button>
+              <input id="byok-cfg-token" type="checkbox" switch aria-label="启用本机网关安全口令">
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="byok-workbench">
+        <!-- 左栏：供应商列表 -->
+        <aside class="byok-provider-col" aria-label="模型供应商列表">
+          <div class="byok-col-head">
+            <button type="button" class="btn small byok-primary-btn" id="byok-add-provider-btn">+ 添加供应商</button>
+            <button type="button" class="btn small icon-btn" id="byok-refresh-all-btn" title="刷新联通状态与余额" aria-label="刷新联通状态与余额">🔄</button>
+          </div>
+          <div class="byok-provider-list" id="byok-provider-list" role="listbox" aria-label="供应商"></div>
+        </aside>
+
+        <!-- 右栏：供应商详情与模型卡片列表 -->
+        <div class="byok-detail-col" id="byok-detail-col">
+          <div class="card byok-detail-card">
+            <div class="byok-detail-header">
+              <div class="byok-detail-title-wrap">
+                <h3 id="byok-prov-title">DeepSeek</h3>
+                <span class="chip" id="byok-prov-badge">预设</span>
+                <span class="byok-balance-chip" id="byok-prov-balance" hidden>—</span>
+              </div>
+              <div class="byok-detail-controls">
+                <button type="button" class="btn small" id="byok-check-balance-btn" title="查询供应商账户真实余额/额度">💰 查余</button>
+                <button type="button" class="btn small danger-text" id="byok-delete-provider-btn" title="移除此供应商">🗑️ 移除</button>
+                <label class="byok-switch-wrap">
+                  <span>启用</span>
+                  <input id="byok-prov-enabled" type="checkbox" switch>
+                </label>
+              </div>
+            </div>
+
+            <div class="byok-form-grid">
+              <label class="byok-field">
+                <span class="byok-field-label">供应商名称</span>
+                <input id="byok-prov-name" type="text" autocomplete="off" placeholder="例如 DeepSeek">
+              </label>
+              <label class="byok-field">
+                <span class="byok-field-label">API 协议格式</span>
+                <select id="byok-protocol">
+                  <option value="openai">Chat Completions (/v1/chat/completions)</option>
+                  <option value="anthropic">Anthropic Messages (/v1/messages)</option>
+                </select>
+              </label>
+              <label class="byok-field span-2">
+                <span class="byok-field-label">Base URL</span>
+                <input id="byok-base-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.deepseek.com">
+              </label>
+              <div class="byok-field span-2">
+                <label class="byok-field-label" for="byok-api-key">API Key <small>（本地 AES-256-GCM 加密存储，绝不上传第三方）</small></label>
+                <div class="byok-key-row">
+                  <input id="byok-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-...">
+                  <button type="button" class="btn small icon-btn" id="byok-key-eye" title="显示 / 隐藏 API Key" aria-label="切换 API Key 显隐">👁️</button>
+                  <button type="button" class="btn small" id="byok-save-provider-btn">💾 保存</button>
+                </div>
+              </div>
+            </div>
+            <p class="hint" id="byok-prov-status-line"></p>
+          </div>
+
+          <div class="card byok-models-card">
+            <div class="byok-models-header">
+              <div class="gallery-title-wrap">
+                <span class="gallery-label">模型列表</span>
+                <span class="gallery-count" id="byok-model-count">0 个模型</span>
+              </div>
+              <div class="byok-models-toolbar">
+                <button type="button" class="btn small" id="byok-fetch-models-btn">📥 从 /v1/models 拉取</button>
+                <button type="button" class="btn small byok-primary-btn" id="byok-add-model-btn">+ 添加模型</button>
+              </div>
+            </div>
+            <div class="byok-model-list" id="byok-model-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 添加供应商原生模态对话框 -->
+      <dialog id="byok-provider-dialog" class="byok-dialog" closedby="any" aria-labelledby="byok-provider-dialog-title">
+        <form method="dialog" class="byok-dialog-form" id="byok-provider-form">
+          <h3 id="byok-provider-dialog-title">添加模型供应商</h3>
+          <label class="byok-field">
+            <span class="byok-field-label">预设模板</span>
+            <select id="dlg-prov-template">
+              <option value="custom">自定义供应商 (OpenAI / Anthropic 兼容)</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="siliconflow">SiliconFlow</option>
+              <option value="ollama">本地 Ollama / vLLM</option>
+            </select>
+          </label>
+          <label class="byok-field">
+            <span class="byok-field-label">供应商名称</span>
+            <input id="dlg-prov-name" type="text" autofocus placeholder="例如 vLLM 内网节点">
+          </label>
+          <label class="byok-field">
+            <span class="byok-field-label">Base URL</span>
+            <input id="dlg-prov-url" type="url" spellcheck="false" placeholder="https://api.example.com">
+          </label>
+          <label class="byok-field">
+            <span class="byok-field-label">API 协议格式</span>
+            <select id="dlg-prov-protocol">
+              <option value="openai">Chat Completions (/v1/chat/completions)</option>
+              <option value="anthropic">Anthropic Messages (/v1/messages)</option>
+            </select>
+          </label>
+          <label class="byok-field">
+            <span class="byok-field-label">API Key（可选，本地模型可留空）</span>
+            <input id="dlg-prov-key" type="password" autocomplete="off" placeholder="sk-...">
+          </label>
+          <div class="byok-dialog-actions">
+            <button type="submit" class="btn" value="cancel" formnovalidate>取消</button>
+            <button type="submit" class="btn byok-primary-btn" value="confirm">确认添加</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- 添加 / 编辑模型原生模态对话框 -->
+      <dialog id="byok-model-dialog" class="byok-dialog" closedby="any" aria-labelledby="byok-model-dialog-title">
+        <form method="dialog" class="byok-dialog-form" id="byok-model-form">
+          <h3 id="byok-model-dialog-title">添加模型</h3>
+          <label class="byok-field">
+            <span class="byok-field-label">模型标识 (Model ID)</span>
+            <input id="dlg-model-id" type="text" autofocus placeholder="例如 deepseek-chat">
+          </label>
+          <label class="byok-field">
+            <span class="byok-field-label">上下文窗口长度</span>
+            <select id="dlg-model-ctx">
+              <option value="32K">32K</option>
+              <option value="64K">64K</option>
+              <option value="128K" selected>128K</option>
+              <option value="200K">200K</option>
+              <option value="1M">1M</option>
+            </select>
+          </label>
+          <div class="byok-field">
+            <span class="byok-field-label">模型特性标签</span>
+            <div class="byok-tag-checks">
+              <label class="byok-tag-opt"><input type="checkbox" id="dlg-tag-vision" value="视觉"> <span>👁️ 视觉</span></label>
+              <label class="byok-tag-opt"><input type="checkbox" id="dlg-tag-reason" value="推理"> <span>🧠 推理</span></label>
+              <label class="byok-tag-opt"><input type="checkbox" id="dlg-tag-tools" value="工具" checked> <span>🛠️ 工具</span></label>
+            </div>
+          </div>
+          <div class="byok-dialog-actions">
+            <button type="submit" class="btn" value="cancel" formnovalidate>取消</button>
+            <button type="submit" class="btn byok-primary-btn" value="confirm">保存模型</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- 环境变量 API Key 确认导入原生模态对话框 -->
+      <dialog id="byok-env-dialog" class="byok-dialog" closedby="any" aria-labelledby="byok-env-dialog-title">
+        <form method="dialog" class="byok-dialog-form" id="byok-env-form">
+          <h3 id="byok-env-dialog-title">发现本机环境变量 API Key</h3>
+          <p class="hint" style="margin:0">勾选要加密导入到本地模型网关的供应商密钥（未确认绝不自动落盘）：</p>
+          <div id="byok-env-list" class="byok-env-list"></div>
+          <div class="byok-dialog-actions">
+            <button type="submit" class="btn" value="cancel" formnovalidate>取消</button>
+            <button type="submit" class="btn byok-primary-btn" value="confirm">加密导入选中项</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+  </template>
 
   <script src="settings.cjs"></script>
 </body>

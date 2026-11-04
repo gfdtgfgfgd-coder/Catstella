@@ -64,14 +64,17 @@ function readHostQuota(){
   }
   return channel;
  };
- const result={...empty(),claudeGpt:empty(),fetchedAt:null};
- let gemini=null,claude=null;
- const groups=typeof nY!=='undefined'&&Array.isArray(nY)?nY:typeof pY!=='undefined'&&Array.isArray(pY)?pY:[];
- for(const g of groups){
-  if(!g)continue;
-  if(g.displayName==='Gemini Models'&&!gemini)gemini=g;
-  else if(isModelGroup(g.displayName)&&!claude)claude=g;
- }
+ const result={...empty(),claudeGpt:empty(),argon:empty(),fetchedAt:null};
+  let gemini=null,claude=null,argon=null;
+  const isArgonGroup=name=>typeof name==='string'&&name.toLowerCase().includes('argon');
+  const groups=typeof nY!=='undefined'&&Array.isArray(nY)?nY:typeof pY!=='undefined'&&Array.isArray(pY)?pY:[];
+  for(const g of groups){
+   if(!g)continue;
+   if(isArgonGroup(g.displayName)&&!argon)argon=g;
+   else if(isArgonGroup(g.displayName)&&!argon)argon=g;
+       else if(g.displayName==='Gemini Models'&&!gemini)gemini=g;
+       else if(isModelGroup(g.displayName)&&!claude)claude=g;
+  }
  if(!gemini&&typeof document!=='undefined'){
   const seen=new Set();
   for(const el of document.querySelectorAll('[role=dialog] *')){
@@ -94,7 +97,8 @@ function readHostQuota(){
  if(!gemini&&!claude)return result;
  result.cacheAvailable=true;
  if(gemini)Object.assign(result,collect(gemini));
- if(claude)result.claudeGpt=collect(claude);
+  if(claude)result.claudeGpt=collect(claude);
+  if(argon)result.argon=collect(argon);
  const timestamp=typeof nY!=='undefined'&&Array.isArray(nY)&&typeof mFb==='number'?mFb:typeof jFb==='number'?jFb:null;
  if(typeof timestamp==='number'&&Number.isFinite(timestamp)&&timestamp>0&&timestamp<=Date.now()+60000)result.fetchedAt=timestamp;
  return result;
@@ -134,30 +138,34 @@ async function queryHostQuota(readCache){
    const groups=response?.response?.groups||[];
    const gemini=groups.find(g=>g?.displayName==='Gemini Models');
    if(!gemini)throw Error('Gemini quota group unavailable');
+   const isArgonGroup=name=>typeof name==='string'&&name.toLowerCase().includes('argon');
    const result=collect(gemini);
    result.cacheAvailable=true;
    result.claudeGpt=empty();
+   result.argon=empty();
    const claude=groups.find(g=>isModelGroup(g.displayName));
    if(claude)result.claudeGpt=collect(claude);
+   const argon=groups.find(g=>isArgonGroup(g.displayName));
+   if(argon)result.argon=collect(argon);
    return result;
   }
  }
  return readCache();
 }
 class HostQuotaAdapter extends EventEmitter{
- constructor(options={}){super();this.discover=options.discover||discover;this.Client=options.Client||Cdp;this.now=options.now||Date.now;this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:emptyChannel(),modelInfo:null,fetchedAt:null,online:false};this.active=false;this.failures=0;this.generation=0;this.setTimer=options.setTimer||setTimeout;this.clearTimer=options.clearTimer||clearTimeout;}
+ constructor(options={}){super();this.discover=options.discover||discover;this.Client=options.Client||Cdp;this.now=options.now||Date.now;this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:emptyChannel(),argon:emptyChannel(),modelInfo:null,fetchedAt:null,online:false};this.active=false;this.failures=0;this.generation=0;this.setTimer=options.setTimer||setTimeout;this.clearTimer=options.clearTimer||clearTimeout;}
  start(){if(this.active)return;this.active=true;this.generation++;this.failures=0;this.tick();}
  async tick(){if(this.busy||!this.active)return;this.busy=true;this.clearTimer(this.timer);const generation=this.generation;let c,ready=false;const current=()=>this.active&&generation===this.generation;
-  try{const host=await this.discover();if(!current())return;if(!host){this.snapshot={...this.snapshot,status:'waiting-host'};throw new Error('offline');}if(this.hostIdentity&&this.hostIdentity!==host.target.webSocketDebuggerUrl){this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:emptyChannel(),modelInfo:null,fetchedAt:null,online:false};this.sampleAt=null;}this.hostIdentity=host.target.webSocketDebuggerUrl;c=new this.Client(host.target.webSocketDebuggerUrl);this.client=c;this.snapshot={...this.snapshot,status:'querying'};// 模型/思考强度识别与额度查询共用同一次 evaluate（模型信息失败不影响额度解析，由 try 整体兜底）。
+  try{const host=await this.discover();if(!current())return;if(!host){this.snapshot={...this.snapshot,status:'waiting-host'};throw new Error('offline');}if(this.hostIdentity&&this.hostIdentity!==host.target.webSocketDebuggerUrl){this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:emptyChannel(),argon:emptyChannel(),modelInfo:null,fetchedAt:null,online:false};this.sampleAt=null;}this.hostIdentity=host.target.webSocketDebuggerUrl;c=new this.Client(host.target.webSocketDebuggerUrl);this.client=c;this.snapshot={...this.snapshot,status:'querying'};// 模型/思考强度识别与额度查询共用同一次 evaluate（模型信息失败不影响额度解析，由 try 整体兜底）。
    const sample=await c.evaluate('(async()=>({modelInfo:('+extractModelInfo.toString()+')(),...(await ('+queryHostQuota.toString()+')('+readHostQuota.toString()+'))}))()');if(!current())return;
    if(!sample?.cacheAvailable){
     if(this.sampleAt!==null&&this.sampleAt!==undefined)this.snapshot={...this.snapshot,online:true,cached:true,stale:this.now()-this.sampleAt>=300000};
-    else this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:normalizeChannel(this.snapshot.claudeGpt),modelInfo:this.snapshot.modelInfo,fetchedAt:null,online:true};
+    else this.snapshot={fiveHour:null,weekly:null,fiveHourReset:"",weeklyReset:"",claudeGpt:normalizeChannel(this.snapshot.claudeGpt),argon:normalizeChannel(this.snapshot.argon),modelInfo:this.snapshot.modelInfo,fetchedAt:null,online:true};
     this.snapshot={...this.snapshot,status:'unsupported-or-initializing'};return;
    }
    ready=[sample.fiveHour,sample.weekly].some(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=100);
    if(ready)this.sampleAt=this.now();
-   if(current())this.snapshot={status:ready?'ready':'quota-unavailable',fiveHour:clampPercent(sample?.fiveHour),weekly:clampPercent(sample?.weekly),fiveHourReset:typeof sample?.fiveHourReset==='string'?sample.fiveHourReset:this.snapshot.fiveHourReset||"",weeklyReset:typeof sample?.weeklyReset==='string'?sample.weeklyReset:this.snapshot.weeklyReset||"",claudeGpt:sample?.claudeGpt?normalizeChannel(sample.claudeGpt):normalizeChannel(this.snapshot.claudeGpt),modelInfo:sample?.modelInfo&&typeof sample.modelInfo.modelName==='string'?sample.modelInfo:this.snapshot.modelInfo||null,cached:false,stale:false,observedAt:this.sampleAt,fetchedAt:typeof sample?.fetchedAt==='number'?sample.fetchedAt:null,online:true};
+   if(current())this.snapshot={status:ready?'ready':'quota-unavailable',fiveHour:clampPercent(sample?.fiveHour),weekly:clampPercent(sample?.weekly),fiveHourReset:typeof sample?.fiveHourReset==='string'?sample.fiveHourReset:this.snapshot.fiveHourReset||"",weeklyReset:typeof sample?.weeklyReset==='string'?sample.weeklyReset:this.snapshot.weeklyReset||"",claudeGpt:sample?.claudeGpt?normalizeChannel(sample.claudeGpt):normalizeChannel(this.snapshot.claudeGpt),argon:sample?.argon?normalizeChannel(sample.argon):normalizeChannel(this.snapshot.argon),modelInfo:sample?.modelInfo&&typeof sample.modelInfo.modelName==='string'?sample.modelInfo:this.snapshot.modelInfo||null,cached:false,stale:false,observedAt:this.sampleAt,fetchedAt:typeof sample?.fetchedAt==='number'?sample.fetchedAt:null,online:true};
   }catch{if(current())this.snapshot={...this.snapshot,status:this.snapshot.status==='waiting-host'?'waiting-host':'query-failed',online:false,cached:true,stale:true};}
   finally{c?.close();this.client=null;this.busy=false;if(current()){this.failures=ready?0:Math.min(this.failures+1,5);this.emit('change',this.snapshot);if(current())this.timer=this.setTimer(()=>this.tick(),ready?30000:Math.min(30000,3000*2**(this.failures-1)));}else if(this.active)this.timer=this.setTimer(()=>this.tick(),0);}
  }

@@ -39,9 +39,11 @@ Name: "webext"; Description: "Web 端插件包与安装指引（Firefox / Edge /
 [Tasks]
 Name: "autostart"; Description: "开机登录后自动启动星语套件"; Flags: unchecked
 Name: "hostlink"; Description: "打开 Antigravity 时联动启动（后台检测）"; Flags: unchecked
+Name: "byok"; Description: "启用第三方模型网关 (BYOK / 支持自定义 API Key 与模型代理)"; Flags: unchecked
 
 [Files]
-Source:"{#StageDir}\*"; DestDir:"{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Components: core
+Source:"{#StageDir}\*"; DestDir:"{app}"; Excludes:"daemon.cjs"; Flags: recursesubdirs createallsubdirs ignoreversion; Components: core
+Source:"{#StageDir}\resources\app\shared\gateway\daemon.cjs"; DestDir:"{app}\resources\app\shared\gateway"; Components: core; Tasks: byok; Flags: ignoreversion
 Source:"{#StageDir}\.starsuite-install"; DestDir:"{app}"; Components: core; Flags: ignoreversion
 Source:"{#StageDir}\web-plugin-guide.html"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
 #ifdef WebExtFiles
@@ -88,15 +90,22 @@ end;
 
 // 安装后：按任务勾选写入启动标志与登录项（与 StartupSettings.SetFlags 语义一致）。
 procedure CurStepChanged(CurStep: TSetupStep);
-var auto, link: Integer; runCmd: String;
+var auto, link, byok: Integer; runCmd, markerFile: String;
 begin
   if CurStep = ssPostInstall then begin
-    auto := 0; link := 0;
+    auto := 0; link := 0; byok := 0;
     if WizardIsTaskSelected('autostart') then auto := 1;
     if WizardIsTaskSelected('hostlink') then link := 1;
+    if WizardIsTaskSelected('byok') then byok := 1;
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'AutoStart', auto);
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'HostLink', link);
+    RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'EnableBYOK', byok);
     RegWriteStringValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'InstallPath', ExpandConstant('{app}'));
+    markerFile := ExpandConstant('{app}') + '\.byok-enabled';
+    if byok = 1 then
+      SaveStringToFile(markerFile, '1' + #13#10, False)
+    else if FileExists(markerFile) then
+      DeleteFile(markerFile);
     runCmd := '"' + ExpandConstant('{app}') + '\StartupSettings.exe" --watch';
     if (auto = 1) or (link = 1) then
       RegWriteStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'AntigravityStarSuiteSuite', runCmd)

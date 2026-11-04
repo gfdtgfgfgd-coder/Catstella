@@ -110,3 +110,23 @@ test('parseResetTime converts English refresh text and caps full quota',()=>{
  assert.equal(parseResetTime('',.5),"");
  assert.equal(parseResetTime(undefined,.5),"");
 });
+
+test('Gemini 4 Argon independent metering channel extracts WTU weekly bucket and integrates with queryHostQuota and readHostQuota',async()=>{
+ const vm=require('node:vm'),{readHostQuota,queryHostQuota}=require('../src/adapters/host-quota.cjs');
+ const groups=[
+  {displayName:'Gemini Models',buckets:[{bucketId:'gemini-5h',remaining:{case:'remainingFraction',value:.85}},{bucketId:'gemini-weekly',remaining:{case:'remainingFraction',value:.65}}]},
+  {displayName:'Claude and GPT models',buckets:[{bucketId:'3p-5h',remaining:{case:'remainingFraction',value:0}}]},
+  {displayName:'Gemini 4 Argon',buckets:[{bucketId:'gemini-argon-wtu-weekly',description:'You have used some of your weekly limit, it will fully refresh in 6 days, 20 hours.',remaining:{case:'remainingFraction',value:.09}}]}
+ ];
+ const sample=vm.runInNewContext('('+readHostQuota.toString()+')()',{nY:groups,mFb:2000});
+ assert.equal(sample.fiveHour,85);
+ assert.equal(sample.weekly,65);
+ assert.equal(sample.argon.weekly,9);
+ assert.equal(sample.argon.weeklyReset,'6天20小时后重置');
+
+ const el={__reactFiber$test:{memoizedProps:{value:{core:{cloudCodeService:{retrieveUserQuotaSummary:async()=>({response:{groups}})}}}}}};
+ const queryRes=await vm.runInNewContext('('+queryHostQuota.toString()+')(()=>{throw Error("fallback")})',{document:{querySelectorAll:()=>[el]}});
+ assert.equal(queryRes.fiveHour,85);
+ assert.equal(queryRes.argon.weekly,9);
+ assert.equal(queryRes.argon.weeklyReset,'6天20小时后重置');
+});

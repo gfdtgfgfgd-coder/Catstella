@@ -81,3 +81,20 @@ test("upstream click settings survive sanitize with normalized types",()=>{
  s.update({bubblePage:"bogus"});
  assert.equal(s.get("bubblePage"),"quota");
 });
+
+test("dual-end sync settings, display modes, webQuota page, and unknown extension fields survive sanitize",()=>{
+ const file=path.join(tmp(),"settings-sync.json"),s=new SettingsManager(file);
+ assert.equal(s.get("syncCharacter"),true);
+ assert.equal(s.get("syncWallpaper"),true);
+ assert.equal(s.get("petDisplayMode"),"both");
+ s.update({bubblePage:"webQuota",syncCharacter:false,syncWallpaper:false,syncInteraction:false,petDisplayMode:"prefer-web",customExtField:"keep-me"});
+ const restored=new SettingsManager(file);
+ assert.equal(restored.get("bubblePage"),"webQuota");
+ assert.equal(restored.get("syncCharacter"),false);
+ assert.equal(restored.get("syncWallpaper"),false);
+ assert.equal(restored.get("syncInteraction"),false);
+ assert.equal(restored.get("petDisplayMode"),"prefer-web");
+ assert.equal(restored.get("customExtField"),"keep-me");
+ restored.update({petDisplayMode:"bogus-mode"});
+ assert.equal(restored.get("petDisplayMode"),"both");
+});

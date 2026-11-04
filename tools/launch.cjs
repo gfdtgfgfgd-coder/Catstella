@@ -20,6 +20,6 @@ function spawnApp(kind,flags=[]){
 module.exports={root,KIND_DIR,kindDir,resolveElectron,dataDir,spawnApp};
 if(require.main===module){
  const kind=process.argv[2]==="skin"?"skin":"widget";
- const flags=process.argv.slice(3).filter(f=>["--enable","--disable","--quit","--background"].includes(f));
+ const flags=process.argv.slice(3).filter(f=>["--enable","--disable","--quit","--background","--settings","--settings-byok","--enable-byok","--disable-byok"].includes(f));
  spawnApp(kind,flags);
 }

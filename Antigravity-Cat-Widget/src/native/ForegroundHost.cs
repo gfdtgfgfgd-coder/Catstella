@@ -83,6 +83,7 @@ internal static class ForegroundHost {
                 IntPtr locationHook=widget==IntPtr.Zero?IntPtr.Zero:SetWinEventHook(0x800B,0x800B,IntPtr.Zero,locationChanged,0,0,0);
                 int pollInterval = 16;
                 bool available = false;
+                bool lastWantTop = false;
                 do {
                     Message queued;while(PeekMessage(out queued,IntPtr.Zero,0,0,1)){}
                     string kind = "unknown", bounds = null;
@@ -98,39 +99,34 @@ internal static class ForegroundHost {
                             bool foregroundChanged=window!=previousForeground;
                             previousForeground=window;
                             available=lastHost!=IntPtr.Zero&&IsWindowVisible(lastHost)&&!IsIconic(lastHost);
-                            // Widget visibility is controlled exclusively by JS layer - native only manages z-order.
-                            // Widget stays visible but moves between topmost (host foreground) and normal layers.
                             uint hostPid=0;if(available)GetWindowThreadProcessId(lastHost,out hostPid);
                             bool wantTop=available&&(pid==hostPid||window==widget);
-                            // Adaptive heartbeat: 1s when host available, 3s when unavailable
-                            int heartbeatInterval = available ? 1000 : 3000;
-                            // Force z-order update on every foreground change and periodic heartbeat
-                            if(foregroundChanged||layerHeartbeat.ElapsedMilliseconds>=heartbeatInterval){
+                            bool isTopmost=(GetWindowLongPtr(widget,-20).ToInt64()&8)!=0;
+                            // Only touch z-order when desired layer changes, actual WS_EX_TOPMOST drifted,
+                            // or foreground switched to a non-host window. Never spam SetWindowPos on idle
+                            // heartbeats — doing so causes DWM / Windows 11 floating taskbar z-order flicker.
+                            if(wantTop!=lastWantTop || isTopmost!=wantTop || (foregroundChanged && !wantTop)){
                                 if(wantTop){
-                                    // Host or widget is foreground: elevate to topmost
                                     SetWindowPos(widget,new IntPtr(-1),0,0,0,0,0x0013);
                                 }else{
-                                    // Other app is foreground: drop to normal band behind that app
-                                    SetWindowPos(widget,new IntPtr(-2),0,0,0,0,0x0013);
+                                    if(isTopmost)SetWindowPos(widget,new IntPtr(-2),0,0,0,0,0x0013);
                                     if(window!=IntPtr.Zero&&window!=widget){
-                                        // Insert specifically behind the current foreground window
                                         IntPtr after=window;
-                                        // Skip over any topmost windows in the chain
                                         while(after!=IntPtr.Zero&&(GetWindowLongPtr(after,-20).ToInt64()&8)!=0)after=GetWindow(after,2);
                                         SetWindowPos(widget,after==IntPtr.Zero?new IntPtr(1):after,0,0,0,0,0x0013);
                                     }
                                 }
+                                lastWantTop=wantTop;
                                 layerHeartbeat.Restart();
                             }
                             if(available&&!hostWasAvailable){
-                                // Host restored from minimized/hidden - reset position tracking
                                 hostPoint=new Point();ClientToScreen(lastHost,ref hostPoint);
                                 restoreGeneration++;
                             }
                             hostWasAvailable=available;
                             if(available)followHost();
                             bounds=available?Bounds(lastHost):null;kind=bounds==null?"other":"host";
-                            pollInterval = available ? 16 : 32; // Further reduce polling when host unavailable
+                            pollInterval = available ? 16 : 32;
 
                         }else{
                             IntPtr foregroundHost=GetAncestor(window,3);
@@ -139,7 +135,7 @@ internal static class ForegroundHost {
                             bounds=Bounds(lastHost);kind=bounds==null?"other":(pid==parentId?"self":"host");
                         }
                     } catch { lastHost = IntPtr.Zero; }
-                    pollInterval = available ? 16 : 32; // Adaptive polling
+                    pollInterval = available ? 16 : 32;
                     string message = "{\"restoreGeneration\":" + restoreGeneration + ",\"kind\":\"" + kind + "\",\"bounds\":" + (bounds ?? "null") + ",\"attached\":" + ((widget!=IntPtr.Zero&&lastHost!=IntPtr.Zero)?"true":"false") + ",\"widgetVisible\":" + ((widget!=IntPtr.Zero&&IsWindowVisible(widget))?"true":"false") + ",\"hostId\":\"" + lastHost.ToInt64() + "\",\"nativeFollowing\":" + ((widget!=IntPtr.Zero)?"true":"false") + "}";
                     if (message != previous || heartbeat.ElapsedMilliseconds>=1000) { Console.WriteLine(message); Console.Out.Flush(); previous = message; heartbeat.Restart(); }
                 } while (!stopping && !parent.WaitForExit(pollInterval));
