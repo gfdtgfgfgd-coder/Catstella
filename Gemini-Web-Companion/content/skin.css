@@ -266,23 +266,12 @@ html.kimino-dream-active model-response {
   max-width: min(768px, 100%) !important;
 }
 
-/* 思维链折叠卡：card 面 */
-/* 思考窗口：强制胶囊化，杜绝初次挂载时 100% 满宽拉伸闪烁 */
-/* 注意：必须严格排除 response-footer / .has-thoughts 等操作栏节点，防止操作栏被误染成蜜汁腰圆胶囊 */
+/* 思维链折叠卡：单层水晶胶囊（仅最外层根容器，绝不递归匹配子元素，杜绝三明治多层胶囊） */
 html.kimino-dream-active :is(
-  details:not([open]),
-  [data-kg="thinking"]:not([open]),
-  .thought-container:not([open]),
-  .thought-box:not([open]),
-  [data-test-id*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]),
-  [data-test-id*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]),
-  [class*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
-  [class*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not([class*="content"]):not([class*="body"]):not([class*="text"]):not([class*="markdown"]),
-  model-response :is(
-    details:not([open]),
-    [class*="thought" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not(p):not(span):not(code):not(button),
-    [class*="thinking" i]:not([open]):not([class*="footer"]):not([class*="has-thought"]):not([class*="gap"]):not([class*="action"]):not(p):not(span):not(code):not(button)
-  )
+  details:not([open]):not(details *):not([data-kg="thinking"] *),
+  [data-kg="thinking"]:not([open]):not([data-kg="thinking"] *),
+  .thought-container:not([open]):not(.thought-container *):not([data-kg="thinking"] *),
+  .thought-box:not([open]):not(.thought-box *):not([data-kg="thinking"] *)
 ) {
   width: fit-content !important;
   max-width: 100% !important;
@@ -296,6 +285,35 @@ html.kimino-dream-active :is(
   padding: 8px 16px !important;
   margin: 8px 0 !important;
   box-sizing: border-box !important;
+}
+
+/* 坚决消灭思维链内部子节点的一切内联背景、边框与独立气泡（彻底消除图 1 的三明治与左侧小斜杠独立药丸） */
+html.kimino-dream-active :is([data-kg="thinking"], details, .thought-container, .thought-box) :is(
+  div,
+  span,
+  summary,
+  p,
+  mat-icon,
+  svg,
+  button,
+  [role="button"],
+  [class*="header" i],
+  [class*="title" i],
+  [class*="icon" i],
+  [class*="label" i],
+  [class*="status" i]
+):not([class*="content" i]):not([class*="body" i]):not([class*="markdown" i]):not([class*="text" i]) {
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 /* 坚决杜绝 response-footer 及操作按钮栏被任何胶囊选择器误伤（消除蜜汁腰圆形） */
@@ -446,9 +464,9 @@ html.kimino-dream-active input-area-v2 {
   box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.16), inset 0 0 0 1px rgba(200, 175, 230, 0.18), 0 10px 30px rgba(16, 12, 27, 0.15) !important;
 }
 
-/* 核心：输入框除按钮与模型胶囊外的所有内部嵌套容器全部透明化，彻底挖空 #282a2c 实体暗底 */
+/* 核心：输入框除按钮与模型胶囊外的所有内部嵌套容器全部透明化，彻底挖空 #282a2c 实体暗底（严格排除引用卡片） */
 html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  div:not([role="button"]):not(button):not([class*="pill"]):not([class*="chip"]):not([class*="model"]),
+  div:not([role="button"]):not(button):not([class*="pill"]):not([class*="chip"]):not([class*="model"]):not([class*="quote" i]):not([class*="citation" i]):not([class*="reply" i]):not([class*="snippet" i]):not([class*="attachment" i]):not([class*="reference" i]),
   fieldset,
   form,
   rich-textarea,
@@ -464,6 +482,154 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
   background-image: none !important;
   box-shadow: none !important;
   border-color: transparent !important;
+}
+
+/* ================================================================
+   4.5 引用选中文本与输入框关闭按钮 (X 号)：常态高亮显示，杜绝隐形与仅 hover 可见
+   ================================================================ */
+/* 输入框内的引用选中文本卡片：微光毛玻璃卡片 */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  [class*="quote" i],
+  [class*="quoted" i],
+  [class*="citation" i],
+  [class*="reply" i],
+  [class*="snippet" i],
+  [class*="selection" i],
+  [class*="attachment" i],
+  mat-chip
+) {
+  background-color: rgba(45, 35, 62, 0.78) !important;
+  background-image: linear-gradient(135deg, rgba(120, 95, 175, 0.25), rgba(30, 20, 48, 0.70)) !important;
+  border: 1px solid rgba(190, 160, 240, 0.35) !important;
+  border-radius: 14px !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  color: #ede6fc !important;
+}
+
+/* 引用块及输入框右上角关闭/取消/删除按钮（X 号）：常态常驻高亮显示 (0.88)，hover 升至 100% 并微光放大 */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  button,
+  [role="button"],
+  mat-icon,
+  svg,
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  [class*="delete" i],
+  [class*="clear" i]
+):is(
+  [aria-label*="close" i],
+  [aria-label*="关闭" i],
+  [aria-label*="删除" i],
+  [aria-label*="remove" i],
+  [aria-label*="dismiss" i],
+  [aria-label*="clear" i],
+  [aria-label*="取消" i],
+  [aria-label*="移除" i],
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  [class*="delete" i],
+  [data-test-id*="close" i],
+  [data-test-id*="dismiss" i],
+  [data-test-id*="remove" i]
+),
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  [class*="quote" i],
+  [class*="quoted" i],
+  [class*="citation" i],
+  [class*="reply" i],
+  [class*="snippet" i],
+  [class*="selection" i],
+  [class*="attachment" i],
+  mat-chip
+) :is(
+  button,
+  [role="button"],
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  mat-icon,
+  svg
+) {
+  opacity: 0.88 !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #ede6fc !important;
+  fill: #ede6fc !important;
+  transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
+}
+
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  button,
+  [role="button"],
+  mat-icon,
+  svg,
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  [class*="delete" i],
+  [class*="clear" i]
+):is(
+  [aria-label*="close" i],
+  [aria-label*="关闭" i],
+  [aria-label*="删除" i],
+  [aria-label*="remove" i],
+  [aria-label*="dismiss" i],
+  [aria-label*="clear" i],
+  [aria-label*="取消" i],
+  [aria-label*="移除" i],
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  [class*="delete" i],
+  [data-test-id*="close" i],
+  [data-test-id*="dismiss" i],
+  [data-test-id*="remove" i]
+):hover,
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  [class*="quote" i],
+  [class*="quoted" i],
+  [class*="citation" i],
+  [class*="reply" i],
+  [class*="snippet" i],
+  [class*="selection" i],
+  [class*="attachment" i],
+  mat-chip
+) :is(
+  button,
+  [role="button"],
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i],
+  mat-icon,
+  svg
+):hover {
+  opacity: 1 !important;
+  color: #ffffff !important;
+  fill: #ffffff !important;
+  transform: scale(1.12) !important;
+}
+
+/* 递归确保关闭图标所有内部元素 (mat-icon / svg / path) 保持常态高亮可见 */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
+  [aria-label*="close" i],
+  [aria-label*="关闭" i],
+  [aria-label*="删除" i],
+  [aria-label*="remove" i],
+  [aria-label*="dismiss" i],
+  [aria-label*="clear" i],
+  [class*="close" i],
+  [class*="dismiss" i],
+  [class*="remove" i]
+) :is(mat-icon, svg, path, span, i) {
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: #ede6fc !important;
+  fill: #ede6fc !important;
 }
 
 /* ================================================================

@@ -234,6 +234,8 @@
           delete pill.__kgOffsetX;
         } catch (e) {}
       }
+      // 3.5) 思维链折叠卡：单层水晶胶囊，坚决杜绝内嵌多层三明治
+      const candidateThoughts = [];
       document.querySelectorAll('details, .thought-container, .thought-box, [data-test-id*="thought" i], [data-test-id*="thinking" i], [class*="thought" i], [class*="thinking" i]').forEach((d) => {
         if (!d.closest('model-response')) return;
         // 门禁：严禁将 response-footer / has-thoughts 操作栏误判为思维链
@@ -244,8 +246,51 @@
             d.classList.contains('has-thought') ||
             d.classList.contains('gap')) return;
         if (d.classList.contains('thought-content') || d.classList.contains('thought-body') || d.classList.contains('thought-text') || d.classList.contains('markdown')) return;
-        mark(d, 'thinking');
+        candidateThoughts.push(d);
       });
+
+      // 仅保留最外层思维链根节点，子节点一律剥离标记与内层胶囊样式（彻底根治三明治嵌套）
+      candidateThoughts.forEach((node) => {
+        const isChildOfAnother = candidateThoughts.some((other) => other !== node && other.contains(node));
+        if (isChildOfAnother) {
+          node.removeAttribute('data-kg');
+          node.style.setProperty('background', 'transparent', 'important');
+          node.style.setProperty('background-color', 'transparent', 'important');
+          node.style.setProperty('border', 'none', 'important');
+          node.style.setProperty('box-shadow', 'none', 'important');
+          node.style.setProperty('backdrop-filter', 'none', 'important');
+          node.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+        } else {
+          mark(node, 'thinking');
+        }
+      });
+
+      // 3.6) 框选引用卡片与右上角关闭 X 按钮：常态常驻高亮显示，杜绝隐藏与仅 hover 出现
+      const composerEl = document.querySelector('input-area-v2') || document.querySelector('[data-kg="composer"]') || document.querySelector('.input-area-container');
+      if (composerEl) {
+        composerEl.querySelectorAll('button, [role="button"], [class*="close" i], [class*="dismiss" i], [class*="remove" i], mat-icon, svg').forEach((el) => {
+          const aria = (el.getAttribute('aria-label') || '').toLowerCase();
+          const cls = (el.className || '').toString().toLowerCase();
+          const tid = (el.getAttribute('data-test-id') || '').toLowerCase();
+          const txt = (el.textContent || '').trim().toLowerCase();
+          const isCloseBtn = aria.includes('close') || aria.includes('关闭') || aria.includes('remove') || aria.includes('dismiss') || aria.includes('clear') || aria.includes('删除') || aria.includes('取消') || aria.includes('移除') ||
+                             cls.includes('close') || cls.includes('dismiss') || cls.includes('remove') || cls.includes('clear') ||
+                             tid.includes('close') || tid.includes('dismiss') || tid.includes('remove') ||
+                             txt === 'close' || txt === 'clear' || txt === '×' || txt === '✕' || txt === 'x';
+          if (isCloseBtn) {
+            el.style.setProperty('opacity', '0.92', 'important');
+            el.style.setProperty('visibility', 'visible', 'important');
+            el.style.setProperty('color', '#ede6fc', 'important');
+            el.style.setProperty('fill', '#ede6fc', 'important');
+            el.querySelectorAll('mat-icon, svg, path, span').forEach((child) => {
+              child.style.setProperty('opacity', '1', 'important');
+              child.style.setProperty('visibility', 'visible', 'important');
+              child.style.setProperty('color', '#ede6fc', 'important');
+              child.style.setProperty('fill', '#ede6fc', 'important');
+            });
+          }
+        });
+      }
 
       // 4) /usage 路由配额卡（按内容锚定，不按原子类）
       if (location.pathname === '/usage') {
