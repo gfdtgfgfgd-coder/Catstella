@@ -116,25 +116,27 @@ npm test
 
 ---
 
-## 📜 许可声明与资产边界 (License & Assets)
+## 📜 许可声明、原设概念与资产边界 (License, Origins & Assets)
 
 1. **软件源代码许可**：本项目包含的原创源代码采用 [MIT License](LICENSE) 开源发布。
-2. **美术与非代码资产限制**：
+2. **原设概念设计与成果使用声明**：
+   - 角色原设概念设计者为 **[ZipZipPipe (B站空间)](https://space.bilibili.com/4168597)**；
+   - 本项目在角色设定中直接使用了其原设的以下核心设定概念与视觉特征成果：Gemini 拟人化星语猫娘基础形态、渐变质感猫耳、随情绪状态变换的 G 形 LED 耳灯、水母头发型特征与微重力悬浮体质；
+   - 角色设计参考按提供者记录署名 ZipZipPipe；角色与设定集图片由 AI 辅助生成，保留生成提示词，不宣称 Google 官方授权或原设的再许可权；公开版未包含原作者参考图、私人截图或未确认再分发许可的 DSH 鸭叫音频；
+   - **粉毛 Gemini 形象所有权归本仓库管理者所有，使用及二创须遵循 CC BY-NC-SA 4.0 协议**。
+3. **美术与非代码资产限制**：
    - **MIT 许可证不适用于本项目包含的所有角色立绘、原画设定、壁纸图片、衍生美术以及非开源音效**；
-   - 角色设计参考按提供者记录署名 ZipZipPipe；角色与设定集图片由 AI 辅助生成，保留生成提示词，不宣称 Google 官方授权或原设的再许可权。公开版未包含原作者参考图、私人截图或未确认再分发许可的 DSH 鸭叫音频；
-   - **粉毛 Gemini 形象所有权归本仓库管理者所有，使用及二创须遵循 CC BY-NC-SA 4.0 协议**；
    - 仓库内音频资源均已注明许可来源（Kenney CC0 / 上游 MIT 合成音频），未包含未经明确授权的第三方商业音频；
    - 详情请查阅 [ASSETS.md](ASSETS.md) 与 [NOTICE.md](NOTICE.md)。
-3. **免责条款**：
+4. **免责条款**：
    - 本套件依赖宿主本地 CDP 调试接口与界面结构，宿主未来版本更新可能带来布局变化或接口调整；
    - 开发者不对因使用本非官方衍生工具可能导致的显示异常、缓存冲突等情况承担保证或连带责任。
 
 ---
 
-## 💐 鸣谢与致敬 (Acknowledgements)
+## 💐 衍生工程与参考项目 (Related Projects & References)
 
-本项目在开发过程中参考并衍生自以下开源项目与原创设计：
+本项目在工程与架构开发过程中参考并衍生自以下开源项目：
 
 - **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**：本项目基础工程衍生自 Monokumakuki 的开源项目，感谢原作者在初期架构、CDP 探针机制与双端雏形上的贡献；
-- **ZipZipPipe**：角色设计参考按提供者记录署名 ZipZipPipe，感谢原设概念启发；
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** 与 **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**：感谢两大家居式桌宠项目在交互反馈、气泡状态机及额度观察逻辑上的开源启发。
