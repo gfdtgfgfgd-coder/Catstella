@@ -8,6 +8,24 @@
   if (window.__KIMINO_SKIN_READY__) return;
   window.__KIMINO_SKIN_READY__ = true;
 
+  // 切换动画禁窗专用极简样式（LoAF 实测定案）：皮肤全量样式表的复杂选择器
+  // 会让 Gemini 逐行动画里每一次强制样式/布局重算从 ~10ms 膨胀到 ~200ms。
+  // 禁窗期间换装这份平铺关键样式（视觉连续：壁纸是内联样式不受影响，气泡/
+  // 卡片色调、composer、折叠药丸全部保留），动画结束换回全量样式表。
+  const KG_CRITICAL_CSS = [
+    'html.kimino-dream-active{background-color:#0d091a !important}',
+    '#kimino-base-layer{position:fixed !important;inset:0 !important;z-index:-100000 !important;background-color:#0d091a !important;pointer-events:none !important}',
+    '#kimino-dream-wallpaper{position:fixed !important;inset:0 !important;z-index:-99999 !important;background-size:cover !important;background-position:center center !important;background-repeat:no-repeat !important;pointer-events:none !important;display:block !important}',
+    'html.kimino-dream-active .user-query-bubble-with-background,html.kimino-dream-active [data-kg="bubble"]{background-color:rgba(24,18,36,0.76) !important;background-image:none !important;border:1px solid rgba(174,142,218,0.28) !important;border-radius:22px !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}',
+    'html.kimino-dream-active model-response,html.kimino-dream-active [data-kg="card"]{background-color:rgba(24,18,36,0.76) !important;background-image:none !important;border:1px solid rgba(174,142,218,0.16) !important;border-radius:22px !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}',
+    'html.kimino-dream-active input-area-v2,html.kimino-dream-active [data-kg="composer"]{background-color:rgba(33,30,45,0.72) !important;border-radius:22px !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}',
+    'html.kimino-dream-active :is(model-response, user-query, infinite-scroller) button.luminous-toggle-button{width:28px !important;height:28px !important;min-width:28px !important;max-width:28px !important;padding:0 !important;border-radius:50% !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;background-color:rgba(55,42,78,0.85) !important;background-image:linear-gradient(135deg,rgba(135,105,185,0.40),rgba(45,32,68,0.82)) !important;border:1px solid rgba(200,175,245,0.45) !important;box-shadow:none !important;color:#ede6fc !important}',
+    'html.kimino-dream-active :is(model-response, user-query, infinite-scroller) button.luminous-toggle-button :is(mat-icon,.mat-icon,svg,span,i){color:#ede6fc !important;fill:#ede6fc !important}',
+    'html.kimino-dream-active .luminous-toggle-container{background-color:transparent !important;background-image:none !important}',
+    'html.kimino-dream-active :is(model-response, user-query) :is(button,[role="button"],mat-icon,svg){background-color:transparent !important;background-image:none !important;box-shadow:none !important;color:#ede6fc !important;fill:#ede6fc !important}',
+    'html.kimino-dream-active .edit-form.rich-edit-form{background-color:rgba(24,18,36,0.76) !important;border:1px solid rgba(174,142,218,0.28) !important;border-radius:40px !important}',
+  ].join('\n');
+
   const api = window.KIMINO_API || {
     available: false,
     getURL: (p) => p,
@@ -368,13 +386,72 @@
     } catch (e) {}
   };
 
+  // ============ 切换动画禁窗（2026-11-05 延迟根治） ============
+  // 实机 rAF 采样两轮定位：
+  // ① annotate+restyle 全量扫描砸在逐行重建动画中间（272ms 阻塞帧）→ 禁窗推迟重活；
+  // ② 原生对照（128 帧/最差 69ms）vs 皮肤（77 帧/最差 215ms）→ 大头是 backdrop-filter
+  //    在高度动画期间每帧重光栅化。禁窗同时摘除动画元素的 blur（色调保留，动画结束恢复）。
+  let animGateUntil = 0;
+  let animGateTimer = null;
+  let criticalStyleEl = null;
+  let skinSheetsCache = null;
+  // 找出皮肤样式表（扩展 manifest 注入的 author sheet 与 IAB 注入的 <style> 两种载体都要覆盖）
+  // 结果缓存（点击热路径不能每次全量扫描 document.styleSheets）
+  const findSkinSheets = () => {
+    if (skinSheetsCache) return skinSheetsCache;
+    const found = [];
+    for (const sheet of document.styleSheets) {
+      try {
+        const rules = sheet.cssRules;
+        if (!rules || !rules.length) continue;
+        for (let i = 0; i < Math.min(rules.length, 6); i++) {
+          if (rules[i].cssText && rules[i].cssText.includes('kimino-dream-active')) { found.push(sheet); break; }
+        }
+      } catch (e) { /* 跨域样式表不可读，跳过 */ }
+    }
+    skinSheetsCache = found;
+    return found;
+  };
+  const enterAnimGate = () => {
+    animGateUntil = performance.now() + 600;
+    document.documentElement.classList.add('kg-anim');
+    if (!criticalStyleEl) {
+      criticalStyleEl = document.createElement('style');
+      criticalStyleEl.id = 'kimino-skin-css-critical';
+      criticalStyleEl.textContent = KG_CRITICAL_CSS;
+      document.documentElement.appendChild(criticalStyleEl);
+    }
+    // 换装：禁用全量皮肤表（选择器重算是卡顿根因），启用平铺关键表
+    for (const sheet of findSkinSheets()) {
+      try { sheet.disabled = true; } catch (e) {}
+    }
+    criticalStyleEl.disabled = false;
+    if (animGateTimer) clearTimeout(animGateTimer);
+    animGateTimer = setTimeout(() => {
+      document.documentElement.classList.remove('kg-anim');
+      for (const sheet of findSkinSheets()) {
+        try { sheet.disabled = false; } catch (e) {}
+      }
+      if (criticalStyleEl) criticalStyleEl.disabled = true;
+      animGateTimer = null;
+      schedule();
+    }, 650);
+  };
+
   const schedule = () => {
     if (annotateTimer) return;
+    const gateWait = Math.max(0, animGateUntil - performance.now());
     annotateTimer = setTimeout(() => {
       annotateTimer = null;
+      // 禁窗仍在（连续切换时旧定时器会落入下一次动画窗口）：改期，不跑重活
+      const wait = animGateUntil - performance.now();
+      if (wait > 0) {
+        schedule();
+        return;
+      }
       annotate();
       applyFades();
-    }, 60);
+    }, 60 + gateWait);
   };
 
   // ============ 左下角幽灵色块侦探 ============
@@ -677,6 +754,10 @@
     fadePending = true;
     const run = () => {
       fadePending = false;
+      // 切换动画禁窗：几何正在逐帧变动，此刻逐面读 getBoundingClientRect
+      // 会与 Angular 的写入互踩造成布局抖动（LoAF 实测单帧强制样式布局
+      // 201-207ms）。禁窗内跳过，动画结束后的 schedule() 会做一次干净重算。
+      if (performance.now() < animGateUntil) return;
       applyFades();
     };
     if (typeof requestAnimationFrame === 'function' && !document.hidden) {
@@ -737,6 +818,7 @@
       annotate();
       applyFades();
       bindScrollListeners();
+      findSkinSheets(); // 预热样式表缓存：首次切换点击热路径不能背全量扫描的开销
 
       // 自愈守护：防止窗口失焦、切换标签页或 SPA 重置 html.class 时主题/壁纸脱落
       const ensureSkinAlive = () => {
@@ -764,6 +846,11 @@
       window.addEventListener('focus', ensureSkinAlive);
       window.addEventListener('blur', ensureSkinAlive);
       document.addEventListener('visibilitychange', ensureSkinAlive);
+      // 收起/展开切换 → 进入动画禁窗（捕获阶段，键盘 Enter 触发的 click 同样命中）
+      document.addEventListener('click', (ev) => {
+        const b = ev.target && ev.target.closest && ev.target.closest('.luminous-toggle-button, [data-kg-expand-btn="true"]');
+        if (b && !b.closest('bard-sidenav') && !b.closest('[data-test-id="side-nav"]')) enterAnimGate();
+      }, { capture: true, passive: true });
 
       const mo = new MutationObserver((muts) => {
         for (const m of muts) {

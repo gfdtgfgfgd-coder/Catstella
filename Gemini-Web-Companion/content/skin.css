@@ -1068,6 +1068,20 @@ html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([da
 }
 
 /* ================================================================
+   星语喵伴 · 切换动画禁窗（2026-11-05 延迟根治，配合 skin.js kg-anim）
+   ─────────────────────────────────────────────────────────────
+   实机对照：原生切换 128 帧/最差 69ms；皮肤 77 帧/最差 215ms。
+   大头是 backdrop-filter 在高度动画期间每帧重光栅化。动画禁窗内
+   摘除对话面 blur（0.76 色调保留，肉眼在运动中无感），动画结束恢复。
+   ================================================================ */
+html.kimino-dream-active.kg-anim :is(model-response, .user-query-bubble-with-background, [data-kg="card"], [data-kg="bubble"], response-container, .response-container) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+/* ================================================================
    星语喵伴 · luminous 长提问折叠钮 CSS 直配（2026-11-05 闪烁根治）
    ─────────────────────────────────────────────────────────────
    实机铁证：Gemini 切换收起/展开瞬间会销毁并重建按钮与气泡节点，
