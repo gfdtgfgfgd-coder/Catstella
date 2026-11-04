@@ -228,3 +228,188 @@ html.kimino-dream-active :is(
 html.kimino-dream-active pre code {
   background-color: transparent !important;
 }
+
+/* 7. 上传附件与文件预览卡片（彻底剔除死黑底块与深黑遮罩，赋予通透毛玻璃星轨质感） */
+
+/* (A) 附件排布父级容器完全透光，避免产生横条或外围黑带 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  div.input-area-container,
+  form
+) :is(
+  .attachment-area,
+  .attachments-container,
+  .file-preview-area,
+  .uploader-container,
+  [class*="attachment-list"],
+  [class*="attachment-wrapper"],
+  [class*="attachments-area"],
+  [class*="file-preview-wrapper"],
+  [class*="preview-wrapper"]
+) {
+  background-color: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* (B) 附件与文件卡片本体：晶莹通透毛玻璃卡片质感 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  div.input-area-container,
+  form
+) :is(
+  uploader,
+  uploader-file,
+  uploader-image,
+  file-preview,
+  image-preview,
+  [class*="uploader"],
+  [class*="attachment"],
+  [class*="file-preview"],
+  [class*="preview-container"],
+  [class*="thumbnail-container"],
+  [class*="file-chip"],
+  [class*="file-card"],
+  [class*="media-preview"],
+  mat-chip,
+  mat-card
+) {
+  background-color: rgba(28, 20, 52, 0.65) !important;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)) !important;
+  backdrop-filter: blur(16px) saturate(120%) !important;
+  border: 1px solid rgba(190, 160, 245, 0.3) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.2), 0 4px 16px rgba(12, 8, 24, 0.35) !important;
+}
+
+/* 缩略图图片本身保持自然比例与圆角，去除底层实色黑块 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  div.input-area-container,
+  form
+) :is(
+  img[class*="thumbnail"],
+  img[class*="preview"],
+  [class*="thumbnail"] img,
+  [class*="preview"] img,
+  uploader img
+) {
+  background-color: transparent !important;
+  border-radius: 10px !important;
+}
+
+/* (C) 彻底消除上传中的实心死黑遮罩（Loading Scrim / Upload Progress Overlay），替换为柔和微光蒙层 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  div.input-area-container,
+  form
+) :is(
+  [class*="scrim"],
+  [class*="overlay"],
+  [class*="mask"],
+  [class*="loading-scrim"],
+  [class*="upload-progress"],
+  [class*="progress-overlay"],
+  [class*="spinner-container"],
+  mat-spinner,
+  mat-progress-spinner
+) {
+  background-color: rgba(30, 20, 50, 0.42) !important;
+  background-image: none !important;
+  backdrop-filter: blur(6px) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+/* 进度环与指示器颜色提亮为星空紫/白色，消除黑色残影 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  mat-progress-spinner circle,
+  mat-spinner circle,
+  [class*="spinner"] circle,
+  [class*="progress"] circle
+) {
+  stroke: #d8b5ff !important;
+}
+
+/* (D) 附件移除/删除按钮 (Close/Remove Icon) 悬浮微光质感 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  button[class*="remove"],
+  button[class*="close"],
+  button[class*="delete"],
+  [aria-label*="Remove" i],
+  [aria-label*="Delete" i],
+  [aria-label*="移除" i],
+  [aria-label*="删除" i],
+  [aria-label*="取消" i]
+) {
+  background-color: rgba(45, 30, 75, 0.72) !important;
+  color: #f0e6ff !important;
+  border: 1px solid rgba(210, 180, 255, 0.35) !important;
+  backdrop-filter: blur(8px) !important;
+  border-radius: 50% !important;
+}
+
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  button[class*="remove"],
+  button[class*="close"],
+  button[class*="delete"]
+):hover {
+  background-color: rgba(220, 80, 120, 0.8) !important;
+  border-color: rgba(255, 120, 160, 0.6) !important;
+}
+
+/* (E) 普通文件卡片（PDF、文档、代码、压缩包等附件）文本与图标样式 */
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  [class*="file-name"],
+  [class*="file-title"],
+  [class*="attachment-name"]
+) {
+  color: #f5edff !important;
+  font-weight: 600 !important;
+}
+
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  [class*="file-size"],
+  [class*="file-metadata"],
+  [class*="attachment-size"],
+  [class*="file-info"]
+) {
+  color: #c9b4e8 !important;
+}
+
+html.kimino-dream-active :is(
+  .input-area,
+  .chat-input-container,
+  form
+) :is(
+  mat-icon[class*="file"],
+  [class*="file-icon"],
+  [class*="attachment-icon"]
+) {
+  color: #d8b5ff !important;
+}
