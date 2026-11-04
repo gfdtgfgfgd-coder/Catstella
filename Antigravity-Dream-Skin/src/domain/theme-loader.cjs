@@ -139,7 +139,7 @@ class WallpaperManager{
   try{pack=this.resolve(settings.wallpaperId);buffer=fs.readFileSync(pack.file);}
   catch(error){pack=this.resolve(settings.wallpaperId);buffer=fs.readFileSync(pack.file);}
   return{
-   version:2,
+   version:2,themePreset:["violet","pink","ocean","onyx"].includes(settings.themePreset)?settings.themePreset:"violet",
    outputMode:settings.outputMode==="glass"?"glass":"transparent",
    positionX:Math.max(0,Math.min(100,settings.positionX??50)),
    positionY:Math.max(0,Math.min(100,settings.positionY??50)),

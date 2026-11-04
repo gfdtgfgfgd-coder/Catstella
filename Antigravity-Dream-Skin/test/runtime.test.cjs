@@ -159,3 +159,16 @@ test("legacy autoRotate fields migrate to the slideshow single source",()=>{
  assert.equal(legacyRotatePatch({}),null);
  assert.equal(legacyRotatePatch(null),null);
 });
+
+test("themePreset persists, validates known presets, and flows to payload",()=>{
+ const file=path.join(fs.mkdtempSync(path.join(os.tmpdir(),"dream-preset-")),"settings.json"),s=new DreamSkinSettings(file),loader=new DreamSkinThemeLoader();
+ assert.equal(s.get("themePreset"),"violet");
+ for(const preset of ["pink","ocean","onyx","violet"]){
+  s.update({themePreset:preset});
+  assert.equal(new DreamSkinSettings(file).get("themePreset"),preset);
+  assert.equal(loader.payload(s.getAll()).themePreset,preset);
+ }
+ s.update({themePreset:"neon-invalid"});
+ assert.equal(s.get("themePreset"),"violet");
+ assert.equal(loader.payload({themePreset:"neon-invalid"}).themePreset,"violet");
+});

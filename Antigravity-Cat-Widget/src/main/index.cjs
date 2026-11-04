@@ -207,7 +207,7 @@ else{
  function openSettings(){
   if(panel&&!panel.isDestroyed()){panel.show();panel.focus();return;}
   // 无边框自绘标题栏设置中心（用户 fork 设计）：拖拽区 + 最小化/关闭按钮。
-  panel=new BrowserWindow({width:900,height:700,minWidth:760,minHeight:560,frame:false,transparent:true,hasShadow:true,resizable:true,autoHideMenuBar:true,title:"喵言喵语 · 设置中心",backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  const work=screen.getPrimaryDisplay().workAreaSize,pw=Math.min(1080,Math.max(880,work.width-80)),ph=Math.min(740,Math.max(580,work.height-60));panel=new BrowserWindow({width:pw,height:ph,minWidth:860,minHeight:580,frame:false,transparent:true,hasShadow:true,resizable:true,autoHideMenuBar:true,title:"喵言喵语 · 设置中心",backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   panel.loadFile(path.join(__dirname,"../renderer/settings.html"));panel.on("closed",()=>panel=null);
  }
  function reset(){if(settings.get("hostWindowOnly")){settings.update({hostOffsetX:18,hostOffsetY:18,hostDock:""});syncVisibility();publish();return;}const dim=bounds(),pos=safePosition(null,null,dim.width,dim.height);win.setBounds({...pos,...dim});settings.update(pos);show();}

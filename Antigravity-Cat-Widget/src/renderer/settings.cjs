@@ -37,6 +37,7 @@
     "manualPercent", "manualWeeklyPercent", "clickCatAction"
   ];
   const original = Object.fromEntries(keys.map(key => [key, data.settings[key]]));
+  const originalDreamSkin = data.dreamSkin ? { ...data.dreamSkin } : null;
   let pending = Promise.resolve();
 
   function save(partial, message = "已保存") {
@@ -200,6 +201,8 @@
       if (document.activeElement !== $("uiLanguage")) $("uiLanguage").value = ds.uiLanguage || "en";
       if ($("dream-enabled") && document.activeElement !== $("dream-enabled")) $("dream-enabled").checked = ds.enabled === true;
       if ($("dream-transition") && document.activeElement !== $("dream-transition")) $("dream-transition").value = ds.transition === "none" ? "none" : "fade";
+      const currentTheme = ds.themePreset || "violet";
+      document.querySelectorAll(".theme-card[data-theme]").forEach(card => card.classList.toggle("active", card.dataset.theme === currentTheme));
     }
 
     // 渲染两个全新画廊
@@ -277,8 +280,16 @@
 
   if ($("dream-enabled")) $("dream-enabled").onchange = () => save({ dreamSkin: { enabled: $("dream-enabled").checked } }, $("dream-enabled").checked ? "已应用到 Antigravity" : "已从 Antigravity 还原");
   if ($("dream-transition")) $("dream-transition").onchange = () => save({ dreamSkin: { transition: $("dream-transition").value } }, "已更新切换动画");
+  document.querySelectorAll(".theme-card[data-theme]").forEach(card => {
+    card.onclick = () => {
+      const preset = card.dataset.theme;
+      if ((data.dreamSkin?.themePreset || "violet") !== preset) {
+        save({ dreamSkin: { themePreset: preset } }, "已切换为「" + (card.dataset.label || preset) + "」主题");
+      }
+    };
+  });
 
-  $("undo").onclick = () => save(original, "已恢复到打开设置时");
+  $("undo").onclick = () => save(originalDreamSkin ? { ...original, dreamSkin: { ...originalDreamSkin } } : original, "已恢复到打开设置时");
   $("dock-left").onclick = () => api.command("dock-left");
   $("dock-right").onclick = () => api.command("dock-right");
   $("reset").onclick = () => api.command("reset");
