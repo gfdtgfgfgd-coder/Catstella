@@ -98,6 +98,7 @@ else{
    try{if(activeWall?.filePath&&fs.existsSync(activeWall.filePath))wallMtime=Math.round(fs.statSync(activeWall.filePath).mtimeMs);}catch{}
    const q=quotaAdapter.snapshot;
    const gData=q?.gemini||q||{};
+   const isArgon=Boolean(q?.modelInfo?.modelName?.toLowerCase().includes("argon"));
    const manual=settings.get("manualQuota")===true;
    return{
     sync:{
@@ -123,9 +124,11 @@ else{
      hostActive:Boolean(hostArea&&foreground.state.kind==="host"),
      agyQuota:{
       fiveHour:manual?settings.get("manualPercent"):gData.fiveHour??null,
-      weekly:manual?settings.get("manualWeeklyPercent"):gData.weekly??null,
+      weekly:manual?settings.get("manualWeeklyPercent"):(isArgon&&typeof q?.argon?.weekly==="number"?q.argon.weekly:(gData.weekly??null)),
       fiveHourReset:manual?"":gData.fiveHourReset||"",
-      weeklyReset:manual?"":gData.weeklyReset||"",
+      weeklyReset:manual?"":(isArgon&&typeof q?.argon?.weekly==="number"?(q.argon.weeklyReset||""):(gData.weeklyReset||"")),
+      argonWeekly:typeof q?.argon?.weekly==="number"?q.argon.weekly:null,
+      argonWeeklyReset:typeof q?.argon?.weeklyReset==="string"?q.argon.weeklyReset:"",
       modelName:q?.modelInfo?.modelName||""
      }
     }

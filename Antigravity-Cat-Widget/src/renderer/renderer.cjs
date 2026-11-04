@@ -61,10 +61,14 @@
     }
    }
    const gData=q?.gemini||q;
+   const isArgon=Boolean(q?.modelInfo?.modelName?.toLowerCase().includes("argon"));
+   const hasArgonQuota=typeof q?.argon?.weekly==="number";
    const fiveVal=s.manualQuota?s.manualPercent:gData?.fiveHour;
-   const weekVal=s.manualQuota?s.manualWeeklyPercent:gData?.weekly;
+   const weekVal=s.manualQuota?s.manualWeeklyPercent:(isArgon&&hasArgonQuota?q.argon.weekly:gData?.weekly);
    const fiveReset=s.manualQuota?"":gData?.fiveHourReset||"";
-   const weekReset=s.manualQuota?"":gData?.weeklyReset||"";
+   const weekReset=s.manualQuota?"":(isArgon&&hasArgonQuota?(q.argon.weeklyReset||""):gData?.weeklyReset||"");
+   if($("label-5h"))$("label-5h").textContent=isArgon?"5 小时 (共享)":"5 小时";
+   if($("label-week"))$("label-week").textContent=isArgon?"1 周 (Argon WTU)":"1 周";
 
    for(const [suffix,value,resetStr] of [["",fiveVal,fiveReset],["-week",weekVal,weekReset]]){
     const known=typeof value==="number";
@@ -79,7 +83,7 @@
    }
    const wc=snapshot.webCompanion;
    const webBrief=wc?.quota?(typeof wc.quota.fiveHourUsedPct==="number"?(" · Web 5h 已用 "+wc.quota.fiveHourUsedPct+"%"):(wc.quota.dailyTotal?(" · Web 今日 "+wc.quota.dailyTotal+" 次"):"")):"";
-   $("caption").textContent=(s.manualQuota?"手动记录":q?.stale?"上次读取 · 待更新":q?.cached?"上次读取":"")+webBrief;
+   let extraHint="";if(isArgon&&typeof gData?.weekly==="number"){extraHint=" · 通用周额度余 "+Math.round(gData.weekly)+"%";}else if(!isArgon&&hasArgonQuota){extraHint=" · 🪐 Argon 余 "+Math.round(q.argon.weekly)+"%";}$("caption").textContent=(s.manualQuota?"手动记录":q?.stale?"上次读取 · 待更新":q?.cached?"上次读取":"")+extraHint+webBrief;
    $("meta").textContent="官方模型额度通道 · 点此刷新";
   }else if(selected==="webQuota"){
    const wc=snapshot.webCompanion||{},wq=wc.quota||{};

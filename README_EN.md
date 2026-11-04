@@ -2,11 +2,11 @@
 
 [English](README_EN.md) | [简体中文](README.md)
 
-Catstella is an open-source desktop companion and enhancement suite designed for Google Antigravity. It features an interactive desktop pet widget (Cat Widget), a frosted glass UI theme and wallpaper engine (Dream Skin), and a cross-client synchronization bridge for web browser companions.
+Catstella is an open-source desktop enhancement and dual-end companion suite designed for Google Antigravity and the Google Gemini ecosystem. It features an interactive desktop pet widget (Cat Widget), a frosted glass UI theme and wallpaper engine (Dream Skin), and a dedicated web companion extension tailored specifically for the official Google Gemini web client (`gemini.google.com`).
 
 > **Disclaimer & Security Notice**  
 > This project is a non-commercial, community-driven tool maintained by open-source enthusiasts. It is **NOT an official Google product** and is not affiliated with, endorsed by, or sponsored by Google or any of its subsidiaries.  
-> Catstella communicates solely via the local localhost CDP debugging channel to map quota summaries and inject styling. It **never modifies host installation binaries or `app.asar` packages**, and strictly never intercepts, collects, logs, or uploads any user API keys, auth tokens, session cookies, or conversation contents.
+> Catstella communicates solely via local loopback CDP debugging and browser extension channels to map quota summaries and apply styling. It **never modifies host installation binaries or `app.asar` packages**, and strictly never intercepts, collects, logs, or uploads any user API keys, auth tokens, session cookies, or conversation contents.
 
 ---
 
@@ -25,7 +25,7 @@ Catstella is an open-source desktop companion and enhancement suite designed for
 ### 🐱 Desktop Companion Widget (Cat Widget)
 - **Multi-Model Quota Monitoring**:
   - Read-only telemetry extraction from the host background service for **Gemini 5-hour / Weekly limits** and refresh countdowns;
-  - **Gemini 4 Argon Metering Support**: Directly parses the dedicated `gemini-argon-wtu-weekly` WTU limit; displays exclusive badges and low-quota (< 20%) warnings;
+  - **Gemini 4 Argon Metering Support**: When switching to Gemini 4 Argon, automatically binds to its dedicated `gemini-argon-wtu-weekly` high-intelligence WTU limit (identifying exact remaining quotas such as a 9% critical threshold); triggers low-quota (< 20%) warnings and expressive reactions while keeping standard weekly limits visible in the caption;
   - Supports **Claude & GPT 3rd-party channels** in the same dashboard;
   - Customizable honorifics and forms of address in settings (None, Zayu, or custom text).
 - **Interactive Feedback**:
@@ -48,14 +48,27 @@ Catstella is an open-source desktop companion and enhancement suite designed for
   - Smooth crossfade transitions between wallpapers;
   - **1m to 60m proportional slider** with magnetic damping near common intervals; automatically scans the user's wallpaper directory.
 
+### 🌐 Gemini Web Companion · Adapted for Official Google Gemini Web (`gemini.google.com`)
+Extending beyond the local Antigravity IDE, Catstella provides full-featured integration for the official **Google Gemini web application (`gemini.google.com`)**:
+- **Official Webpage UI & Desktop Pet Injection**:
+  - Native support across Edge, Chrome, and Firefox;
+  - Injects a panoramic frosted glass theme (Liquid Glass) consistent with the desktop aesthetic;
+  - Mounts an interactive catgirl companion in the bottom-right corner of the official chat interface with multiple expressions and animations;
+- **Dedicated Web Telemetry & Consumption Tracking**:
+  - Deep observation of web streaming packets and session state;
+  - **Session Load Tracking**: Monitors turns per conversation and estimates token consumption scale;
+  - **Frequency & Budget Analytics**: Tracks calls within the last 5 hours, daily cumulative conversations, and daily budget progress (default 150 turns/day);
+  - **Model Architecture Breakdown**: Automatically classifies and tallies usage across Flash, Pro, and Thinking (extended reasoning);
+- **Dual-End Cross-Client Neural Bridge (Companion Bridge)**:
+  - Local auto-handshake via loopback `127.0.0.1:3921`;
+  - **Cross-Display Telemetry**: View Gemini Web metrics directly on Page 2 of the desktop pet bubble, and inspect Antigravity IDE quotas inside the web extension popup;
+  - **Asset & Preference Sync**: One-click toggling between synchronized character packs and wallpaper galleries, or independent customization;
+  - **Flexible Multi-Screen Display Modes**: Choose between "Simultaneous Display", "Desktop Priority", or "Focus Mutual-Exclusion" (desktop pet sleeps when browsing the web).
+
 ### 🌐 Localization Layer
 - Pure CDP injection without tampering with `app.asar`, completely reversible at any time;
 - Comprehensive translation covering 830+ UI elements, input placeholders, button tooltips, and accessibility labels;
 - Defaults to standard English, with one-click toggling to Simplified Chinese in settings.
-
-### 🔗 Companion Bridge
-- Connects Desktop Pet with Web Browser Extensions (Chrome / Edge / Firefox) via loopback `127.0.0.1:3921`;
-- Supports quota telemetry synchronization, character pack and wallpaper selection (synchronized or decoupled), and display mode preferences.
 
 ---
 
