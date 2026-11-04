@@ -147,6 +147,20 @@
     return null;
   };
 
+  // 用户气泡玻璃统一绘制（annotate 与重建快路径共用同一份视觉）
+  const paintBubbleGlass = (bubble, radius) => {
+    if (!bubble) return;
+    try {
+      mark(bubble, 'bubble');
+      bubble.style.removeProperty('background');
+      bubble.style.setProperty('background-color', 'rgba(24, 18, 36, 0.76)', 'important');
+      bubble.style.setProperty('backdrop-filter', 'blur(25px) saturate(140%)', 'important');
+      bubble.style.setProperty('-webkit-backdrop-filter', 'blur(25px) saturate(140%)', 'important');
+      bubble.style.setProperty('border', '1px solid rgba(174, 142, 218, 0.28)', 'important');
+      bubble.style.setProperty('border-radius', radius || '22px', 'important');
+    } catch (e) {}
+  };
+
   // Composer 锚点统一入口（实机 2026-11-05 恶性 bug 根治）：
   // 消息编辑态会在对话中部创建 rich-textarea.edit-rich-textarea（DOM 序先于 composer），
   // 全局 querySelector('rich-textarea') 被劫持 → 渐隐引擎把切线锚到屏幕中央的编辑框，
@@ -210,13 +224,7 @@
           }
         }
         if (bubble) {
-          mark(bubble, 'bubble');
-          bubble.style.removeProperty('background');
-          bubble.style.setProperty('background-color', 'rgba(24, 18, 36, 0.76)', 'important');
-          bubble.style.setProperty('backdrop-filter', 'blur(25px) saturate(140%)', 'important');
-          bubble.style.setProperty('-webkit-backdrop-filter', 'blur(25px) saturate(140%)', 'important');
-          bubble.style.setProperty('border', '1px solid rgba(174, 142, 218, 0.28)', 'important');
-          bubble.style.setProperty('border-radius', editForm ? '40px' : '22px', 'important');
+          paintBubbleGlass(bubble, editForm ? '40px' : '22px');
         }
       });
 
@@ -522,6 +530,38 @@
     } catch (e) {}
   };
 
+  // ============ 重建即标注快路径（2026-11-05 闪烁根治） ============
+  // 实机 rAF 采样铁证：luminous 长提问切换收起/展开时，Gemini 会销毁并重建
+  // 气泡与按钮节点，重建新节点要等下一轮 annotate（~130ms）才被标注，
+  // 期间按钮裸奔原生样式、气泡玻璃丢失。CSS 类名直配已兜底视觉，
+  // 此处对新插入节点同帧补标注与内联玻璃，双保险。
+  const fastTagRecreatedNodes = (addedNodes) => {
+    try {
+      let root = null;
+      for (const n of addedNodes) {
+        if (!n || n.nodeType !== 1) continue;
+        if (n.matches?.('.conversation-container, .user-query-bubble-with-background, .luminous-toggle-container, .query-text') ||
+            n.querySelector?.('.user-query-bubble-with-background, .luminous-toggle-button')) {
+          root = n;
+          break;
+        }
+      }
+      if (!root) return;
+      const turn = root.closest?.('.conversation-container') || root.querySelector?.('.conversation-container');
+      if (!turn) return;
+      // 1) 气泡：重建后立即补标注与玻璃（CSS 类规则兜底 + 内联双保险）
+      const bubble = turn.querySelector('.user-query-bubble-with-background');
+      if (bubble && !bubble.hasAttribute('data-kg')) paintBubbleGlass(bubble);
+      // 2) 折叠/展开按钮：重建后立即标注（补 icon-only 语义与内联残留清理）
+      turn.querySelectorAll('.luminous-toggle-button:not([data-kg-expand-btn])').forEach((b) => {
+        if (b.closest('bard-sidenav') || b.closest('[data-test-id="side-nav"]')) return;
+        b.setAttribute('data-kg-expand-btn', 'true');
+        b.setAttribute('data-kg-icon-only', 'true');
+        ['background', 'background-color', 'background-image', 'box-shadow'].forEach((p) => b.style.removeProperty(p));
+      });
+    } catch (e) {}
+  };
+
   // ============ 滚动与静态联动渐隐（Liquid Glass 动态溶解引擎 v5） ============
   // 卡片/气泡进入 Composer 上方渐变区时，单卡自身平滑溶解渐隐
   // （文字与底色自然消融，不依赖祖先全局 mask，彻底规避 Firefox 滚动容器高度错位与毛玻璃失效）
@@ -725,7 +765,10 @@
       window.addEventListener('blur', ensureSkinAlive);
       document.addEventListener('visibilitychange', ensureSkinAlive);
 
-      const mo = new MutationObserver(() => {
+      const mo = new MutationObserver((muts) => {
+        for (const m of muts) {
+          if (m.addedNodes && m.addedNodes.length) fastTagRecreatedNodes(m.addedNodes);
+        }
         bindScrollListeners();
         schedule();
       });
