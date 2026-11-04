@@ -4,6 +4,7 @@
  let personality,talkState,talkLine,eggTimer,autoHide,hideAnimation,lastBubbleOpen=null;
  let consecutiveClicks=0;
  function armBubble(){clearTimeout(autoHide);if(!closed)autoHide=setTimeout(()=>{closed=true;consecutiveClicks=0;render();},6500);}
+ function applyHonorific(line){if(!line||!snapshot?.settings)return line;const mode=snapshot.settings.userHonorificMode||"none";if(mode==="none")return line;const name=mode==="zayu"?"杂鱼君":(mode==="custom"&&snapshot.settings.customHonorific?snapshot.settings.customHonorific.trim():"");if(!name)return line;return line.includes("人类")?line.replaceAll("人类",name):line;}
  function bubbleVisibility(open){const bubble=$("bubble");if(lastBubbleOpen===open)return;lastBubbleOpen=open;clearTimeout(hideAnimation);bubble.inert=!open;bubble.setAttribute("aria-hidden",String(!open));if(open){bubble.hidden=false;void bubble.offsetWidth;requestAnimationFrame(()=>{if(lastBubbleOpen)bubble.dataset.open="true";});}else{bubble.dataset.open="false";hideAnimation=setTimeout(()=>{if(!lastBubbleOpen)bubble.hidden=true;},snapshot?.settings.reducedMotion?0:180);}}
  function stopReaction(){clearTimeout(eggTimer);if(mascot.dataset.expression){delete mascot.dataset.expression;talkState=null;}}
  const hasWebData=()=>Boolean(snapshot?.webCompanion?.online||snapshot?.webCompanion?.quota);
@@ -135,7 +136,7 @@
   }else if(selected==="latest"){
    const r=l.latest;$("title").textContent="最近模型步骤";$("value").hidden=false;$("value").textContent=format(r?.tokens.total);$("detail").hidden=false;$("detail").textContent=r?"输入 "+format(r.tokens.input)+" · 输出 "+format(r.tokens.output):"尚无数值记录";
    $("meta").textContent=r?"本机记录 · 费用 —（无价格来源）":"等待真实会话记录";
-  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state)){talkState=snapshot.persistentState||snapshot.state;talkLine=personality.say(talkState==="offline"?"idle":talkState);}$("value").textContent=talkLine;$("meta").textContent="点点本喵，再聊一句";}
+  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state)){talkState=snapshot.persistentState||snapshot.state;talkLine=personality.say(talkState==="offline"?"idle":talkState);}$("value").textContent=applyHonorific(talkLine);$("meta").textContent="点点本喵，再聊一句";}
   if(selected!=="talk")$("value").classList.remove("agy-phrase");
  }
  function message(title,body,detail="",ms=4500,meta=""){clearTimeout(timeout);temporary={title,body,detail,meta};closed=false;render();if(ms>0)timeout=setTimeout(()=>{temporary=null;render();},ms);}

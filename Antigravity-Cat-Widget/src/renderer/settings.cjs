@@ -98,7 +98,8 @@
     "snap", "reducedMotion", "clickThrough", "bubbleOn", "turnCostOn",
     "turnCostDurationMs", "sound", "soundSet", "volume", "manualQuota",
     "manualPercent", "manualWeeklyPercent", "clickCatAction",
-    "syncCharacter", "syncWallpaper", "syncInteraction", "petDisplayMode"
+    "syncCharacter", "syncWallpaper", "syncInteraction", "petDisplayMode",
+    "userHonorificMode"
   ];
   const original = Object.fromEntries(keys.map(key => [key, data.settings[key]]));
   const originalDreamSkin = data.dreamSkin ? { ...data.dreamSkin } : null;
@@ -1127,6 +1128,17 @@
     $("source").textContent = (data.source.online ? "已找到 " + data.source.files + " 份日志" : "未检测到会话日志") + " · 本机只读";
     $("audio-note").textContent = data.settings.sound ? "已启用" : "已静音";
 
+    const honorificMode = data.settings.userHonorificMode || "none";
+    if ($("userHonorificMode") && document.activeElement !== $("userHonorificMode")) {
+      $("userHonorificMode").value = honorificMode;
+    }
+    if ($("customHonorific")) {
+      $("customHonorific").style.display = honorificMode === "custom" ? "inline-block" : "none";
+      if (document.activeElement !== $("customHonorific")) {
+        $("customHonorific").value = data.settings.customHonorific || "";
+      }
+    }
+
     // 渲染 Dream Skin 轮播与调节
     if (data.dreamSkin) {
       const ds = data.dreamSkin;
@@ -1167,9 +1179,32 @@
     if (el) {
       el.addEventListener(el.type === "range" ? "input" : "change", () => {
         const v = el.type === "checkbox" ? el.checked : (el.type === "range" || el.type === "number" || key === "turnCostDurationMs") ? (el.value === "" ? null : Number(el.value)) : el.value;
+        if (key === "userHonorificMode" && $("customHonorific")) {
+          const isCustom = v === "custom";
+          $("customHonorific").style.display = isCustom ? "inline-block" : "none";
+          if (isCustom) $("customHonorific").focus();
+        }
         save({ [key]: key === "volume" ? v / 100 : v });
       });
     }
+  }
+
+  if ($("customHonorific")) {
+    const saveCustom = () => {
+      const val = $("customHonorific").value.trim();
+      if (val !== data.settings.customHonorific) {
+        save({ customHonorific: val });
+      }
+    };
+    $("customHonorific").addEventListener("change", saveCustom);
+    $("customHonorific").addEventListener("blur", saveCustom);
+    $("customHonorific").addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveCustom();
+        $("customHonorific").blur();
+      }
+    });
   }
 
   // 资源目录入口

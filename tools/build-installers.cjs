@@ -61,7 +61,7 @@ execFileSync(csc,['/nologo','/target:exe','/optimize+','/out:'+path.join(app,'An
   catch(error){console.warn('web 插件构建失败，webext 组件将只含安装指引：',error.message);}
   webExtReady=fs.existsSync(path.join(web.dist,'kimino-gemini-companion.xpi'))&&fs.existsSync(path.join(web.dist,'kimino-gemini-companion-edge-chrome.zip'));
  }else console.warn('未找到 web 端工作目录（../Catstella-web 或 WEB_COMPANION_PATH），webext 组件将只含安装指引');
- const target=path.join(out,'StarSuite-Setup-'+version+'-x64.exe');
+ const target=path.join(out,'Catstella-Setup-'+version+'-x64.exe');
  fs.rmSync(target,{force:true});
  const isccArgs=['/DAppVersion='+version,'/DStageDir='+stage,'/DOutputDir='+out];
  if(webExtReady)isccArgs.push('/DWebExtFiles='+web.dist);

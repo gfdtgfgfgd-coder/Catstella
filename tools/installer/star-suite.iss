@@ -1,6 +1,6 @@
 ; 星语套件 Inno Setup 安装脚本 — 由 tools/build-installers.cjs 通过 ISCC 编译。
 ; 组件：core（桌宠+皮肤，必装）/ webext（Web 插件包与安装指引，可选，档位 1：复制包 + 图文指引）。
-#define AppName "星语套件"
+#define AppName "Catstella"
 #define AppExe "StarSuite.exe"
 #define AppId "{{A3F5C7E9-1B2D-4E6F-9A8B-C0D1E2F3A4B5}"
 
@@ -8,12 +8,12 @@
 AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
-AppPublisher=Antigravity Star Suite community
-DefaultDirName={localappdata}\Programs\AntigravityStarSuite\Suite
+AppPublisher=Catstella Community
+DefaultDirName={localappdata}\Programs\Catstella\Suite
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=StarSuite-Setup-{#AppVersion}-x64
+OutputBaseFilename=Catstella-Setup-{#AppVersion}-x64
 SetupIconFile={#StageDir}\resources\app\Antigravity-Cat-Widget\assets\app-icon.ico
 Compression=lzma2/max
 SolidCompression=yes
@@ -53,12 +53,12 @@ Source:"{#WebExtFiles}\kimino-gemini-companion-edge-chrome.zip"; DestDir:"{app}\
 
 [Icons]
 Name:"{autodesktop}\{#AppName}"; Filename:"{app}\{#AppExe}"; IconFilename:"{app}\icons\launch.ico"; Components: core
-Name:"{autoprograms}\Antigravity Star Suite\{#AppName}\启动"; Filename:"{app}\{#AppExe}"; IconFilename:"{app}\icons\launch.ico"; Components: core
-Name:"{autoprograms}\Antigravity Star Suite\{#AppName}\设置"; Filename:"{app}\{#AppExe}"; Parameters:"--settings"; IconFilename:"{app}\icons\settings.ico"; Components: core
-Name:"{autoprograms}\Antigravity Star Suite\{#AppName}\卸载"; Filename:"{uninstallexe}"; IconFilename:"{app}\icons\uninstall.ico"; Components: core
+Name:"{autoprograms}\Catstella\{#AppName}\启动"; Filename:"{app}\{#AppExe}"; IconFilename:"{app}\icons\launch.ico"; Components: core
+Name:"{autoprograms}\Catstella\{#AppName}\设置"; Filename:"{app}\{#AppExe}"; Parameters:"--settings"; IconFilename:"{app}\icons\settings.ico"; Components: core
+Name:"{autoprograms}\Catstella\{#AppName}\卸载"; Filename:"{uninstallexe}"; IconFilename:"{app}\icons\uninstall.ico"; Components: core
 
 [Run]
-Filename:"{app}\{#AppExe}"; Description:"立即启动星语套件"; Flags: postinstall nowait skipifdoesntexist; Check: CoreSelected
+Filename:"{app}\{#AppExe}"; Description:"立即启动 Catstella"; Flags: postinstall nowait skipifdoesntexist; Check: CoreSelected
 Filename:"{app}\web-extension\web-plugin-guide.html"; Description:"查看 Web 插件安装指引"; Flags: postinstall shellexec skipifdoesntexist unchecked; Check: WebExtSelected
 
 [Code]

@@ -99,7 +99,7 @@
                   <option value="prefer-web">焦点互斥（浏览 Gemini 网页时隐藏桌面猫猫）</option>
                 </select>
               </label>
-              <label class="row"><span class="row-text"><b>同步角色形态样式</b><small>开启后双端共用同一套猫娘形象（林猫 / 魔猫）；关闭后两端可各自独立穿搭</small></span><input id="syncCharacter" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>同步角色形态样式</b><small>开启后双端共用同一套桌宠形象；关闭后两端可各自独立选择</small></span><input id="syncCharacter" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>同步壁纸图库与自动轮播</b><small>开启后 Web 端实时同步桌面端壁纸与轮播节奏；关闭后两端使用各自独立的壁纸</small></span><input id="syncWallpaper" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>同步互动偏好</b><small>开启后点击猫猫的动作模式在双端保持一致</small></span><input id="syncInteraction" type="checkbox"></label>
             </div>
@@ -107,6 +107,17 @@
             <div class="card">
               <h3>外观与行为</h3>
               <div class="row column"><div class="row-head"><span class="row-text"><b>角色大小</b></span><output id="scale-value"></output></div><input id="scale" type="range" min="140" max="360" step="10"></div>
+              <label class="row">
+                <span class="row-text"><b>桌宠互动称呼</b><small>设置桌宠台词中对你的称呼</small></span>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <select id="userHonorificMode" style="padding:4px 8px;border-radius:8px;border:1px solid rgba(189,162,242,0.3);background:rgba(255,255,255,0.7);font-size:13px;">
+                    <option value="none">（默认）不指定称呼</option>
+                    <option value="zayu">杂鱼君</option>
+                    <option value="custom">其他（自定义）…</option>
+                  </select>
+                  <input id="customHonorific" type="text" placeholder="输入称呼" maxlength="12" style="width:90px;padding:4px 8px;border-radius:8px;border:1px solid rgba(189,162,242,0.3);background:rgba(255,255,255,0.9);font-size:13px;display:none;">
+                </div>
+              </label>
               <label class="row"><span class="row-text"><b>无宿主时退守桌面显示</b><small>反重力未打开时桌宠留在桌面，而不是隐藏</small></span><input id="standaloneDesktopMode" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>桌面模式始终置顶</b><small>仅在不跟随宿主窗口时生效</small></span><input id="alwaysOnTop" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>边缘吸附</b></span><input id="snap" type="checkbox"></label>

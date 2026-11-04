@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..'),version=require('../package.json').versi
 const testRoot=fs.mkdtempSync(path.join(root,'dist','安装验证-')),checks=[];
 const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
 (async()=>{
- for(const [kind,name,exe] of [['Suite','StarSuite','StarSuite.exe']]){
+ for(const [kind,name,exe] of [['Suite','Catstella','StarSuite.exe']]){
   const setup=path.join(root,'dist/installers',name+'-Setup-'+version+'-x64.exe'),dir=path.join(testRoot,kind);
   // Inno 静默沙箱安装：全组件 + 无任务（自启动/联动标志不写入测试机）。
   execFileSync(setup,['/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR='+dir,'/COMPONENTS=core,webext','/TASKS='],{env,timeout:300000});
