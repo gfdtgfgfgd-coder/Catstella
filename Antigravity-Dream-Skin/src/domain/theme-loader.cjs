@@ -145,7 +145,7 @@ class WallpaperManager{
    positionY:Math.max(0,Math.min(100,settings.positionY??50)),
    zoom:Math.max(1,Math.min(2,settings.zoom??1)),
    opacity:Math.max(0,Math.min(100,settings.opacity??55))/100,
-   fit:["cover","contain","adaptive"].includes(settings.fit)?settings.fit:"adaptive",
+   transition:settings.transition==="none"?"none":"fade",fit:["cover","contain","adaptive"].includes(settings.fit)?settings.fit:"adaptive",
    scrim:Math.max(0,Math.min(60,settings.scrim??12))/100,
    image:"data:"+pack.mime+";base64,"+buffer.toString("base64")
   };

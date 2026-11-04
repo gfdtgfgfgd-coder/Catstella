@@ -9,6 +9,19 @@
   if ($("win-min-btn")) $("win-min-btn").onclick = () => api.command("settings-minimize");
   if ($("win-close-btn")) $("win-close-btn").onclick = () => api.command("settings-close");
 
+  // 1.5 侧边导航：分页切换并记忆上次所在页
+  const navItems = [...document.querySelectorAll(".nav-item")];
+  const pages = [...document.querySelectorAll(".page")];
+  function showPage(name) {
+    if (!pages.some(p => p.dataset.page === name)) name = "overview";
+    navItems.forEach(b => b.classList.toggle("active", b.dataset.page === name));
+    pages.forEach(p => p.classList.toggle("active", p.dataset.page === name));
+    const scroller = $("content-scroll"); if (scroller) scroller.scrollTop = 0;
+    try { localStorage.setItem("cat_settings_page", name); } catch {}
+  }
+  navItems.forEach(b => b.onclick = () => showPage(b.dataset.page));
+  showPage((() => { try { return localStorage.getItem("cat_settings_page"); } catch { return null; } })() || "overview");
+
   // 2. 音效选项填充
   for (const p of data.presets || []) {
     const o = document.createElement("option");
@@ -185,6 +198,8 @@
       $("dream-scrim-value").textContent = $("dream-scrim").value + "%";
       if (document.activeElement !== $("dream-output-mode")) $("dream-output-mode").checked = ds.outputMode === "glass";
       if (document.activeElement !== $("uiLanguage")) $("uiLanguage").value = ds.uiLanguage || "en";
+      if ($("dream-enabled") && document.activeElement !== $("dream-enabled")) $("dream-enabled").checked = ds.enabled === true;
+      if ($("dream-transition") && document.activeElement !== $("dream-transition")) $("dream-transition").value = ds.transition === "none" ? "none" : "fade";
     }
 
     // 渲染两个全新画廊
@@ -259,6 +274,9 @@
   if ($("preview-shy")) $("preview-shy").onclick = () => { api.command("preview-reaction:shy"); $("saved").textContent = "已触发「害羞」表情展示~"; };
   if ($("preview-angry")) $("preview-angry").onclick = () => { api.command("preview-reaction:angry"); $("saved").textContent = "已触发「气恼」表情展示~"; };
   if ($("preview-reaction")) $("preview-reaction").onclick = () => api.command("preview-reaction");
+
+  if ($("dream-enabled")) $("dream-enabled").onchange = () => save({ dreamSkin: { enabled: $("dream-enabled").checked } }, $("dream-enabled").checked ? "已应用到 Antigravity" : "已从 Antigravity 还原");
+  if ($("dream-transition")) $("dream-transition").onchange = () => save({ dreamSkin: { transition: $("dream-transition").value } }, "已更新切换动画");
 
   $("undo").onclick = () => save(original, "已恢复到打开设置时");
   $("dock-left").onclick = () => api.command("dock-left");

@@ -8,185 +8,227 @@
 </head>
 <body>
   <div class="settings-shell">
-    <!-- 自定义无边框拖拽标题栏 -->
     <header class="custom-titlebar">
       <div class="titlebar-drag-area">
-        <span class="titlebar-icon">🐱</span>
+        <span class="titlebar-icon">🐾</span>
         <span class="titlebar-title">喵言喵语 · 设置中心</span>
         <span class="titlebar-subtitle">Gemini Companion</span>
       </div>
       <div class="titlebar-controls">
-        <button id="win-min-btn" class="titlebar-btn min" type="button" title="最小化">─</button>
-        <button id="win-close-btn" class="titlebar-btn close" type="button" title="关闭设置">✕</button>
+        <button id="win-min-btn" class="titlebar-btn min" type="button" title="最小化">–</button>
+        <button id="win-close-btn" class="titlebar-btn close" type="button" title="关闭">✕</button>
       </div>
     </header>
 
-    <!-- 滚动内容区 -->
-    <div class="settings-scroll-body">
-      <div class="settings-hero">
-        <div class="hero-top-row">
-          <p class="hero-tag">GEMINI STAR / COMPANION</p>
-          <button id="btn-refresh-state" class="hero-refresh-btn" type="button">🔄 刷新状态</button>
+    <div class="settings-layout">
+      <!-- 左侧导航：新增页面只需在这里加一个 button[data-page] 和一个 section.page[data-page] -->
+      <nav class="side-nav" id="side-nav" aria-label="设置分类">
+        <button type="button" class="nav-item active" data-page="overview"><span class="nav-ico">🏠</span><span>总览</span></button>
+        <button type="button" class="nav-item" data-page="pet"><span class="nav-ico">🐱</span><span>桌宠</span></button>
+        <button type="button" class="nav-item" data-page="wallpaper"><span class="nav-ico">🖼️</span><span>壁纸轮播</span></button>
+        <button type="button" class="nav-item" data-page="agy"><span class="nav-ico">🪐</span><span>反重力</span></button>
+        <button type="button" class="nav-item" data-page="interact"><span class="nav-ico">💬</span><span>互动</span></button>
+        <button type="button" class="nav-item" data-page="audio"><span class="nav-ico">🔔</span><span>音效</span></button>
+        <button type="button" class="nav-item" data-page="quota"><span class="nav-ico">📊</span><span>用量</span></button>
+        <div class="nav-spacer"></div>
+        <button type="button" class="nav-item" data-page="about"><span class="nav-ico">✨</span><span>关于</span></button>
+      </nav>
+
+      <div class="content-col">
+        <div class="content-scroll" id="content-scroll">
+
+          <!-- 总览 -->
+          <section class="page active" data-page="overview">
+            <div class="hero">
+              <div>
+                <p class="hero-tag">GEMINI STAR / COMPANION</p>
+                <h1>星语套件</h1>
+                <span id="source" class="hero-sub">正在读取状态…</span>
+              </div>
+              <button id="refresh" class="btn" type="button">🔄 刷新状态</button>
+            </div>
+
+            <div class="card">
+              <h3>快捷开关</h3>
+              <label class="row"><span class="row-text"><b>应用到 Antigravity</b><small>开启后壁纸与毛玻璃主题会应用到反重力窗口</small></span><input id="dream-enabled" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>仅在 Antigravity 窗口内显示</b><small>反重力未打开时桌宠自动隐藏或退守桌面</small></span><input id="hostWindowOnly" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>显示气泡</b></span><input id="bubbleOn" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>音效</b></span><input id="sound" type="checkbox"></label>
+            </div>
+
+            <div class="card">
+              <h3>位置与维护</h3>
+              <div class="btn-row">
+                <button id="dock-left" class="btn" type="button">停靠左下</button>
+                <button id="dock-right" class="btn" type="button">停靠右下</button>
+                <button id="reset" class="btn" type="button">重置位置</button>
+                <button id="quota-refresh" class="btn" type="button">静默刷新额度</button>
+              </div>
+              <p class="hint">Ctrl+Alt+G 唤回桌宠，Ctrl+Alt+Shift+G 关闭鼠标穿透。</p>
+            </div>
+          </section>
+
+          <!-- 桌宠 -->
+          <section class="page" data-page="pet">
+            <h2 class="page-title">桌宠</h2>
+            <div class="card">
+              <div class="gallery-header">
+                <div class="gallery-title-wrap"><span class="gallery-label">形态选择</span><span class="gallery-count" id="character-count">2 款形态</span></div>
+                <div class="gallery-toolbar">
+                  <div class="view-mode-toggle" id="char-view-toggle">
+                    <button type="button" class="view-btn active" data-mode="carousel">横向</button>
+                    <button type="button" class="view-btn" data-mode="grid">网格</button>
+                  </div>
+                  <button id="open-character-dir" class="btn small" type="button">📁 素材</button>
+                </div>
+              </div>
+              <div class="gallery-container mode-carousel" id="character-gallery"></div>
+              <select id="characterPack" style="display:none"></select>
+            </div>
+
+            <div class="card">
+              <h3>外观与行为</h3>
+              <div class="row column"><div class="row-head"><span class="row-text"><b>角色大小</b></span><output id="scale-value"></output></div><input id="scale" type="range" min="140" max="360" step="10"></div>
+              <label class="row"><span class="row-text"><b>无宿主时退守桌面显示</b><small>反重力未打开时桌宠留在桌面，而不是隐藏</small></span><input id="standaloneDesktopMode" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>桌面模式始终置顶</b><small>仅在不跟随宿主窗口时生效</small></span><input id="alwaysOnTop" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>边缘吸附</b></span><input id="snap" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>减少动态</b></span><input id="reducedMotion" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>鼠标穿透</b><small>Ctrl+Alt+Shift+G 可随时恢复</small></span><input id="clickThrough" type="checkbox"></label>
+            </div>
+          </section>
+
+          <!-- 壁纸轮播 -->
+          <section class="page" data-page="wallpaper">
+            <h2 class="page-title">壁纸轮播</h2>
+            <div class="card">
+              <div class="gallery-header">
+                <div class="gallery-title-wrap"><span class="gallery-label">当前壁纸图库</span><span class="gallery-count" id="wallpaper-count">3 张</span></div>
+                <div class="gallery-toolbar">
+                  <div class="view-mode-toggle" id="wall-view-toggle">
+                    <button type="button" class="view-btn active" data-mode="carousel">横向</button>
+                    <button type="button" class="view-btn" data-mode="grid">网格</button>
+                  </div>
+                  <button id="open-wallpaper-dir" class="btn small" type="button">📁 壁纸</button>
+                  <button id="next-wallpaper" class="btn small" type="button">⏭ 下一张</button>
+                </div>
+              </div>
+              <div class="gallery-container mode-carousel" id="wallpaper-gallery"></div>
+              <p class="hint">壁纸目录支持放入任意 16:9 壁纸，自动加入轮播与预览。</p>
+            </div>
+
+            <div class="card">
+              <h3>自动轮播</h3>
+              <label class="row"><span class="row-text"><b>启用壁纸自动轮播</b></span><input id="slideshow-enabled" type="checkbox"></label>
+              <div class="row column">
+                <div class="row-head"><span class="row-text"><b>轮播间隔</b></span><output id="slideshow-interval-value">5 分钟</output></div>
+                <div class="damped-slider-wrap">
+                  <input id="slideshow-interval" class="damped-range" type="range" min="1" max="60" step="1" value="5">
+                  <div class="damped-ticks">
+                    <span data-val="1">1m</span><span data-val="3">3m</span><span data-val="5">5m</span><span data-val="10">10m</span><span data-val="15">15m</span><span data-val="30">30m</span><span data-val="60">60m</span>
+                  </div>
+                </div>
+              </div>
+              <label class="row"><span class="row-text"><b>切换动画</b><small>类似 Windows 7 幻灯片：新壁纸淡入、旧壁纸淡出</small></span>
+                <select id="dream-transition"><option value="fade">渐变淡入淡出</option><option value="none">无动画</option></select></label>
+            </div>
+
+            <div class="card">
+              <h3>可读性</h3>
+              <div class="row column"><div class="row-head"><span class="row-text"><b>壁纸可见度</b><small>建议 18% ~ 28%</small></span><output id="dream-opacity-value">22%</output></div><input id="dream-opacity" class="damped-range" type="range" min="0" max="100" step="1" value="22"></div>
+              <div class="row column"><div class="row-head"><span class="row-text"><b>背景遮罩浓度</b><small>建议 25% ~ 35%，让代码与对话保持最佳可读性</small></span><output id="dream-scrim-value">25%</output></div><input id="dream-scrim" class="damped-range" type="range" min="0" max="60" step="1" value="25"></div>
+              <label class="row"><span class="row-text"><b>磨砂玻璃卡片</b><small>给回复文字加一层高清晰度的毛玻璃底</small></span><input id="dream-output-mode" type="checkbox"></label>
+            </div>
+          </section>
+
+          <!-- 反重力 -->
+          <section class="page" data-page="agy">
+            <h2 class="page-title">反重力</h2>
+            <div class="card">
+              <h3>界面语言</h3>
+              <label class="row"><span class="row-text"><b>Antigravity 界面语言</b><small>经本机调试通道注入字典翻译；输入框、代码与终端绝不触碰。切回 English 即完整还原。</small></span>
+                <select id="uiLanguage"><option value="en">English（原版）</option><option value="zh-CN">简体中文 · 实验翻译</option></select></label>
+            </div>
+            <div class="card">
+              <h3>主题预设 <span class="chip">框架已就绪 · 即将开放</span></h3>
+              <div class="theme-grid" id="theme-grid">
+                <button type="button" class="theme-card active" data-theme="violet"><i style="background:linear-gradient(135deg,#6a4bb8,#2a1f45)"></i><b>星轨紫</b></button>
+                <button type="button" class="theme-card disabled" data-theme="pink" disabled><i style="background:linear-gradient(135deg,#f08fc0,#7a3a68)"></i><b>梦幻粉</b></button>
+                <button type="button" class="theme-card disabled" data-theme="ocean" disabled><i style="background:linear-gradient(135deg,#3b7bd6,#10243f)"></i><b>深海蓝</b></button>
+                <button type="button" class="theme-card disabled" data-theme="onyx" disabled><i style="background:linear-gradient(135deg,#46465a,#0e0e14)"></i><b>曜石黑</b></button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 互动 -->
+          <section class="page" data-page="interact">
+            <h2 class="page-title">互动</h2>
+            <div class="card">
+              <label class="row"><span class="row-text"><b>点击猫猫时</b></span>
+                <select id="clickCatAction"><option value="talk">切换陪伴 · 对话</option><option value="cyclePages">切换页面（额度页）</option></select></label>
+              <p class="hint" id="clickCatAction-hint">选择切换页面：第 1 次释放 Gemini Models，第 2 次看 Claude &amp; GPT，第 3 次回到对话。</p>
+              <label class="row"><span class="row-text"><b>显示单轮模型花费提示</b><small>只统计标志性模型的单轮花费</small></span><input id="turnCostOn" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>提示停留时长</b></span>
+                <select id="turnCostDurationMs"><option value="3000">3 秒</option><option value="5000">5 秒</option><option value="10000">10 秒</option><option value="0">直到手动关闭</option></select></label>
+            </div>
+            <div class="card">
+              <h3>彩蛋</h3>
+              <label class="row"><span class="row-text"><b>偶发委屈彩蛋</b></span><input id="easterEggs" type="checkbox"></label>
+              <div class="btn-row">
+                <button id="preview-proud" class="btn" type="button">✨ 预览「得意」</button>
+                <button id="preview-crying" class="btn" type="button">💧 预览「委屈」</button>
+                <button id="preview-shy" class="btn" type="button">🌸 预览「害羞」</button>
+                <button id="preview-angry" class="btn" type="button">💢 预览「气恼」</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 音效 -->
+          <section class="page" data-page="audio">
+            <h2 class="page-title">音效</h2>
+            <div class="card">
+              <label class="row"><span class="row-text"><b>音色</b></span><select id="soundSet"></select></label>
+              <div class="row column"><div class="row-head"><span class="row-text"><b>音量</b></span><output id="volume-value"></output></div><input id="volume" type="range" min="0" max="100"></div>
+              <div class="btn-row"><button id="audition" class="btn" type="button">▶ 试听一下</button><span id="audio-note" class="hint inline">默认静音</span></div>
+            </div>
+          </section>
+
+          <!-- 用量 -->
+          <section class="page" data-page="quota">
+            <h2 class="page-title">用量</h2>
+            <div class="card">
+              <label class="row"><span class="row-text"><b>启用手动额度记录</b><small>打开 Gemini Models 窗口读不到时，以手动记录为准</small></span><input id="manualQuota" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>5 小时剩余 %</b></span><input id="manualPercent" type="number" min="0" max="100" step="1"></label>
+              <label class="row"><span class="row-text"><b>1 周剩余 %</b></span><input id="manualWeeklyPercent" type="number" min="0" max="100" step="1"></label>
+            </div>
+            <div class="card dashed"><h3>双端用量联动 <span class="chip">规划中</span></h3><p class="hint">在同一只桌宠里同时查看 agy 与 Web 端用量，且可选互斥显示。</p></div>
+          </section>
+
+          <!-- 关于 -->
+          <section class="page" data-page="about">
+            <h2 class="page-title">关于</h2>
+            <div class="card">
+              <h3>喵言喵语 · 星语套件</h3>
+              <p class="hint">桌宠 + 反重力梦幻皮肤 + Web 伴侣。作者 lynnfei &amp; Monokumakuki。</p>
+            </div>
+            <div class="card dashed">
+              <h3>路线图 <span class="chip">占位</span></h3>
+              <ul class="roadmap">
+                <li>桌宠与皮肤的联动 / 解耦设置</li>
+                <li>在线更新与联网下载样式、壁纸</li>
+                <li>自动碎碎念</li>
+                <li>双端记忆与人格同步</li>
+              </ul>
+            </div>
+            <div class="card"><h3>调试</h3><div class="btn-row"><button id="preview-reaction" class="btn" type="button">测试反应</button></div></div>
+          </section>
+
         </div>
-        <h1>让陪伴恰到好处。</h1>
-        <span id="source">正在读取状态……</span>
-      </div>
 
-      <main>
-        <!-- 1. 外观与桌宠形态 -->
-        <section>
-          <h2>外观与形态</h2>
-
-          <div class="gallery-section">
-            <div class="gallery-header">
-              <div class="gallery-title-wrap">
-                <span class="gallery-label">桌宠形态选择</span>
-                <span class="gallery-count" id="character-count">2 款形态</span>
-              </div>
-              <div class="gallery-toolbar">
-                <div class="view-mode-toggle" id="char-view-toggle">
-                  <button type="button" class="view-btn active" data-mode="carousel" title="横向滚动模式">⇄ 横向视图</button>
-                  <button type="button" class="view-btn" data-mode="grid" title="2xN 网格模式">☷ 网格视图</button>
-                </div>
-                <button id="open-character-dir" class="gallery-action-btn" type="button" title="打开素材目录管理自定义桌宠">📂 管理素材</button>
-              </div>
-            </div>
-            <div class="gallery-container mode-carousel" id="character-gallery">
-              <!-- 动态注入角色卡片 -->
-            </div>
-          </div>
-
-          <select id="characterPack" style="display:none"></select>
-
-          <label>角色大小 <input id="scale" type="range" min="140" max="360" step="10"><output id="scale-value"></output></label>
-          <label><span>仅在 Antigravity 窗口内显示</span><input id="hostWindowOnly" type="checkbox"></label>
-          <label><span>无宿主时退守桌面显示</span><input id="standaloneDesktopMode" type="checkbox"></label>
-          <p class="hint">Antigravity 未运行时挂件不隐藏，退回桌面角落独立待机；关闭则维持隐藏行为。</p>
-          <p class="hint">原生绑定宿主窗口，随宿主层级与最小化状态变化；关闭后恢复桌面全局位置。</p>
-          <label><span>始终置顶</span><input id="alwaysOnTop" type="checkbox"></label>
-          <label><span>贴近边缘时吸附</span><input id="snap" type="checkbox"></label>
-          <label><span>减少动态</span><input id="reducedMotion" type="checkbox"></label>
-          <label><span>鼠标穿透</span><input id="clickThrough" type="checkbox"></label>
-          <p class="hint">Ctrl+Alt+G 唤回；Ctrl+Alt+Shift+G 关闭穿透。</p>
-        </section>
-
-        <!-- 2. 星语壁纸与轮播 -->
-        <section>
-          <h2>星语壁纸与轮播</h2>
-
-          <div class="gallery-section">
-            <div class="gallery-header">
-              <div class="gallery-title-wrap">
-                <span class="gallery-label">当前壁纸图样</span>
-                <span class="gallery-count" id="wallpaper-count">3 张</span>
-              </div>
-              <div class="gallery-toolbar">
-                <div class="view-mode-toggle" id="wall-view-toggle">
-                  <button type="button" class="view-btn active" data-mode="carousel" title="横向滚动模式">⇄ 横向视图</button>
-                  <button type="button" class="view-btn" data-mode="grid" title="2xN 网格模式">☷ 网格视图</button>
-                </div>
-                <button id="open-wallpaper-dir" class="gallery-action-btn" type="button" title="在资源管理器中打开壁纸目录">📂 管理壁纸</button>
-                <button id="next-wallpaper" class="gallery-action-btn" type="button" title="切换到下一张壁纸">⏭ 切下一张</button>
-              </div>
-            </div>
-            <div class="gallery-container mode-carousel" id="wallpaper-gallery">
-              <!-- 动态注入壁纸卡片 -->
-            </div>
-          </div>
-
-          <p class="hint">壁纸目录支持放入任意自定义 16:9 高清壁纸，放入后自动参与轮播与预览选择。</p>
-          <label><span>启用壁纸自动轮播</span><input id="slideshow-enabled" type="checkbox"></label>
-          <label><span>轮播切换间隔（阻尼滑块）</span><output id="slideshow-interval-value">5 分钟</output></label>
-          <div class="damped-slider-wrap">
-            <input id="slideshow-interval" class="damped-range" type="range" min="1" max="60" step="1" value="5">
-            <div class="damped-ticks">
-              <span data-val="1">1m</span>
-              <span data-val="3">3m</span>
-              <span data-val="5">5m</span>
-              <span data-val="10">10m</span>
-              <span data-val="15">15m</span>
-              <span data-val="30">30m</span>
-              <span data-val="60">60m</span>
-            </div>
-          </div>
-          <label><span>壁纸可见度（透明度）</span><output id="dream-opacity-value">22%</output></label>
-          <input id="dream-opacity" class="damped-range" type="range" min="0" max="100" step="1" value="22">
-          <label><span>背景遮罩浓度（调高可强化字迹）</span><output id="dream-scrim-value">25%</output></label>
-          <input id="dream-scrim" class="damped-range" type="range" min="0" max="60" step="1" value="25">
-          <label><span>磨砂玻璃卡片（窗口文字极高清晰度）</span><input id="dream-output-mode" type="checkbox"></label>
-          <label><span>Antigravity 界面语言</span><select id="uiLanguage"><option value="en">English（原版）</option><option value="zh-CN">简体中文 · 实验翻译层</option></select></label>
-          <p class="hint">经本机调试通道注入字典翻译，只改常见界面词；输入框、代码与终端绝不触碰。切回 English 即完整还原原文，重启宿主页面或点「刷新状态」重新加载。</p>
-          <p class="hint">壁纸可见度建议设为 18%~28%，背景遮罩设为 25%~35%，可让代码与对话保持最佳可读性。</p>
-        </section>
-
-        <!-- 3. 气泡与用量 -->
-        <section>
-          <h2>气泡与用量</h2>
-          <label><span>显示气泡</span><input id="bubbleOn" type="checkbox"></label>
-          <label>
-            <span>单击桌宠操作</span>
-            <select id="clickCatAction">
-              <option value="talk">切换喵言喵语（额度巡检 ➔ 对话）</option>
-              <option value="cyclePages">切换气泡页面（轮流翻页）</option>
-            </select>
-          </label>
-          <p class="hint" id="clickCatAction-hint">选「切换喵言喵语」：第1次摸头看 Gemini Models，第2次看 Claude & GPT，第3次及以后持续聊天互动。</p>
-          <label><span>新模型步骤的用量提示</span><input id="turnCostOn" type="checkbox"></label>
-          <label>提示停留
-            <select id="turnCostDurationMs">
-              <option value="3000">3 秒</option>
-              <option value="5000">5 秒</option>
-              <option value="10000">10 秒</option>
-              <option value="0">直到主动收起</option>
-            </select>
-          </label>
-          <p class="hint">只统计本机日志中的模型步骤。宿主在线时自动秒级静默读取真实额度。</p>
-        </section>
-
-        <!-- 4. 猫娘彩蛋与表情 -->
-        <section>
-          <h2>猫娘彩蛋与表情</h2>
-          <label><span>偶尔得意或委屈一下</span><input id="easterEggs" type="checkbox"></label>
-          <div class="actions">
-            <button id="preview-proud" type="button">✨ 预览「得意」表情</button>
-            <button id="preview-crying" type="button">💧 预览「委屈」表情</button>
-            <button id="preview-shy" type="button">😳 预览「害羞」表情</button>
-            <button id="preview-angry" type="button">💢 预览「气恼」表情</button>
-          </div>
-          <p class="hint">点击按钮可在桌宠身上直接展示对应彩蛋表情（得意 / 委屈 / 害羞 / 气恼）。</p>
-        </section>
-
-        <!-- 5. 原声音效 -->
-        <section>
-          <h2>原声音效</h2>
-          <label><span>启用音效</span><input id="sound" type="checkbox"></label>
-          <label>音色<select id="soundSet"></select></label>
-          <label>音量<input id="volume" type="range" min="0" max="100"><output id="volume-value"></output></label>
-          <div class="actions">
-            <button id="audition" type="button">试听一组</button>
-            <span id="audio-note">默认静音</span>
-          </div>
-        </section>
-
-        <!-- 6. 手动额度记录 -->
-        <section>
-          <h2>手动额度记录</h2>
-          <label><span>显示手动记录</span><input id="manualQuota" type="checkbox"></label>
-          <label>5 小时剩余 %<input id="manualPercent" type="number" min="0" max="100" step="1"></label>
-          <label>1 周剩余 %<input id="manualWeeklyPercent" type="number" min="0" max="100" step="1"></label>
-          <p class="hint">可自行填写 Gemini Models 两个周期的剩余比例，气泡明确标记“手动记录”。不会当作服务端读取结果。</p>
-        </section>
-
-        <footer>
-          <button id="dock-left" type="button">左下角</button>
-          <button id="dock-right" type="button">右下角</button>
-          <button id="reset" type="button">重置位置</button>
-          <button id="quota-refresh" type="button">静默刷新额度</button>
-          <button id="refresh" type="button">重新扫描日志</button>
-          <button id="undo" type="button" title="恢复本次打开面板前的设置">撤回本次调整</button>
+        <footer class="status-bar">
+          <button id="undo" class="btn small" type="button" title="恢复到打开设置时的状态">↶ 撤回本次改动</button>
           <span id="saved" role="status"></span>
         </footer>
-      </main>
+      </div>
     </div>
   </div>
 
