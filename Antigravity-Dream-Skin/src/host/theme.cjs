@@ -1,11 +1,11 @@
 // Serialized into the host by its existing local CDP endpoint. No app files are modified.
 async function installTheme(config){
  const key="__agyDreamSkinV2";
- if(window[key]){if(window[key].owner!==config.owner)throw new Error("皮肤由另一个运行实例管理");if(window[key].status().applied){window[key].update(config);return window[key].status();}window[key].destroy();}
+ if(window[key]){if(window[key].owner!==config.owner)throw new Error("皮肤由另一个运行实例管理");if(window[key].status().applied){await window[key].update(config);return window[key].status();}window[key].destroy();}
  document.querySelectorAll('#agy-dream-style-v2, #agy-dream-wallpaper-v2').forEach(el => el.remove());
  const root=document.querySelector("#root")||document.querySelector("#app");
  if(!root)return{applied:false,reason:"unsupported-root"};
- const image=new Image();image.src=config.image;await image.decode();
+ let image=new Image();image.src=config.image;await image.decode();let currentSrc=config.image;
  if(!root.isConnected)return{applied:false,reason:"detached-root"};
  document.querySelectorAll('#agy-dream-wallpaper-v2').forEach(el => el.remove());
  const saved=[],seen=new WeakSet();
@@ -357,7 +357,7 @@ async function installTheme(config){
   }
  }
  function schedule(){clearTimeout(timer);timer=setTimeout(scan,160);}
- function update(next){config=next;root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});layer.style.opacity=String(config.opacity??.55);layer.style.backgroundColor="transparent";layer.style.backgroundImage='linear-gradient(rgba(20,15,35,'+config.scrim+'),rgba(20,15,35,'+config.scrim+')),url("'+config.image+'")';layer.style.backgroundSize=config.fit==="adaptive"?"100% 100%,cover":"100% 100%,"+config.fit;layer.style.backgroundColor=config.fit==="adaptive"?(dark?"#242033":"#ede4f7"):"transparent";scan();}
+ async function update(next){if(next.image&&next.image!==currentSrc){const fresh=new Image();fresh.src=next.image;await fresh.decode();image=fresh;currentSrc=next.image;}config=next;root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});layer.style.opacity=String(config.opacity??.55);layer.style.backgroundColor="transparent";layer.style.backgroundImage='linear-gradient(rgba(20,15,35,'+config.scrim+'),rgba(20,15,35,'+config.scrim+')),url("'+config.image+'")';layer.style.backgroundSize=config.fit==="adaptive"?"100% 100%,cover":"100% 100%,"+config.fit;layer.style.backgroundColor=config.fit==="adaptive"?(dark?"#242033":"#ede4f7"):"transparent";scan();}
  function destroy(){
   active=false;clearTimeout(timer);observer?.disconnect();resize?.disconnect();
   document.querySelectorAll('#agy-dream-style-v2, #agy-dream-wallpaper-v2').forEach(el => el.remove());
