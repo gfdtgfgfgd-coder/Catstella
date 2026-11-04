@@ -121,7 +121,8 @@ npm test
 1. **软件源代码许可**：本项目包含的原创源代码采用 [MIT License](LICENSE) 开源发布。
 2. **美术与非代码资产限制**：
    - **MIT 许可证不适用于本项目包含的所有角色立绘、原画设定、壁纸图片、衍生美术以及非开源音效**；
-   - 角色形象及相关设定参考归原设计者所有；所有美术资产仅供本项目展示、个人学习与桌面美化使用，**严禁任何形式的商业变现、非授权提取或二次转售**；
+   - 角色设计参考按提供者记录署名 ZipZipPipe；角色与设定集图片由 AI 辅助生成，保留生成提示词，不宣称 Google 官方授权或原设的再许可权。公开版未包含原作者参考图、私人截图或未确认再分发许可的 DSH 鸭叫音频；
+   - **粉毛 Gemini 形象所有权归本仓库管理者所有，使用及二创须遵循 CC BY-NC-SA 4.0 协议**；
    - 仓库内音频资源均已注明许可来源（Kenney CC0 / 上游 MIT 合成音频），未包含未经明确授权的第三方商业音频；
    - 详情请查阅 [ASSETS.md](ASSETS.md) 与 [NOTICE.md](NOTICE.md)。
 3. **免责条款**：
@@ -135,5 +136,5 @@ npm test
 本项目在开发过程中参考并衍生自以下开源项目与原创设计：
 
 - **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**：本项目基础工程衍生自 Monokumakuki 的开源项目，感谢原作者在初期架构、CDP 探针机制与双端雏形上的贡献；
-- **ZipZipPipe**：感谢 ZipZipPipe 提供的 Gemini 星语猫娘角色概念设计参考与创意支持；
+- **ZipZipPipe**：角色设计参考按提供者记录署名 ZipZipPipe，感谢原设概念启发；
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** 与 **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**：感谢两大家居式桌宠项目在交互反馈、气泡状态机及额度观察逻辑上的开源启发。

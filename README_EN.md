@@ -121,7 +121,8 @@ Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables c
 1. **Software License**: Original source code is licensed under the [MIT License](LICENSE).
 2. **Artwork & Non-Code Asset Restrictions**:
    - **The MIT license DOES NOT apply to any character artworks, illustrations, wallpapers, or non-open-source audio files.**
-   - All character designs and concepts remain the property of their respective creators. Assets are provided solely for personal non-commercial desktop enhancement and study. **Commercial use, unauthorized extraction, or resale is strictly prohibited.**
+   - Character design reference is attributed to provider record ZipZipPipe; character and concept artworks are AI-assisted generations with generation prompts preserved, and do not claim Google official endorsement or relicensing rights for original designs. The public release excludes author reference artworks, private screenshots, or unconfirmed redistributable DSH audio assets.
+   - **Ownership of the pink-haired Gemini character design belongs to the repository maintainer. Usage and derivative creations must adhere to the CC BY-NC-SA 4.0 license.**
    - Audio effects are licensed under their respective sources (Kenney CC0 / Upstream MIT synthetic audio); see [ASSETS.md](ASSETS.md) and [NOTICE.md](NOTICE.md) for full attribution.
 3. **No Warranty**:
    - Catstella relies on local CDP interfaces and DOM selectors of the host. Future host updates may alter layouts or internal APIs.
@@ -134,5 +135,5 @@ Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables c
 This project was developed with reference to and derivative of the following open-source projects and original designs:
 
 - **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**: Foundational engineering base derived from Monokumakuki's repository; grateful for the pioneering architecture, early CDP probe exploration, and initial companion prototypes;
-- **ZipZipPipe**: Gratitude to ZipZipPipe for the original Gemini Star Neko character design reference and creative support;
+- **ZipZipPipe**: Character design reference attributed to provider record ZipZipPipe, with appreciation for original conceptual inspiration;
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** & **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**: Appreciation to both pioneering projects for open-source inspiration regarding companion interaction, thought bubbles, and telemetry observation.

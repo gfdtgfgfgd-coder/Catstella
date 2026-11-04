@@ -4,7 +4,8 @@
 
 ## Gemini 星语角色
 
-- 设计参考：提供者记录为 ZipZipPipe 的 Gemini 星语猫姬。此署名不代表已获得原作者、Google 或其他权利人的背书。
+- 角色设计参考按提供者记录署名 ZipZipPipe；角色与设定集图片由 AI 辅助生成，保留生成提示词，不宣称 Google 官方授权或原设的再许可权。公开版未包含原作者参考图、私人截图或未确认再分发许可的 DSH 鸭叫音频。
+- 粉毛 Gemini 形象所有权归本仓库管理者所有，使用及二创须遵循 CC BY-NC-SA 4.0 协议。
 - 默认半身图：`Antigravity-Cat-Widget/assets/characters/gemini-bust-idle-v3.png`，运行副本为角色包内 `frames/idle.png`；AI 辅助生成，生成提示词随文件保留。
 - 表情：`proud-v3.png` / `sad-v3.png` 为默认图的局部衍生，生成脚本在 `tools/derive-expressions.cjs`。其他帧为历史候选，不表示全部默认启用。
 - 壁纸：`Antigravity-Dream-Skin/assets/wallpapers/gemini-character-sheet-v1/wallpaper.png`，AI 辅助生成；提示词与 SHA-256 随包保留。

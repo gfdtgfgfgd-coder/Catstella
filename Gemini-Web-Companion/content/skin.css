@@ -8,10 +8,21 @@
   height: 100vh !important;
   z-index: -99999 !important;
   pointer-events: none !important;
+  background-color: #0d091a !important;
+  overflow: hidden !important;
+}
+
+.kimino-wallpaper-layer {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
-  transition: opacity 0.6s ease !important;
+  pointer-events: none !important;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  will-change: opacity !important;
 }
 
 /* 激活皮肤时的全局底色透视 */
@@ -134,7 +145,7 @@ html.kimino-dream-active :is(user-query, .user-query) * {
   backdrop-filter: none !important;
 }
 
-/* (B) 模型回答卡片：平铺通透单层卡片 */
+/* (B) 模型回答卡片：通透晶莹单层毛玻璃质感 (0.42 透光) */
 html.kimino-dream-active .response-container,
 html.kimino-dream-active [data-test-id="model-response"] {
   background: transparent !important;
@@ -146,7 +157,7 @@ html.kimino-dream-active [data-test-id="model-response"] {
 
 html.kimino-dream-active model-response {
   display: block !important;
-  background-color: rgba(18, 14, 30, 0.72) !important;
+  background-color: rgba(18, 14, 30, 0.42) !important;
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)) !important;
   backdrop-filter: blur(20px) saturate(125%) !important;
   border: 1px solid rgba(185, 155, 234, 0.22) !important;
@@ -156,29 +167,66 @@ html.kimino-dream-active model-response {
   margin: 14px 0 !important;
 }
 
-/* 剥离模型回答内部子容器的重复滤镜 */
+/* 剥离模型回答内部所有嵌套子容器与文字板的实色深黑背景 */
 html.kimino-dream-active model-response :is(
+  .response-container,
   .response-container-content,
-  .message-content,
   .presented-response-container,
-  .response-content
+  .response-content,
+  .message-content,
+  .content,
+  [class*="response-container"],
+  [class*="presented-response"],
+  [class*="response-content"],
+  [class*="message-content"],
+  [class*="model-response-text"],
+  [class*="markdown-main-panel"],
+  [class*="bottom-row"],
+  [class*="header"],
+  [class*="footer"]
 ) {
-  background: transparent !important;
-  border: none !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
-  padding: 0 !important;
 }
 
-/* (C) 思维链/Thinking 折叠卡片 */
-html.kimino-dream-active :is(details, .thought-container, [data-test-id="thinking-process"]) {
-  background-color: rgba(26, 18, 46, 0.65) !important;
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent) !important;
-  border: 1px dashed rgba(185, 155, 234, 0.35) !important;
-  border-radius: 14px !important;
-  backdrop-filter: blur(12px) !important;
-  padding: 10px 14px !important;
-  margin: 8px 0 !important;
+/* (C) 思维链/Thinking 折叠卡片与思考中微光药丸 (彻底消灭死黑块，赋予通透微光浮雕) */
+html.kimino-dream-active :is(
+  details,
+  .thought-container,
+  [data-test-id="thinking-process"],
+  [class*="thought"],
+  [class*="thinking"],
+  [class*="thoughts-container"],
+  [class*="thought-summary"],
+  [class*="thought-item"],
+  [class*="thought-chip"],
+  [class*="thinking-state"],
+  [class*="thinking-indicator"],
+  [class*="sparkle-container"]
+) {
+  background-color: rgba(28, 20, 52, 0.42) !important;
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)) !important;
+  border: 1px solid rgba(195, 168, 248, 0.32) !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(14px) saturate(120%) !important;
+  box-shadow: inset 0 1px 0 rgba(235, 220, 255, 0.2), 0 4px 16px rgba(12, 8, 24, 0.25) !important;
+}
+
+/* 穿透清除思考药丸内部深色小黑块与嵌套背景 */
+html.kimino-dream-active :is(
+  details,
+  .thought-container,
+  [data-test-id="thinking-process"],
+  [class*="thought"],
+  [class*="thinking"]
+) :is(div, span, button, p, summary, [role="button"], mat-icon, [class*="sparkle"], [class*="icon"]) {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
 }
 
 /* 5. 底部输入药丸：100% 还原反重力 .surface-composer 水晶玻璃药丸 */
