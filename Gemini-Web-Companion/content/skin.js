@@ -147,12 +147,22 @@
     return null;
   };
 
+  // Composer 锚点统一入口（实机 2026-11-05 恶性 bug 根治）：
+  // 消息编辑态会在对话中部创建 rich-textarea.edit-rich-textarea（DOM 序先于 composer），
+  // 全局 querySelector('rich-textarea') 被劫持 → 渐隐引擎把切线锚到屏幕中央的编辑框，
+  // 编辑框以下全部卡片命中"完全没入切线下方"分支 → 整卡全透明 mask = 消息刷没。
+  // 一律走这里：优先 composer 区域，其次按编辑态专有类名排除。
+  const queryComposerTextarea = () =>
+    document.querySelector('input-area-v2 rich-textarea') ||
+    document.querySelector('rich-textarea:not(.edit-rich-textarea)') ||
+    document.querySelector('rich-textarea');
+
   let annotateTimer = null;
   const annotate = () => {
     try {
       // 1) Composer：rich-textarea 语义锚 → 爬到带背景的视觉容器（原生是 input-area-v2，
       //    但 A/B 变体类名可能不同，爬升逻辑不依赖具体类名）
-      const rt = document.querySelector('rich-textarea');
+      const rt = queryComposerTextarea();
       if (rt) {
         mark(climbToPainted(rt) || rt.closest('input-area-v2') || rt, 'composer');
       }
@@ -220,7 +230,7 @@
         const w = uqEl.getBoundingClientRect().width;
         if (w >= 480 && w <= 880) columnWidth = Math.round(w);
       } else {
-        const rtEl0 = document.querySelector('rich-textarea');
+        const rtEl0 = queryComposerTextarea();
         const pill0 = rtEl0 && rtEl0.closest('input-area-v2');
         if (pill0) {
           const w = pill0.getBoundingClientRect().width + 48;
@@ -257,7 +267,7 @@
       });
 
       // Composer：清除 v1.3.4 的拉宽/偏移残留，回归原生宽度
-      const rtEl = document.querySelector('rich-textarea');
+      const rtEl = queryComposerTextarea();
       if (rtEl) {
         const pill = rtEl.closest('input-area-v2') || climbToPainted(rtEl) || rtEl;
         mark(pill, 'composer');
@@ -520,7 +530,7 @@
   const applyFades = () => {
     try {
       if (!document.documentElement.classList.contains('kimino-dream-active')) return;
-      const rt = document.querySelector('rich-textarea');
+      const rt = queryComposerTextarea();
       if (!rt) return;
       const pill = rt.closest('input-area-v2') || climbToPainted(rt) || rt;
       const compRect = pill.getBoundingClientRect();

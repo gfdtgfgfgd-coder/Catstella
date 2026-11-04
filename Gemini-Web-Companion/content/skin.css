@@ -573,11 +573,13 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
    rich-textarea 误标为气泡（内联 0.76 玻璃），叠加 edit-form 描边 → 双框漏底。
    现由 skin.js 在编辑态改标 .edit-form 为气泡（保持原生 40px 圆角），
    此处 CSS 与其同绘：外层 = 唯一玻璃卡，内层归零。
-   加宽（用户反馈 2026-11-05）：原生编辑框仅 484px 且右侧对齐，
-   拉通到对话列全宽，与上方气泡/下方 composer 对齐。 */
+   加宽 + 加高（用户反馈 2026-11-05）：原生编辑框仅 484px 宽、随内容收缩成
+   33px 细条；拉通到对话列全宽并给足多行编辑高度。 */
 html.kimino-dream-active .edit-form.rich-edit-form {
   width: 100% !important;
   max-width: 100% !important;
+  min-height: 148px !important;
+  box-sizing: border-box !important;
   background-color: rgba(24, 18, 36, 0.76) !important;
   background-image: none !important;
   backdrop-filter: blur(25px) saturate(140%) !important;
@@ -586,7 +588,7 @@ html.kimino-dream-active .edit-form.rich-edit-form {
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
 }
 
-/* 内层 rich-textarea / ql 容器：彻底归零（CSS 兜底，配合 skin.js 清内联） */
+/* 内层 rich-textarea / ql 容器：彻底归零（CSS 兜底，配合 skin.js 清内联）+ 撑满编辑卡高度 */
 html.kimino-dream-active .edit-form.rich-edit-form :is(rich-textarea, .ql-container, .ql-editor) {
   background-color: transparent !important;
   background-image: none !important;
@@ -595,6 +597,10 @@ html.kimino-dream-active .edit-form.rich-edit-form :is(rich-textarea, .ql-contai
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+  min-height: 128px !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 html.kimino-dream-active .edit-button-area button.mdc-button {
