@@ -1,6 +1,6 @@
 # 🐾 Catstella-web · 交接文档 (HANDOFF)
 > **仓库**：`D:\Catstella-web`（Web 扩展开发主仓，分支 `feat/browser-extension`）
-> **当前版本**：扩展 `1.3.10` | **更新时间**：2026-11-03
+> **当前版本**：扩展 `1.4.0` | **更新时间**：2026-11-05
 > **产物**：`Gemini-Web-Companion/dist/kimino-gemini-companion.xpi`（Firefox/Zen）+ `.zip`（Edge/Chrome）+ `kimino-dream.user.css`（Stylus）
 > **详细规范**：`Gemini-Web-Companion/HANDOVER.md`（按版本分节增补，与本文互补）
 > **本文定位**：接手者先读这份，再按需查 HANDOVER 的版本细节。含"最终定案架构 + 铁律 + 未验证清单"。
@@ -11,15 +11,26 @@
 
 | 路径 | 状态 |
 | :-- | :-- |
-| `D:\Catstella-web` | **唯一真源**。web 扩展的全部开发、构建、提交都在这里 |
-| `D:\Catstella` | 旧工作区，其工作树曾被并行会话的 stash 操作回退（扩展文件变回旧版）——**不要再在那边改扩展** |
+| `D:\Catstella-web` | **唯一真源**。web 扩展的全部开发、构建、提交都在这里（feat/browser-extension） |
+| `D:\Catstella` | 桌面套件工作区（feat/desktop-suite）。内嵌 `Gemini-Web-Companion` 是 **v1.2.0 旧 lineage 死重量**——运行时经 `tools/web-companion-path.cjs` 直接消费 web worktree 的副本，suite 内嵌副本不参与任何运行 |
 | 桌面端代码（Antigravity-*） | 随仓库带入，本仓库测试唯一失败项来自桌面端旧案（见 §6），与扩展无关 |
 
-已提交基线：
+### ⛔ 双副本同步铁律（2026-11-05 事故定案）
+
+**扩展的一切修改必须在 `D:\Catstella-web\Gemini-Web-Companion` 进行。在 suite（D:\Catstella）里"顺手修网页"= 打在旧 lineage 上，永不进入网页仓，等于白干。** 11-05 凌晨三条 web-skin 提交（3c586ca/aa71299/3d38eff）即此事故，已被 v1.4.0 在真源上重写覆盖。
+
+- **每次接手先跑**：`node tools/sync-web-companion.cjs`（退出码 0=无漂移 / 1=有漂移，并列出文件级明细）
+- suite 侧改动若真有价值 → `--adopt <相对路径>...` 挑选性搬回 web 仓再构建提交；打在旧结构上的废案 → 直接丢弃
+- **严禁整树互拷**（两副本结构对不上）；suite 侧死重量保持不动
+- 审计可作提交前门禁：`node tools/sync-web-companion.cjs || echo "先处理漂移"`
+
+已提交基线（feat/browser-extension）：
 - `eeb994a` feat(web): 表面标注引擎 / 对齐修复 / 自定义壁纸与形象
 - `71dd3a1` feat(web): v1.3.9 实时额度账本（/usage SSR 流式 JSON）
+- `54bdd60` feat(web): AGY 桌面同步/解耦桥 + 毛玻璃设置重设计
+- `cb5aad3` fix(web): 上传预览黑块 / 思维链双层玻璃 / 编辑态蓝钮与双框根治（探针铁证）+ debug-probe 只读采样工具
 
-工作树当前有 v1.3.10 未提交改动（5 个文件，见 §7）。**提交前先跑 `npm.cmd test` 与 `node Gemini-Web-Companion/scripts/build.js`**。
+**提交前先跑 `npm.cmd test` 与 `node Gemini-Web-Companion/scripts/build.js`**。
 
 ---
 
