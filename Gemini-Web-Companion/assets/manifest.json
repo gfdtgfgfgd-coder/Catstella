@@ -1,0 +1,21 @@
+{
+  "wallpapers": [
+    {
+      "id": "gemini-sheet",
+      "name": "gemini sheet",
+      "src": "assets/wallpapers/gemini-sheet.png"
+    }
+  ],
+  "characters": [
+    {
+      "id": "gemini-star-v1",
+      "name": "gemini star v1",
+      "preview": "assets/characters/gemini-star-v1/idle.png"
+    },
+    {
+      "id": "lin-cat",
+      "name": "lin cat",
+      "preview": "assets/characters/lin-cat/idle.png"
+    }
+  ]
+}

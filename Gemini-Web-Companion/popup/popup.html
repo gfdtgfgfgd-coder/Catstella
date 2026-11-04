@@ -10,16 +10,54 @@
     <div class="popup-header">
       <img src="../assets/icons/icon-48.png" class="header-logo" alt="Logo">
       <div class="header-info">
-        <h1 class="header-title">星语喵伴 · Settings</h1>
-        <p class="header-subtitle">Gemini Web Companion · 基米乃桌宠</p>
+        <div class="header-top-row">
+          <h1 class="header-title">星语喵伴 · Settings</h1>
+          <span id="bridge-pill" class="bridge-pill">⚪ 独立模式</span>
+        </div>
+        <p class="header-subtitle">Gemini Web Companion · 双端星语联动</p>
       </div>
     </div>
 
     <div class="section-group">
+      <div class="group-title">🪐 Antigravity 双端同步</div>
+      <div class="setting-item">
+        <div class="label-box">
+          <span class="setting-label">同步角色形态</span>
+          <span class="setting-sub">跟随桌面端切换魔猫 / 林猫</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="chk-sync-char" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-item">
+        <div class="label-box">
+          <span class="setting-label">同步桌面壁纸与轮播</span>
+          <span class="setting-sub">关闭后网页使用独立壁纸</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="chk-sync-wall" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="setting-item vertical">
+        <span class="setting-label">双端桌宠显示策略</span>
+        <div class="seg-row" id="seg-display-mode">
+          <button type="button" class="seg-btn active" data-mode="both">双端同显</button>
+          <button type="button" class="seg-btn" data-mode="prefer-desktop">仅桌面端</button>
+          <button type="button" class="seg-btn" data-mode="prefer-web">焦点互斥</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-group">
+      <div class="group-title">✨ 网页端基础开关</div>
       <div class="setting-item">
         <div class="label-box">
           <span class="setting-label">桌宠挂件显示</span>
-          <span class="setting-sub">Desktop Pet Widget</span>
+          <span class="setting-sub">Web Pet Widget</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="chk-widget" checked>
@@ -30,7 +68,7 @@
       <div class="setting-item">
         <div class="label-box">
           <span class="setting-label">星空毛玻璃壁纸 (Dream Skin)</span>
-          <span class="setting-sub">Frosted Glass Wallpaper</span>
+          <span class="setting-sub">Frosted Glass Theme</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="chk-skin" checked>
@@ -57,15 +95,15 @@
           <label class="radio-card">
             <input type="radio" name="character" value="gemini-star-v1" checked>
             <div class="radio-content">
-              <span class="card-title">Gemini 蓝紫星语</span>
+              <span class="card-title">星语魔猫 · 原版礼装</span>
               <span class="card-desc">四芒星空礼装 · 原版基米乃</span>
             </div>
           </label>
           <label class="radio-card">
             <input type="radio" name="character" value="lin-cat">
             <div class="radio-content">
-              <span class="card-title">林猫居家水母头</span>
-              <span class="card-desc">彩虹全息冲锋衣 · 水母双马尾</span>
+              <span class="card-title">居家林猫 · 水母双马尾</span>
+              <span class="card-desc">彩虹全息冲锋衣 · 居家形态</span>
             </div>
           </label>
         </div>
@@ -78,12 +116,12 @@
           <span class="setting-label">挂件大小 / Widget Scale</span>
           <span class="slider-value" id="val-scale">200px</span>
         </div>
-        <input type="range" id="range-scale" min="150" max="320" step="10" value="200" class="styled-slider">
+        <input type="range" id="range-scale" min="120" max="320" step="10" value="200" class="styled-slider">
       </div>
 
       <div class="setting-item vertical">
         <div class="slider-header">
-          <span class="setting-label">Argon 单会话建议安全轮数</span>
+          <span class="setting-label">单会话建议安全轮数</span>
           <span class="slider-value" id="val-turns">8 轮</span>
         </div>
         <input type="range" id="range-turns" min="3" max="20" step="1" value="8" class="styled-slider">
@@ -91,8 +129,8 @@
     </div>
 
     <div class="btn-group">
-      <button id="btn-reset-pos" class="btn-secondary">复位至右下角 / Reset Pos</button>
-      <button id="btn-refresh" class="btn-primary">刷新页面 / Reload</button>
+      <button id="btn-reset-pos" class="btn-secondary">复位至右下角</button>
+      <button id="btn-refresh" class="btn-primary">刷新页面</button>
     </div>
 
     <div class="popup-footer">

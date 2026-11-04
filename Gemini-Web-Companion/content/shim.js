@@ -53,6 +53,37 @@
     onChanged(listener) {
       if (!api || !api.storage || !api.storage.onChanged) return;
       try { api.storage.onChanged.addListener(listener); } catch (e) {}
+    },
+    // 永不 reject 的 runtime.sendMessage 封装（Chromium 回调与 Firefox Promise 双兼容）
+    sendMessage(message) {
+      return new Promise((resolve) => {
+        if (!api || !api.runtime || typeof api.runtime.sendMessage !== 'function') {
+          resolve(null);
+          return;
+        }
+        try {
+          if (isGecko) {
+            const p = api.runtime.sendMessage(message);
+            if (p && typeof p.then === 'function') {
+              p.then((res) => resolve(res ?? null)).catch(() => resolve(null));
+            } else {
+              resolve(p ?? null);
+            }
+          } else {
+            api.runtime.sendMessage(message, (res) => {
+              try {
+                if (api.runtime.lastError) {
+                  resolve(null);
+                  return;
+                }
+              } catch (e) {}
+              resolve(res ?? null);
+            });
+          }
+        } catch (e) {
+          resolve(null);
+        }
+      });
     }
   };
 

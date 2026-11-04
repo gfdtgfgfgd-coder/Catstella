@@ -7,19 +7,19 @@
 }
 
 body {
-  width: 320px;
+  width: 340px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-  background: #130f20;
+  background: linear-gradient(165deg, #1a1330 0%, #110c20 100%);
   color: #ede9fe;
-  font-size: 13px;
+  font-size: 12.5px;
   user-select: none;
 }
 
 .popup-container {
-  padding: 16px;
+  padding: 15px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 11px;
 }
 
 .popup-header {
@@ -37,32 +37,69 @@ body {
   box-shadow: 0 4px 12px rgba(167, 139, 250, 0.35);
 }
 
+.header-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .header-title {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   color: #f3e8ff;
-  letter-spacing: 0.5px;
+}
+
+.bridge-pill {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cbd5e1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bridge-pill.online {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(52, 211, 153, 0.42);
+  color: #a7f3d0;
 }
 
 .header-subtitle {
   font-size: 11px;
   color: #a78bfa;
+  margin-top: 2px;
 }
 
 .section-group {
-  background: rgba(25, 20, 40, 0.7);
+  background: rgba(28, 22, 46, 0.72);
   border: 1px solid rgba(185, 155, 234, 0.18);
-  border-radius: 12px;
+  border-radius: 13px;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
+}
+
+.group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d8b4fe;
+  letter-spacing: 0.3px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .setting-item.vertical {
@@ -78,12 +115,12 @@ body {
 
 .setting-label {
   font-weight: 500;
-  color: #ddd6fe;
+  color: #e9d5ff;
 }
 
 .setting-sub {
   font-size: 10px;
-  color: #a78bfa;
+  color: #9f8ec2;
 }
 
 /* Switch 开关 */
@@ -92,6 +129,7 @@ body {
   display: inline-block;
   width: 38px;
   height: 20px;
+  flex-shrink: 0;
 }
 
 .switch input {
@@ -105,9 +143,9 @@ body {
   cursor: pointer;
   inset: 0;
   background-color: #332b49;
-  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: .25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .slider:before {
@@ -118,17 +156,46 @@ body {
   left: 2px;
   bottom: 2px;
   background-color: #fff;
-  transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: .25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 input:checked + .slider {
-  background-color: #8b5cf6;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
 }
 
 input:checked + .slider:before {
   transform: translateX(18px);
+}
+
+/* Segmented Row */
+.seg-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  background: rgba(12, 9, 24, 0.6);
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.seg-btn {
+  padding: 5px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #b8a9d9;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.seg-btn.active {
+  background: rgba(167, 139, 250, 0.3);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(196, 181, 253, 0.45);
 }
 
 /* 角色单选卡片 */
@@ -144,8 +211,8 @@ input:checked + .slider:before {
   gap: 8px;
   background: rgba(40, 32, 64, 0.5);
   border: 1px solid rgba(185, 155, 234, 0.18);
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 9px;
+  padding: 7px 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -199,12 +266,13 @@ input:checked + .slider:before {
   gap: 8px;
 }
 
-button {
+.btn-secondary,
+.btn-primary {
   flex: 1;
   padding: 8px 0;
-  border-radius: 8px;
+  border-radius: 9px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -235,5 +303,4 @@ button {
   font-size: 10px;
   color: #8b5cf6;
   opacity: 0.8;
-  margin-top: 2px;
 }

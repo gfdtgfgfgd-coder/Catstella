@@ -1,9 +1,9 @@
-// 星语喵伴 · Popup Logic
+// 星语喵伴 · Popup Logic (支持 AGY 双端同步控制)
 document.addEventListener('DOMContentLoaded', async () => {
-  // 与 content script 同款双命名空间垫片 (Firefox: browser.* / Chromium: chrome.*)
   const api = (typeof browser !== 'undefined' && browser && browser.runtime && browser.runtime.id)
     ? browser
     : (typeof chrome !== 'undefined' ? chrome : null);
+
   const safeGet = async (keys) => {
     try { return (await api.storage.local.get(keys)) || {}; } catch (e) { return {}; }
   };
@@ -13,7 +13,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
     } catch (e) {}
   };
+  const sendBridgePatch = (patch) => new Promise((resolve) => {
+    if (!api || !api.runtime || !api.runtime.sendMessage) { resolve(null); return; }
+    try {
+      api.runtime.sendMessage({ type: 'KG_BRIDGE_PATCH', patch }, (res) => {
+        try { void api.runtime.lastError; } catch (e) {}
+        resolve(res || null);
+      });
+    } catch (e) { resolve(null); }
+  });
 
+  const bridgePill = document.getElementById('bridge-pill');
+  const chkSyncChar = document.getElementById('chk-sync-char');
+  const chkSyncWall = document.getElementById('chk-sync-wall');
+  const segBtns = document.querySelectorAll('#seg-display-mode .seg-btn');
   const chkWidget = document.getElementById('chk-widget');
   const chkSkin = document.getElementById('chk-skin');
   const chkSound = document.getElementById('chk-sound');
@@ -25,34 +38,74 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnResetPos = document.getElementById('btn-reset-pos');
   const btnRefresh = document.getElementById('btn-refresh');
 
-  let config = {};
-  if (api) {
-    config = await safeGet([
-      'enabled',
-      'skinEnabled',
-      'soundEnabled',
-      'character',
-      'widgetScale',
-      'argonMaxSafeTurns'
+  const renderFromStorage = async () => {
+    if (!api) return;
+    const config = await safeGet([
+      'enabled', 'skinEnabled', 'soundEnabled', 'character', 'widgetScale',
+      'argonMaxSafeTurns', 'syncCharacter', 'syncWallpaper', 'petDisplayMode', 'agyBridgeState'
     ]);
+
+    const online = !!config.agyBridgeState?.online;
+    if (bridgePill) {
+      bridgePill.className = 'bridge-pill' + (online ? ' online' : '');
+      bridgePill.textContent = online ? '🟢 AGY 已联动' : '⚪ 独立模式';
+    }
+
+    chkSyncChar.checked = config.syncCharacter !== false;
+    chkSyncWall.checked = config.syncWallpaper !== false;
+    const mode = config.petDisplayMode || 'both';
+    segBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+
+    chkWidget.checked = config.enabled !== false;
+    chkSkin.checked = config.skinEnabled !== false;
+    chkSound.checked = !!config.soundEnabled;
+
+    const currentCharacter = (chkSyncChar.checked && online && config.agyBridgeState?.desktop?.characterPack)
+      ? config.agyBridgeState.desktop.characterPack
+      : (config.character || 'gemini-star-v1');
+    radioCharacters.forEach((radio) => {
+      radio.checked = radio.value === currentCharacter;
+    });
+
+    const currentScale = config.widgetScale || 200;
+    rangeScale.value = currentScale;
+    valScale.textContent = `${currentScale}px`;
+
+    const currentTurns = config.argonMaxSafeTurns || 8;
+    rangeTurns.value = currentTurns;
+    valTurns.textContent = `${currentTurns} 轮`;
+  };
+
+  await renderFromStorage();
+
+  // 打开 Popup 时顺便触发一次桌面端握手探测
+  if (api && api.runtime && api.runtime.sendMessage) {
+    try {
+      api.runtime.sendMessage({ type: 'KG_TAB_HEARTBEAT', active: true }, () => {
+        try { void api.runtime.lastError; } catch (e) {}
+        renderFromStorage();
+      });
+    } catch (e) {}
   }
 
-  chkWidget.checked = config.enabled !== false;
-  chkSkin.checked = config.skinEnabled !== false;
-  chkSound.checked = !!config.soundEnabled;
-
-  const currentCharacter = config.character || 'gemini-star-v1';
-  radioCharacters.forEach(radio => {
-    radio.checked = radio.value === currentCharacter;
+  chkSyncChar.addEventListener('change', async () => {
+    await sendBridgePatch({ syncCharacter: chkSyncChar.checked });
+    renderFromStorage();
   });
 
-  const currentScale = config.widgetScale || 200;
-  rangeScale.value = currentScale;
-  valScale.textContent = `${currentScale}px`;
+  chkSyncWall.addEventListener('change', async () => {
+    await sendBridgePatch({ syncWallpaper: chkSyncWall.checked });
+    renderFromStorage();
+  });
 
-  const currentTurns = config.argonMaxSafeTurns || 8;
-  rangeTurns.value = currentTurns;
-  valTurns.textContent = `${currentTurns} 轮`;
+  segBtns.forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.dataset.mode;
+      segBtns.forEach((b) => b.classList.toggle('active', b === btn));
+      await sendBridgePatch({ petDisplayMode: mode });
+      renderFromStorage();
+    });
+  });
 
   chkWidget.addEventListener('change', () => {
     safeSet({ enabled: chkWidget.checked });
@@ -64,12 +117,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   chkSound.addEventListener('change', () => {
     safeSet({ soundEnabled: chkSound.checked });
+    sendBridgePatch({ sound: chkSound.checked });
   });
 
-  radioCharacters.forEach(radio => {
-    radio.addEventListener('change', () => {
-      if (radio.checked) {
-        safeSet({ character: radio.value });
+  radioCharacters.forEach((radio) => {
+    radio.addEventListener('change', async () => {
+      if (!radio.checked) return;
+      if (chkSyncChar.checked) {
+        await sendBridgePatch({ characterPack: radio.value });
+      } else {
+        safeSet({ character: radio.value, customCharacter: null });
       }
     });
   });
@@ -91,8 +148,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const outcome = api.storage.local.remove('widgetPos');
       if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
     } catch (e) {}
-    btnResetPos.textContent = '已复位！';
-    setTimeout(() => { btnResetPos.textContent = '复位至右下角 / Reset Pos'; }, 1200);
+    btnResetPos.textContent = '✓ 已复位！';
+    setTimeout(() => { btnResetPos.textContent = '复位至右下角'; }, 1200);
   });
 
   btnRefresh.addEventListener('click', () => {

@@ -17,36 +17,44 @@
 
   let wallpaperEl = null;
   let baseLayer = null;
-  let wallpaperSrc = null; // 自定义壁纸 dataURL 或 null（用默认）
+  let wallpaperSrc = null; // 自定义或同步壁纸 dataURL，或 null（用默认）
+  let skinCurrentlyEnabled = true;
+  let currentSkinOpacity = 0.88;
 
   const getWallpaperUrl = () => wallpaperSrc || api.getURL('assets/wallpapers/gemini-sheet.png');
 
   const applySkin = (enabled = true, opacity = 0.88) => {
+    skinCurrentlyEnabled = !!enabled;
+    currentSkinOpacity = typeof opacity === 'number' ? opacity : 0.88;
     try {
       if (enabled) {
+        const mountRoot = document.documentElement || document.body;
         // 基底层：全窗基底色（z -100000，位于壁纸之下；body 保持透明不遮挡）
-        if (!baseLayer) {
-          baseLayer = document.createElement('div');
+        if (!baseLayer || !baseLayer.isConnected) {
+          baseLayer = document.getElementById('kimino-base-layer') || document.createElement('div');
           baseLayer.id = 'kimino-base-layer';
           baseLayer.setAttribute('aria-hidden', 'true');
-          (document.documentElement || document.body).appendChild(baseLayer);
+          if (!baseLayer.isConnected && mountRoot) mountRoot.appendChild(baseLayer);
         }
         baseLayer.style.display = 'block';
-        if (!wallpaperEl) {
-          wallpaperEl = document.createElement('div');
+
+        const imgUrl = getWallpaperUrl();
+        if (!wallpaperEl || !wallpaperEl.isConnected) {
+          wallpaperEl = document.getElementById('kimino-dream-wallpaper') || document.createElement('div');
           wallpaperEl.id = 'kimino-dream-wallpaper';
-          const imgUrl = getWallpaperUrl();
-          // 壁纸层 = 内容区挖空圆角基底（几何由 updatePaneGeometry 实测写入）
-          wallpaperEl.style.backgroundImage = `linear-gradient(rgba(20, 15, 35, 0.38), rgba(20, 15, 35, 0.62)), url("${imgUrl}")`;
-          (document.documentElement || document.body).appendChild(wallpaperEl);
-        } else if (wallpaperEl.__kgSrc !== wallpaperSrc) {
-          // 自定义壁纸切换
-          wallpaperEl.__kgSrc = wallpaperSrc;
-          wallpaperEl.style.backgroundImage = `linear-gradient(rgba(20, 15, 35, 0.38), rgba(20, 15, 35, 0.62)), url("${wallpaperSrc}")`;
+          wallpaperEl.style.transition = 'opacity 0.35s ease';
+          wallpaperEl.__kgSrc = '';
+          if (!wallpaperEl.isConnected && mountRoot) mountRoot.appendChild(wallpaperEl);
         }
-        wallpaperEl.style.opacity = opacity.toString();
+        if (wallpaperEl.__kgSrc !== imgUrl) {
+          wallpaperEl.__kgSrc = imgUrl;
+          wallpaperEl.style.backgroundImage = `linear-gradient(rgba(20, 15, 35, 0.38), rgba(20, 15, 35, 0.62)), url("${imgUrl}")`;
+        }
+        wallpaperEl.style.opacity = currentSkinOpacity.toString();
         wallpaperEl.style.display = 'block';
-        document.documentElement.classList.add('kimino-dream-active');
+        if (!document.documentElement.classList.contains('kimino-dream-active')) {
+          document.documentElement.classList.add('kimino-dream-active');
+        }
       } else {
         if (wallpaperEl) {
           wallpaperEl.style.display = 'none';
@@ -75,35 +83,45 @@
 
   const loadAndApply = async () => {
     const res = await api.storageGet([
-      'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper'
+      'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper',
+      'syncWallpaper', 'agyBridgeState', 'agySyncedWallpaper'
     ]);
     const isEnabled = res ? res.skinEnabled !== false : true;
     const opacity = res && typeof res.wallpaperOpacity === 'number' ? res.wallpaperOpacity : 0.88;
 
-    // 壁纸解析优先级：custom:<id>（画廊上传）→ 内置 manifest id → 旧版单图 customWallpaper → 默认
     let src = null;
-    const wid = res.wallpaperId || '';
-    if (wid.startsWith('custom:')) {
-      const c = (res.customWallpapers || []).find((x) => x.id === wid);
-      if (c) src = c.dataUrl;
-    } else if (wid) {
-      try {
-        const man = await loadGalleryManifest();
-        const w = (man.wallpapers || []).find((x) => x.id === wid);
-        if (w) src = api.getURL(w.src);
-      } catch (e) {}
+    // 双端壁纸同步模式：启用同步且存在桌面端同步壁纸时优先应用桌面壁纸（支持轮播自动跟进）
+    const wantSync = res ? res.syncWallpaper !== false : true;
+    if (wantSync && res?.agySyncedWallpaper?.dataUrl) {
+      src = res.agySyncedWallpaper.dataUrl;
     }
-    if (!src && res.customWallpaper) src = res.customWallpaper; // 旧版单图迁移兜底
-    wallpaperSrc = src; // null → getWallpaperUrl 回落默认
 
+    // 独立模式或尚未与桌面端首次握手：解析 Web 本地画廊壁纸
+    if (!src) {
+      const wid = (res && res.wallpaperId) || '';
+      if (wid.startsWith('custom:')) {
+        const c = ((res && res.customWallpapers) || []).find((x) => x.id === wid);
+        if (c) src = c.dataUrl;
+      } else if (wid) {
+        try {
+          const man = await loadGalleryManifest();
+          const w = (man.wallpapers || []).find((x) => x.id === wid);
+          if (w) src = api.getURL(w.src);
+        } catch (e) {}
+      }
+      if (!src && res && res.customWallpaper) src = res.customWallpaper; // 旧版单图迁移兜底
+    }
+
+    wallpaperSrc = src; // null → getWallpaperUrl 回落默认
     applySkin(isEnabled, opacity);
+    updatePaneGeometry();
   };
 
   // ============ 表面标注引擎 ============
   const MARKED = new WeakSet();
   let replyWidth = 0; // 回复卡自然宽度（Composer 对齐基准，annotate 时实测）
   const mark = (el, kind) => {
-    if (!el || MARKED.has(el)) return;
+    if (!el || (MARKED.has(el) && el.getAttribute('data-kg') === kind)) return;
     try {
       el.setAttribute('data-kg', kind);
       MARKED.add(el);
@@ -633,7 +651,11 @@
     try {
       await loadAndApply();
       api.onChanged((changes, area) => {
-        if (area === 'local' && (changes.skinEnabled || changes.wallpaperOpacity || changes.customWallpaper || changes.wallpaperId || changes.customWallpapers)) {
+        if (area === 'local' && (
+          changes.skinEnabled || changes.wallpaperOpacity || changes.customWallpaper ||
+          changes.wallpaperId || changes.customWallpapers || changes.syncWallpaper ||
+          changes.agySyncedWallpaper
+        )) {
           loadAndApply();
         }
       });
@@ -645,6 +667,34 @@
       annotate();
       applyFades();
       bindScrollListeners();
+
+      // 自愈守护：防止窗口失焦、切换标签页或 SPA 重置 html.class 时主题/壁纸脱落
+      const ensureSkinAlive = () => {
+        if (skinCurrentlyEnabled) {
+          if (
+            !document.documentElement.classList.contains('kimino-dream-active') ||
+            !baseLayer || !baseLayer.isConnected ||
+            !wallpaperEl || !wallpaperEl.isConnected
+          ) {
+            applySkin(skinCurrentlyEnabled, currentSkinOpacity);
+            updatePaneGeometry();
+          }
+        }
+        schedule();
+        scheduleFade();
+      };
+      const htmlAttrMo = new MutationObserver(() => {
+        if (skinCurrentlyEnabled && !document.documentElement.classList.contains('kimino-dream-active')) {
+          applySkin(skinCurrentlyEnabled, currentSkinOpacity);
+        }
+      });
+      if (document.documentElement) {
+        htmlAttrMo.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
+      }
+      window.addEventListener('focus', ensureSkinAlive);
+      window.addEventListener('blur', ensureSkinAlive);
+      document.addEventListener('visibilitychange', ensureSkinAlive);
+
       const mo = new MutationObserver(() => {
         bindScrollListeners();
         schedule();
