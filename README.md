@@ -139,7 +139,6 @@ npm test
 
 本项目在开发过程中参考并衍生自以下开源项目与原创设计：
 
-- **[lynnfei / Catstella](https://github.com/lynnfei/Catstella)**：本项目及维护者；
 - **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**：上游项目，提供了初期架构、CDP 探针和双端联动雏形；
 - **[ZipZipPipe (B站空间)](https://space.bilibili.com/4168597)**：Gemini 星语猫娘原设概念设计者；
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** 与 **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**：感谢两大家居式桌宠项目在交互反馈、气泡状态机及额度观察逻辑上的开源启发。

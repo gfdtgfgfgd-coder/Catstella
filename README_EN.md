@@ -138,7 +138,6 @@ Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables c
 
 This project was developed with reference to and derivative of the following open-source projects and original designs:
 
-- **[lynnfei / Catstella](https://github.com/lynnfei/Catstella)**: This project and its maintainer;
 - **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**: Upstream project that provided the original architecture, CDP probes, and companion prototypes;
 - **[ZipZipPipe (Bilibili Space)](https://space.bilibili.com/4168597)**: Original concept designer of the Gemini Star Neko;
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** & **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**: Appreciation to both pioneering projects for open-source inspiration regarding companion interaction, thought bubbles, and telemetry observation.
