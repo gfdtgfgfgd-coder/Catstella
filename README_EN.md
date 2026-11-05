@@ -12,12 +12,12 @@ Catstella is an open-source desktop enhancement and dual-end companion suite des
 
 ## 🎨 Gallery & Artworks
 
-| Default Character (Stella) | Default Stock Wallpaper (Stella Sheet) |
-| :---: | :---: |
-| <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" /> | <img src="art_assets/stock_wallpaper/stella_1.png" alt="Stella Wallpaper" width="500" /> |
+<p align="center">
+  <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" />
+</p>
 
 > [!TIP]
-> Includes two Gemini gijinka characters, Stella and Aica, with proud, annoyed, shy, and napping expressions, plus four bundled wallpapers. See [ASSETS.md](ASSETS.md) and the [online catalog](online-assets/README.md).
+> Includes full expression frame sets (proud, shy, sad, nap, etc.) for two Gemini gijinka characters, alongside 4 bundled panoramic wallpapers. See [ASSETS.md](ASSETS.md) and the [online catalog](online-assets/README.md).
 
 ---
 

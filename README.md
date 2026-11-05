@@ -12,12 +12,12 @@ Catstella 是面向 Google Antigravity 和 Gemini 网页版的开源桌面增强
 
 ## 🎨 视觉与立绘展示 (Gallery & Artworks)
 
-| 默认角色立绘 (Stella · 星语) | 默认预装壁纸 (星语设定集) |
-| :---: | :---: |
-| <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" /> | <img src="art_assets/stock_wallpaper/stella_1.png" alt="Stella Wallpaper" width="500" /> |
+<p align="center">
+  <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" />
+</p>
 
 > [!TIP]
-> 内置星语和霓音两款角色，支持得意、气恼、害羞和打盹等表情，附带 4 张壁纸。详见[美术资产说明](ASSETS.md)和[在线图库目录](online-assets/README.md)。
+> 包含两种 Gemini 拟人形象变体的高清单帧表情（得意、委屈、害羞、打瞌睡等），以及 4 套预装星空全景壁纸。详见[美术资产说明](ASSETS.md)和[在线图库目录](online-assets/README.md)。
 
 ---
 
