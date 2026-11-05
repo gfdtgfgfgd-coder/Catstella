@@ -1,4 +1,4 @@
-; 星语套件 Inno Setup 安装脚本 — 由 tools/build-installers.cjs 通过 ISCC 编译。
+; Catstella Inno Setup 安装脚本 — 由 tools/build-installers.cjs 通过 ISCC 编译。
 ; 组件：core（桌宠+皮肤，必装）/ webext（Web 插件包与安装指引，可选，档位 1：复制包 + 图文指引）。
 #define AppName "Catstella"
 #define AppExe "StarSuite.exe"
@@ -19,7 +19,9 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 ShowLanguageDialog=no
-CloseApplications=no
+CloseApplications=yes
+CloseApplicationsFilter=*.exe,*.dll,*.pak,*.dat,*.node
+RestartApplications=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
 
@@ -33,23 +35,42 @@ Name: "compact"; Description: "仅桌面端（桌宠 + 皮肤）"
 Name: "custom"; Description: "自定义"
 
 [Components]
-Name: "core"; Description: "星语桌宠 + 织梦皮肤（必装核心）"; Types: full compact custom; Flags: fixed
+Name: "core"; Description: "Catstella 桌宠 + Dream Skin（必装核心）"; Types: full compact custom; Flags: fixed
 Name: "webext"; Description: "Web 端插件包与安装指引（Firefox / Edge / Chrome）"; Types: full custom
 
 [Tasks]
-Name: "autostart"; Description: "开机登录后自动启动星语套件"; Flags: unchecked
+Name: "autostart"; Description: "开机登录后自动启动Catstella"; Flags: unchecked
 Name: "hostlink"; Description: "打开 Antigravity 时联动启动（后台检测）"; Flags: unchecked
-Name: "byok"; Description: "启用第三方模型网关 (BYOK / 支持自定义 API Key 与模型代理)"; Flags: unchecked
+
+[InstallDelete]
+Type: files; Name: "{app}\.byok-enabled"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\shared\gateway\*.cjs"; Check: ExistingSuite
+Type: dirifempty; Name: "{app}\resources\app\shared\gateway"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\domain\byok-portal-controller.cjs"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\host\byok-portal.cjs"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\main\*.cjs"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\renderer\*"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\package.json"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\README.md"; Check: ExistingSuite
+Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\assets\app-icon.ico"; Check: ExistingSuite
+Type: dirifempty; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\main"; Check: ExistingSuite
+Type: dirifempty; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\renderer"; Check: ExistingSuite
 
 [Files]
-Source:"{#StageDir}\*"; DestDir:"{app}"; Excludes:"daemon.cjs"; Flags: recursesubdirs createallsubdirs ignoreversion; Components: core
-Source:"{#StageDir}\resources\app\shared\gateway\daemon.cjs"; DestDir:"{app}\resources\app\shared\gateway"; Components: core; Tasks: byok; Flags: ignoreversion
+Source:"{#StageDir}\StartupSettings.exe"; DestDir:"{app}"; Flags: ignoreversion; Components: core
+; GeneratedVersion.cs 与 IconSwap.exe 只在构建机上使用（版本号注入、PE 图标替换），不进安装目录。
+Source:"{#StageDir}\*"; DestDir:"{app}"; Excludes:"StartupSettings.exe,GeneratedVersion.cs,IconSwap.exe"; Flags: recursesubdirs createallsubdirs ignoreversion; Components: core
 Source:"{#StageDir}\.starsuite-install"; DestDir:"{app}"; Components: core; Flags: ignoreversion
 Source:"{#StageDir}\web-plugin-guide.html"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
 #ifdef WebExtFiles
 Source:"{#WebExtFiles}\kimino-gemini-companion.xpi"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
 Source:"{#WebExtFiles}\kimino-gemini-companion-edge-chrome.zip"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
 #endif
+
+[UninstallDelete]
+; Electron 在无 locales 时会把 locale_file_path.empty() 警告追加写进 {app}\debug.log；
+; Inno 默认只删安装清单里的文件，这类运行时残留会让安装目录删不掉，故整体清空 {app}。
+Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name:"{autodesktop}\{#AppName}"; Filename:"{app}\{#AppExe}"; IconFilename:"{app}\icons\launch.ico"; Components: core
@@ -62,6 +83,10 @@ Filename:"{app}\{#AppExe}"; Description:"立即启动 Catstella"; Flags: postins
 Filename:"{app}\web-extension\web-plugin-guide.html"; Description:"查看 Web 插件安装指引"; Flags: postinstall shellexec skipifdoesntexist unchecked; Check: WebExtSelected
 
 [Code]
+var
+  SavedStartup, FilesStarted, HadAutoStart, HadHostLink: Boolean;
+  OldAutoStart, OldHostLink: Cardinal;
+
 function CoreSelected(): Boolean;
 begin
   Result := WizardIsComponentSelected('core');
@@ -72,40 +97,74 @@ begin
   Result := WizardIsComponentSelected('webext');
 end;
 
-// 安装前：优雅退出旧实例（单实例 IPC --quit），并临时清零联动标志让 --watch 守护自退，避免文件占用。
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var ResultCode: Integer; appExe: String;
+function ExistingSuite(): Boolean;
+var Marker: AnsiString;
 begin
-  appExe := ExpandConstant('{app}') + '\StarSuite.exe';
-  if FileExists(appExe) then begin
-    Exec(appExe, '--quit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := LoadStringFromFile(ExpandConstant('{app}\.starsuite-install'), Marker)
+    and (Trim(String(Marker)) = 'Suite');
+end;
+
+// Disable the old watcher first. The packaged helper waits for the target installation's processes.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var ResultCode: Integer; AppExe, Root, SettingsKey: String;
+begin
+  Result := '';
+  Root := ExpandConstant('{app}');
+  SettingsKey := 'Software\AntigravityStarSuite\Suite';
+  if ExistingSuite() then begin
+    if not SavedStartup then begin
+      HadAutoStart := RegQueryDWordValue(HKEY_CURRENT_USER, SettingsKey, 'AutoStart', OldAutoStart);
+      HadHostLink := RegQueryDWordValue(HKEY_CURRENT_USER, SettingsKey, 'HostLink', OldHostLink);
+      SavedStartup := True;
+    end;
+    RegWriteDWordValue(HKEY_CURRENT_USER, SettingsKey, 'AutoStart', 0);
+    RegWriteDWordValue(HKEY_CURRENT_USER, SettingsKey, 'HostLink', 0);
+    AppExe := Root + '\StarSuite.exe';
+    if FileExists(AppExe) then
+      Exec(AppExe, '--quit', Root, SW_HIDE, ewNoWait, ResultCode);
+    ExtractTemporaryFile('StartupSettings.exe');
+    if not Exec(ExpandConstant('{tmp}\StartupSettings.exe'), '--prepare-upgrade "' + Root + '"',
+      Root, SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then begin
+      Result := 'Catstella 的旧进程仍在运行。请从托盘退出 Catstella 后重试。';
+      Exit;
+    end;
   end;
-  RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'AutoStart', 0);
-  RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'HostLink', 0);
-  Sleep(2500);
+end;
+
+procedure DeinitializeSetup();
+var SettingsKey: String;
+begin
+  if SavedStartup and not FilesStarted then begin
+    SettingsKey := 'Software\AntigravityStarSuite\Suite';
+    if HadAutoStart then RegWriteDWordValue(HKEY_CURRENT_USER, SettingsKey, 'AutoStart', OldAutoStart)
+    else RegDeleteValue(HKEY_CURRENT_USER, SettingsKey, 'AutoStart');
+    if HadHostLink then RegWriteDWordValue(HKEY_CURRENT_USER, SettingsKey, 'HostLink', OldHostLink)
+    else RegDeleteValue(HKEY_CURRENT_USER, SettingsKey, 'HostLink');
+  end;
+end;
+
+procedure RemoveLegacyUninstallEntry();
+begin
   // 迁移清理：旧 C# 安装器留下的卸载注册项（Inno 从本版起接管卸载）
   RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\AntigravityStarSuiteSuite');
-  Result := '';
 end;
 
 // 安装后：按任务勾选写入启动标志与登录项（与 StartupSettings.SetFlags 语义一致）。
 procedure CurStepChanged(CurStep: TSetupStep);
-var auto, link, byok: Integer; runCmd, markerFile: String;
+var auto, link: Integer; runCmd: String;
 begin
+  if CurStep = ssInstall then begin
+    FilesStarted := True;
+    RemoveLegacyUninstallEntry();
+  end;
   if CurStep = ssPostInstall then begin
-    auto := 0; link := 0; byok := 0;
+    auto := 0; link := 0;
     if WizardIsTaskSelected('autostart') then auto := 1;
     if WizardIsTaskSelected('hostlink') then link := 1;
-    if WizardIsTaskSelected('byok') then byok := 1;
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'AutoStart', auto);
     RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'HostLink', link);
-    RegWriteDWordValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'EnableBYOK', byok);
+    RegDeleteValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'EnableBYOK');
     RegWriteStringValue(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite', 'InstallPath', ExpandConstant('{app}'));
-    markerFile := ExpandConstant('{app}') + '\.byok-enabled';
-    if byok = 1 then
-      SaveStringToFile(markerFile, '1' + #13#10, False)
-    else if FileExists(markerFile) then
-      DeleteFile(markerFile);
     runCmd := '"' + ExpandConstant('{app}') + '\StartupSettings.exe" --watch';
     if (auto = 1) or (link = 1) then
       RegWriteStringValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'AntigravityStarSuiteSuite', runCmd)

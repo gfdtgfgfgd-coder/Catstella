@@ -1,0 +1,85 @@
+name: Build macOS & Linux Packages (Experimental)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (optional)'
+        required: false
+        default: 'v0.6.0'
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Package macOS (DMG & ZIP - Untested)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package macOS Applications
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          echo "Building macOS DMG and ZIP distributions..."
+          echo "Notice: Untested on bare-metal hardware (未实机测试)"
+          npx --yes electron-builder --mac dmg zip --publish never
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Catstella-macOS-Experimental-Untested
+          path: |
+            dist/installers/*.dmg
+            dist/installers/*.zip
+          if-no-files-found: error
+
+  build-linux:
+    name: Package Linux (AppImage & tar.gz - Untested)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package Linux Applications
+        run: |
+          echo "Building Linux AppImage and tar.gz distributions..."
+          echo "Notice: Untested on bare-metal hardware (未实机测试)"
+          npx --yes electron-builder --linux AppImage tar.gz --publish never
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Catstella-Linux-Experimental-Untested
+          path: |
+            dist/installers/*.AppImage
+            dist/installers/*.tar.gz
+          if-no-files-found: error

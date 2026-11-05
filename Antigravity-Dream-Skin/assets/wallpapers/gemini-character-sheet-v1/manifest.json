@@ -1,28 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "gemini-character-sheet-v1",
-  "name": "星语 · 角色设定集",
+  "name": "星语 · 星幕夜话",
   "kind": "image",
   "file": "wallpaper.png",
   "width": 1672,
   "height": 941,
-  "sha256": "2891ff713088a72dbbdfd0194f1c23ae6f66c13e7685f8503c134f1ef1217e6a",
-  "status": "generated-candidate",
-  "defaultFit": "contain",
-  "defaultPosition": "center",
-  "background": "#F8F6FF",
-  "motion": false,
-  "generation": "built-in imagegen",
-  "hostVerified": false,
-  "ui": {
-    "welcomeSurfaceOpacity": 0.88,
-    "editorSurfaceOpacity": 0.97,
-    "terminalSurfaceOpacity": 1,
-    "scrim": 0.12
-  },
-  "provenance": {
-    "characterReference": "ZipZipPipe, attribution supplied by user",
-    "layoutReference": "user-supplied Claude character-sheet screenshot",
-    "redistributionRights": "not independently established"
-  }
+  "sha256": "48060233369c5427072cf01b2ab4cd25282adadc62d5f5d1b1c63532e12124a4",
+  "defaultFit": "adaptive"
 }

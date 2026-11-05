@@ -1,7 +1,12 @@
 const{contextBridge,ipcRenderer}=require("electron");
 contextBridge.exposeInMainWorld("widgetApi",{
  get:()=>ipcRenderer.invoke("widget:get"),save:v=>ipcRenderer.invoke("widget:settings",v),
+ ready:()=>ipcRenderer.send("widget:ready"),
+/* @byok-dev-start */
  byok:(action,data)=>ipcRenderer.invoke("widget:byok",{action,data}),
+/* @byok-dev-end */
+ online:(action,value)=>ipcRenderer.invoke("widget:online",action,value),
+ canChatter:()=>ipcRenderer.invoke("widget:can-chatter"),
  command:v=>ipcRenderer.send("widget:command",v),pointer:v=>ipcRenderer.invoke("widget:pointer",v),
  hit:v=>ipcRenderer.send("widget:hit",v),audio:v=>ipcRenderer.invoke("widget:audio",v),
  subscribe:callback=>{const h=(_e,data)=>callback(data);ipcRenderer.on("widget:snapshot",h);return()=>ipcRenderer.removeListener("widget:snapshot",h);},

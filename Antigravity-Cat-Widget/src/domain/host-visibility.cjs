@@ -1,5 +1,17 @@
-const {EventEmitter}=require("node:events"),{spawn}=require("node:child_process"),path=require("node:path");
+const {EventEmitter}=require("node:events"),{spawn}=require("node:child_process"),path=require("node:path"),fs=require('node:fs'),crypto=require('node:crypto');
+function nativeHelperPath(){
+ const dir=path.join(__dirname,'../native');
+ try{const hash=crypto.createHash('sha256').update(fs.readFileSync(path.join(dir,'ForegroundHost.cs'))).digest('hex').slice(0,12);const versioned=path.join(dir,'ForegroundHost.'+hash+'.exe');if(fs.existsSync(versioned))return versioned;}catch{}
+ return path.join(dir,'ForegroundHost.exe'); // Installers compile this canonical file from the same source.
+}
 function validBounds(value){return value&&["x","y","width","height"].every(key=>Number.isSafeInteger(value[key])&&Math.abs(value[key])<100000)&&value.width>0&&value.height>0;}
+function widgetLayout(area,preferredScale){
+ // The artwork occupies a square. Reserve room above it for the bubble, its tail, and its shadow.
+ const scale=Math.max(1,Math.floor(Math.min(preferredScale,area.width-80,area.height-245)));
+ const width=Math.min(area.width,Math.max(360,scale+80));
+ const height=Math.min(area.height,scale+384);
+ return{scale,width,height};
+}
 function characterPlacement(area,size,dimensions,left,top){
  const gap=(dimensions.width-size)/2;
  const visualX=Math.max(area.x,Math.min(area.x+area.width-size,left));
@@ -7,26 +19,24 @@ function characterPlacement(area,size,dimensions,left,top){
  const y=Math.round(Math.max(area.y,Math.min(area.y+area.height-dimensions.height,top)));
  return{bounds:{...dimensions,x,y},artShift:visualX-x-gap,visualX};
 }
-function snapToEdges(area,size,height,visualX,y){
- const left=visualX-area.x,right=area.x+area.width-visualX-size,bottom=area.y+area.height-y-height;
- if(bottom<=120&&Math.min(left,right)<=120)return{visualX:left<right?area.x:area.x+area.width-size,y:area.y+area.height-height};
- return{visualX:left<40?area.x:right<40?area.x+area.width-size:visualX,y:bottom<40?area.y+area.height-height:y};
-}
 function hostPlacement(state,scale,offsetX=18,offsetY=18,dock=""){
  if(!["host","self"].includes(state.kind)||!validBounds(state.bounds))return null;
  const area=state.bounds;
- const effectiveScale=Math.floor(Math.min(scale,area.width-80,(area.height-340)*1372/1146));
+ const {scale:effectiveScale,width,height}=widgetLayout(area,scale);
  if(effectiveScale<140||area.width<360)return null;
- const width=Math.max(360,effectiveScale+80),height=Math.round(effectiveScale*1146/1372+340);
  return{scale:effectiveScale,...characterPlacement(area,effectiveScale,{width,height},dock==="left"?area.x:dock==="right"?area.x+area.width-effectiveScale:area.x+area.width-effectiveScale-offsetX,area.y+area.height-height-offsetY)};
 }
 class ForegroundMonitor extends EventEmitter{
  constructor(){super();this.state={kind:"unknown",bounds:null};this.lastReport=0;}
  start(handle){
+  if (process.platform !== 'win32') {
+   // ForegroundHost.cs / .exe is Windows-only. On macOS / Linux, fall back to pure desktop pet mode.
+   return;
+  }
   if(this.child&&Date.now()-this.lastReport>5000)this.stop();
   if(this.child)return;
   this.lastReport=Date.now();
-  const child=spawn(path.join(__dirname,"../native/ForegroundHost.exe"),[String(process.pid),...(handle?[handle.readBigUInt64LE().toString()]:[])],{windowsHide:true,stdio:["pipe","pipe","ignore"]});this.child=child;this.bound=!!handle;
+  const child=spawn(nativeHelperPath(),[String(process.pid),...(handle?[handle.readBigUInt64LE().toString()]:[])],{windowsHide:true,stdio:["pipe","pipe","ignore"]});this.child=child;this.bound=!!handle;
   let pending="";
   child.stdout.on("data",chunk=>{
    if(this.child!==child)return;
@@ -39,4 +49,4 @@ class ForegroundMonitor extends EventEmitter{
  }
  stop(){const child=this.child;this.child=null;if(child&&!this.bound){child.kill();return;}if(child){child.stdin.end("detach\n");const timer=setTimeout(()=>child.kill(),1000);timer.unref();}this.state={kind:"unknown",bounds:null};}
 }
-module.exports={ForegroundMonitor,hostPlacement,validBounds,characterPlacement,snapToEdges};
+module.exports={ForegroundMonitor,hostPlacement,validBounds,characterPlacement,widgetLayout};

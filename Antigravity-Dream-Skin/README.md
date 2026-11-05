@@ -1,7 +1,16 @@
-# Antigravity Dream Skin
+# Catstella Host Theme
 
-蓝紫角色设定集壁纸、整窗配色、分段玻璃与可撤回控制面板。
+This directory is now an internal theme-engine module of the unified Catstella desktop application.
 
-请从[仓库根目录](../README.md)安装共享依赖，再运行 `npm run start:skin`。打开 Antigravity 后，在控制面板开启应用。通过宿主既有的本地 CDP 连接，不修改安装文件。
+Runtime entry points are:
 
-退出时选择托盘“退出并恢复原样”。壁纸位置、可见度和缩放可调整；素材边界见根 ASSETS.md。
+- `src/domain/settings.cjs`
+- `src/domain/theme-loader.cjs`
+- `src/domain/host-controller.cjs`
+- `src/domain/localization-controller.cjs`
+- `src/host/theme.cjs`
+- `src/host/localize.cjs`
+- `assets/wallpapers/`
+- `assets/localization/`
+
+The former standalone Electron application, control window, launcher and icon are archived in `archive/legacy-dream-skin/`. Start and restart the theme through the unified Catstella process.

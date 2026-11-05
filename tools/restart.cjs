@@ -3,13 +3,10 @@
 // 全程绝不使用 taskkill /f 强杀，避免打断 writeJson 原子写入导致 settings.json 损坏。
 const path=require("node:path"),{spawn}=require("node:child_process");
 const {root,resolveElectron,dataDir,spawnApp}=require("./launch.cjs");
-const KIND_NAME={widget:"喵言喵语桌宠",skin:"Gemini · Dream Skin"};
-const KIND_LABEL={widget:"星语挂件",skin:"星语皮肤"};
-const kind=process.argv[2]==="skin"?"skin":process.argv[2]==="widget"?"widget":null;
-if(!kind){console.error("用法：node tools/restart.cjs widget|skin");process.exit(1);}
+const KIND_NAME="Catstella 桌宠";
 const electron=resolveElectron();
-const entry=path.join(root,kind==="skin"?"Antigravity-Dream-Skin":"Antigravity-Cat-Widget","src/main/index.cjs");
-const userData=path.join(dataDir(kind),"runtime"),name=KIND_NAME[kind];
+const entry=path.join(root,"Antigravity-Cat-Widget","src/main/index.cjs");
+const userData=path.join(dataDir(),"runtime"),name=KIND_NAME;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function envClean(){const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;return env;}
 function runElectron(args,timeoutMs){
@@ -35,7 +32,7 @@ function probeLock(){
  try{
   let free=await probeLock();
   if(!free){
-   console.log(`[1/3] 通知 ${KIND_LABEL[kind]} 旧实例优雅退出（--quit 单实例 IPC）…`);
+   console.log(`[1/3] 通知 ${KIND_NAME} 旧实例优雅退出（--quit 单实例 IPC）…`);
    await runElectron([entry,"--quit"],15000);
    console.log("[2/3] 等待单例锁释放（最多 30 秒）…");
    const deadline=Date.now()+30000;
@@ -46,9 +43,9 @@ function probeLock(){
   }
   if(!free)throw new Error("单例锁迟迟未释放，请手动检查旧实例进程后再试");
   console.log("[3/3] 基于当前源码重新拉起…");
-  const flags=process.argv.slice(3).filter(f=>["--enable","--disable","--quit","--background","--settings","--settings-byok","--enable-byok","--disable-byok"].includes(f));
-  spawnApp(kind,flags);
-  console.log(`✔ ${KIND_LABEL[kind]} 已基于当前源码平滑重启。`);
+  const flags=process.argv.slice(2).filter(f=>["--enable","--disable","--quit","--background","--settings","--settings-byok","--enable-byok","--disable-byok"].includes(f));
+  spawnApp(flags);
+  console.log(`✔ ${KIND_NAME} 已基于当前源码平滑重启。`);
  }catch(error){
   console.error("✘ 重启失败："+error.message);
   process.exit(1);

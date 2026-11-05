@@ -1,5 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {Personality}=require('../src/renderer/personality.js');
+const {PetBehavior}=require('../src/renderer/pet-behavior.js');
 const {hostPlacement,ForegroundMonitor}=require('../src/domain/host-visibility.cjs');
 test('native heartbeat stays live while stationary and stale helper is replaced',async()=>{
  const monitor=new ForegroundMonitor();try{
@@ -9,31 +10,128 @@ test('native heartbeat stays live while stationary and stale helper is replaced'
   monitor.lastReport=Date.now()-6000;waiting=next();monitor.start();await waiting;assert.notEqual(monitor.child,child);
  }finally{monitor.stop();}
 });
-test('click reactions have a 15 percent chance without ambient startup or three-minute lockout',()=>{
- const c={enabled:true,hidden:false,busy:false,state:'idle'};let hits=0;
- for(let i=0;i<100;i++){const p=new Personality({},()=>i/100,()=>0);if(p.reaction(c,false,true))hits++;}
- assert.equal(hits,15);
- const p=new Personality({},()=>0,()=>0);assert.equal(p.reaction(c,false,true),'proud');assert.equal(p.reaction(c,false,true),'proud');
- assert.equal(p.reaction({...c,busy:true},false,true),null);
+const idleContext = {visible:true,idle:true,rest:true,expressions:true};
+test('only a short, stationary primary gesture qualifies as a petting click',()=>{
+ assert.equal(PetBehavior.isTap(0,0),true);
+ assert.equal(PetBehavior.isTap(PetBehavior.tapLimit,PetBehavior.tapSlop),true);
+ assert.equal(PetBehavior.isTap(PetBehavior.tapLimit+1,0),false);
+ assert.equal(PetBehavior.isTap(200,PetBehavior.tapSlop+1),false);
+ assert.equal(PetBehavior.isTap(Number.NaN,0),false);
 });
-test('both bottom corners attract within 120 DIP without snapping distant positions',()=>{
- const {snapToEdges}=require('../src/domain/host-visibility.cjs');const area={x:100,y:50,width:1200,height:900};
- assert.deepEqual(snapToEdges(area,220,524,220,306),{visualX:100,y:426});
- assert.deepEqual(snapToEdges(area,220,524,960,306),{visualX:1080,y:426});
- assert.deepEqual(snapToEdges(area,220,524,950,296),{visualX:950,y:296});
+test('a head touch can show proud and three quick gestures take priority with angry',()=>{
+ let hits=0;
+ for(let i=0;i<100;i++){
+  const pet=new PetBehavior(()=>{}, {random:()=>i/100});
+  pet.sync(idleContext);
+  if(pet.tap()==="proud")hits++;
+  pet.dispose();
+ }
+ assert.equal(hits,35);
+ let now=0;
+ const pet=new PetBehavior(()=>{}, {now:()=>now,random:()=>0});
+ pet.sync(idleContext);
+ assert.equal(pet.tap(),'proud');
+ now+=400;
+ assert.equal(pet.tap(),null);
+ now+=600;
+ assert.equal(pet.tap(),'angry');
+ pet.dispose();
 });
-test('Chinese quips do not repeat; rare reactions respect cooldown, busy and hidden states',()=>{
- let now=0;const p=new Personality({idle:['甲','乙']},()=>0,()=>now);
- assert.equal(p.say('idle'),'甲');assert.equal(p.say('idle'),'乙');
- const c={enabled:true,hidden:false,busy:false,state:'idle'};
- assert.equal(p.reaction(c),null);now=60000;assert.equal(p.reaction(c),'proud');assert.equal(p.reaction(c),null);
- for(const patch of [{busy:true},{hidden:true},{enabled:false},{state:'thinking'},{state:'warning'}])assert.equal(p.reaction({...c,...patch},true),null);
- now=240000;assert.equal(p.reaction(c),'proud');
+test('spaced head taps can show shy without counting separate visits or overriding a preview',()=>{
+ const reactions=(interval,random,preview=false)=>{
+  let now=0;
+  const pet=new PetBehavior(()=>{}, {now:()=>now,random:()=>random});
+  pet.sync(idleContext);
+  if(preview) pet.show('angry','preview');
+  const results=[];
+  for(let i=0;i<8;i++){
+   now=i*interval;
+   results.push(pet.tap());
+  }
+  pet.dispose();
+  return results;
+ };
+ assert.deepEqual(reactions(1000,.40),[null,null,null,'shy',null,null,'shy',null]);
+ assert.ok(reactions(1000,.46).every(result=>result===null));
+ assert.ok(reactions(1900,.40).every(result=>result===null));
+ assert.ok(reactions(1000,.40,true).every(result=>result===null));
+});
+test('preview survives state and settings changes for its full duration',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let visual;
+ const pet=new PetBehavior(next=>visual=next);
+ pet.sync(idleContext);
+ assert.equal(pet.show('proud','preview'),true);
+ pet.sync({...idleContext,idle:false,rest:false,expressions:false});
+ t.mock.timers.tick(3199);
+ assert.equal(visual.expression,'proud');
+ pet.sync(idleContext);
+ assert.equal(pet.show('shy','dialogue'),false);
+ t.mock.timers.tick(1);
+ assert.equal(visual.expression,undefined);
+ pet.dispose();
+});
+test('idle pet blinks, naps with eyes closed, and a click wakes with a rebound',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let visual;
+ const pet=new PetBehavior(next=>visual=next,{random:()=>0});
+ pet.sync(idleContext);
+ t.mock.timers.tick(4200);
+ assert.equal(visual.blink,true);
+ t.mock.timers.tick(140);
+ assert.equal(visual.blink,false);
+ t.mock.timers.tick(180000-4340);
+ assert.equal(visual.rest,'sleeping');
+ assert.equal(visual.blink,true);
+ assert.equal(pet.activity(),false);
+ assert.equal(visual.rest,'sleeping');
+ assert.equal(pet.activity(true),true);
+ assert.equal(visual.rest,'waking');
+ assert.equal(visual.blink,false);
+ t.mock.timers.tick(PetBehavior.wakeTime);
+ assert.equal(visual.rest,'awake');
+ pet.dispose();
+});
+test('nap preview works with the bubble open and can finish automatically or by waking early',t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let visual;
+ const pet=new PetBehavior(next=>visual=next);
+ pet.sync({...idleContext,rest:false});
+ pet.previewNap();
+ pet.sync({...idleContext,rest:false,idle:false,expressions:false});
+ t.mock.timers.tick(3199);
+ assert.equal(visual.rest,'sleeping');
+ assert.equal(visual.blink,true);
+ t.mock.timers.tick(1);
+ assert.equal(visual.rest,'waking');
+ t.mock.timers.tick(PetBehavior.wakeTime);
+ assert.equal(visual.rest,'awake');
+ pet.previewNap();
+ assert.equal(pet.activity(true),true);
+ t.mock.timers.tick(3200);
+ assert.equal(visual.rest,'awake');
+ pet.previewNap();
+ assert.equal(pet.show('angry','preview'),true);
+ assert.deepEqual(visual,{expression:'angry',rest:'awake',blink:false});
+ pet.dispose();
+});
+test('quips do not repeat and only tagged dialogue gets a shy expression',()=>{
+ const personality=new Personality({idle:['甲','乙']},()=>0,{shy:['乙']});
+ assert.equal(personality.say('idle'),'甲');
+ assert.equal(personality.expressionFor('甲'),null);
+ const next=personality.say('idle');
+ assert.equal(next,'乙');
+ assert.equal(personality.expressionFor(next),'shy');
 });
 test('host placement fits negative-coordinate workspaces and hides small or inactive hosts',()=>{
  for(const scale of [140,220,360]){const area={x:-1200,y:20,width:1100,height:800},p=hostPlacement({kind:'host',bounds:area},scale);assert(p);assert(p.bounds.x>=area.x&&p.bounds.y>=area.y);assert(p.bounds.x+p.bounds.width<=area.x+area.width);assert(p.bounds.y+p.bounds.height<=area.y+area.height);}
  assert.equal(hostPlacement({kind:'other',bounds:null},220),null);
  assert.equal(hostPlacement({kind:'host',bounds:{x:0,y:0,width:350,height:400}},220),null);
+ const compactArea={x:-500,y:20,width:370,height:420};
+ const compact=hostPlacement({kind:'host',bounds:compactArea},360,0,0);
+ assert(compact,'a short host can keep the square character and a usable bubble');
+ assert.equal(compact.bounds.height,compactArea.height);
+ assert.ok(compact.bounds.height-compact.scale>=245,'leave room for the bubble above the character');
 });
 test('native foreground helper returns bounded metadata without interacting with windows',async()=>{
  const monitor=new ForegroundMonitor();try{const state=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('helper timeout')),5000);monitor.once('change',s=>{clearTimeout(timer);resolve(s);});monitor.start();});assert(['host','self','other','unknown'].includes(state.kind));}finally{monitor.stop();}
@@ -63,7 +161,7 @@ test('Desktop Models quota cache is read without calling services',()=>{
  assert.equal(sample.fiveHour,42);assert.equal(sample.weekly,0);assert.equal(sample.fetchedAt,null);assert.equal(sample.cacheAvailable,true);
 });
 
-test('visual drag reaches host corners continuously and survives reflow without a release jump',()=>{
+test('character placement and host offsets agree across the available width',()=>{
  const {characterPlacement,hostPlacement}=require('../src/domain/host-visibility.cjs');
  const area={x:100,y:50,width:1200,height:800},size=220,dim={width:360,height:524};
  let previous=null;

@@ -1,7 +1,7 @@
 const fs=require("node:fs"),path=require("node:path"),os=require("node:os"),http=require("node:http"),WebSocket=require("./vendor/ws");
 function getJson(port,resource){return new Promise((resolve,reject)=>{const req=http.get({hostname:"127.0.0.1",port,path:resource,timeout:1800},res=>{let data="";res.on("data",b=>{data+=b;if(data.length>1048576)req.destroy();});res.on("end",()=>{try{resolve(JSON.parse(data));}catch{reject(new Error("宿主端点返回无效数据"));}});});req.on("timeout",()=>req.destroy(new Error("宿主响应超时")));req.on("error",reject);});}
 async function discover(){
- const candidates=[path.join(process.env.APPDATA||path.join(os.homedir(),"AppData/Roaming"),"Antigravity/DevToolsActivePort"),path.join(os.homedir(),"Library/Application Support/Antigravity/DevToolsActivePort"),path.join(os.homedir(),".config/Antigravity/DevToolsActivePort")];
+ const candidates=[path.join(process.env.APPDATA||path.join(os.homedir(),"AppData/Roaming"),"Antigravity/DevToolsActivePort"),path.join(os.homedir(),"Library/Application Support/Antigravity/DevToolsActivePort"),path.join(os.homedir(),".config/Antigravity/DevToolsActivePort"),path.join(process.env.XDG_CONFIG_HOME||path.join(os.homedir(),".config"),"Antigravity/DevToolsActivePort")];
  for(const file of candidates)try{
   const port=Number(fs.readFileSync(file,"utf8").split("\n")[0]);
   if(!Number.isInteger(port)||port<1||port>65535)continue;
@@ -24,4 +24,28 @@ class Cdp{
  async evaluate(expression,timeout=20000){const out=await this.send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true},timeout);if(out.exceptionDetails)throw new Error(out.exceptionDetails.exception?.description||out.exceptionDetails.text||"宿主执行失败");return out.result?.value;}
  close(){this.closed=true;this.socket.close();}
 }
-module.exports={discover,Cdp};
+
+function getHostAppCandidates(){
+ if(process.platform==='darwin'){
+  return [
+   '/Applications/Antigravity.app',
+   path.join(os.homedir(),'Applications/Antigravity.app')
+  ];
+ }
+ if(process.platform==='win32'){
+  return [
+   path.join(process.env.LOCALAPPDATA||path.join(os.homedir(),'AppData/Local'),'Programs/Antigravity/Antigravity.exe'),
+   path.join(process.env['ProgramFiles']||'C:/Program Files','Antigravity/Antigravity.exe'),
+   path.join(process.env['ProgramFiles(x86)']||'C:/Program Files (x86)','Antigravity/Antigravity.exe')
+  ];
+ }
+ return [
+  '/opt/Antigravity/antigravity',
+  '/usr/bin/antigravity',
+  '/usr/share/antigravity/antigravity',
+  path.join(os.homedir(),'.local/bin/antigravity')
+ ];
+}
+
+module.exports={discover,Cdp,getHostAppCandidates};
+

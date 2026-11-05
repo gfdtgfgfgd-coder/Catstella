@@ -1,17 +1,43 @@
 (async()=>{
- const api=window.widgetApi,$=id=>document.getElementById(id),mascot=$("mascot");
- let snapshot,selected="quota",closed=true,temporary=null,timeout,pointer=null,gesture=0,currentSound=null,petAt=0,hoverCount=0,hoverTime=0,hit=null;
- let personality,talkState,talkLine,eggTimer,autoHide,hideAnimation,lastBubbleOpen=null;
+ const api=window.widgetApi,$=id=>document.getElementById(id),mascot=$("mascot"),motion=$("motion"),sleepShell=motion.parentElement;
+ let snapshot,selected="quota",closed=true,temporary=null,timeout,pointer=null,gesture=0,currentSound=null,hit=null;
+ let tapTimer=null,artRenderSequence=0,artReadyNotified=false;
+ let personality,talkState,talkLine,autoHide,hideAnimation,lastBubbleOpen=null,lastBubbleView;
  let consecutiveClicks=0;
- function armBubble(){clearTimeout(autoHide);if(!closed)autoHide=setTimeout(()=>{closed=true;consecutiveClicks=0;render();},6500);}
+ function armBubble(){clearTimeout(autoHide);const focus=document.activeElement;if(!closed&&!($("bubble").contains(focus)&&focus.matches(":focus-visible")))autoHide=setTimeout(()=>{closed=true;consecutiveClicks=0;render();},6500);}
  function applyHonorific(line){if(!line||!snapshot?.settings)return line;const mode=snapshot.settings.userHonorificMode||"none";if(mode==="none")return line;const name=mode==="zayu"?"杂鱼君":(mode==="custom"&&snapshot.settings.customHonorific?snapshot.settings.customHonorific.trim():"");if(!name)return line;return line.includes("人类")?line.replaceAll("人类",name):line;}
  function bubbleVisibility(open){const bubble=$("bubble");if(lastBubbleOpen===open)return;lastBubbleOpen=open;clearTimeout(hideAnimation);bubble.inert=!open;bubble.setAttribute("aria-hidden",String(!open));if(open){bubble.hidden=false;void bubble.offsetWidth;requestAnimationFrame(()=>{if(lastBubbleOpen)bubble.dataset.open="true";});}else{bubble.dataset.open="false";hideAnimation=setTimeout(()=>{if(!lastBubbleOpen)bubble.hidden=true;},snapshot?.settings.reducedMotion?0:180);}}
- function stopReaction(){clearTimeout(eggTimer);if(mascot.dataset.expression){delete mascot.dataset.expression;talkState=null;}}
+ const PetBehavior=window.CatstellaPetBehavior;
+ sleepShell.style.setProperty("--agy-wake-duration",PetBehavior.wakeTime+"ms");
+ const pet=new PetBehavior(({expression,rest,blink})=>{
+  if(rest==="waking"&&mascot.dataset.rest!==rest){
+   const offset=new DOMMatrixReadOnly(getComputedStyle(sleepShell).transform).m42;
+   sleepShell.style.setProperty("--agy-nuzzle-start",offset+"px");
+  }
+  if(expression)mascot.dataset.expression=expression;
+  else delete mascot.dataset.expression;
+  mascot.dataset.rest=rest;
+  mascot.dataset.blink=String(blink);
+ });
+ function syncPet(){
+  if(!snapshot)return;
+  const visible=!document.hidden&&snapshot.visibility?.visible!==false;
+  const resting=visible&&["idle","offline","warning","error"].includes(snapshot.state);
+  pet.sync({visible,idle:resting&&!pointer,rest:resting&&(!pointer||pet.rest==="sleeping")&&(closed||!snapshot.settings.bubbleOn),
+   expressions:snapshot.settings.easterEggs});
+ }
+ function chooseTalk(express=false){
+  talkState=snapshot.persistentState||snapshot.state;
+  talkLine=personality.say(talkState==="offline"?"idle":talkState);
+  if(express)pet.show(personality.expressionFor(talkLine),"dialogue");
+ }
  const hasWebData=()=>Boolean(snapshot?.webCompanion?.online||snapshot?.webCompanion?.quota);
  const getPages=()=>{
   const list=["quota"];
   if(hasWebData())list.push("webQuota");
+/* @byok-dev-start */
   if(snapshot?.byok?.available)list.push("claudeGpt");
+/* @byok-dev-end */
   list.push("talk","today","latest");
   return list;
  };
@@ -22,28 +48,46 @@
   const payload=await api.audio(kind);if(token!==gesture||!payload||!snapshot.settings.sound)return;
   currentSound=new Audio(payload.url);currentSound.volume=payload.effectiveVolume;currentSound.play().catch(()=>{});
  }
+ async function paintArtwork(pack,frames,artKey){
+  if(mascot.dataset.characterPack===pack&&mascot.dataset.artKey===artKey)return;
+  const sequence=++artRenderSequence;
+  mascot.dataset.artReady="false";
+  mascot.dataset.characterPack=pack;mascot.dataset.artKey=artKey;
+  const v="?v="+artKey.replace(/[^a-z0-9]/gi,"-");
+  const base=pack==="lin-cat"?"../../assets/character-packs/lin-cat/frames/":"../../assets/character-packs/gemini-star-v1/frames/";
+  const files={idle:"idle.png",blink:"blink.png",proud:pack==="lin-cat"?"proud.png":"proud-v3.png",sad:"sad.png",shy:"shy.png"};
+  const idleEl=document.querySelector(".agy-frame--idle");
+  const blinkEl=document.querySelector(".agy-frame--blink");
+  const proudEl=document.querySelector(".agy-expression--proud");
+  const shyEl=document.querySelector(".agy-expression--shy");
+  const angryEl=document.querySelector(".agy-expression--angry");
+  const source=frame=>(frames?.[frame]||frames?.idle||base+files[frame])+v;
+  if(idleEl)idleEl.src=source("idle");
+  if(blinkEl)blinkEl.src=source("blink");
+  if(proudEl)proudEl.src=source("proud");
+  if(shyEl)shyEl.src=source("shy");
+  if(angryEl)angryEl.src=source("sad");
+  const images=[idleEl,blinkEl,proudEl,shyEl,angryEl].filter(Boolean);
+  await Promise.all(images.map(image=>image.decode?image.decode().catch(()=>{}):Promise.resolve()));
+  if(sequence!==artRenderSequence)return;
+  mascot.dataset.artReady="true";
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  if(!artReadyNotified&&typeof api.ready==="function"){
+   artReadyNotified=true;
+   api.ready();
+  }
+ }
  function render(){
   if(!snapshot)return;const s=snapshot.settings,l=snapshot.ledger,pages=getPages();
   if(!pages.includes(selected))selected="quota";
-  const pack=s.characterPack==="lin-cat"?"lin-cat":"gemini-star-v1";
+  syncPet();
+  const bubbleView=temporary||selected;
+  if(bubbleView!==lastBubbleView){lastBubbleView=bubbleView;$("bubble-body").scrollTop=0;}
+  const frames=snapshot.characterPacks?.find(item=>item.id===s.characterPack)?.frames;
+  const pack=frames?.idle?s.characterPack:s.characterPack==="lin-cat"?"lin-cat":"gemini-star-v1";
   // 帧图 URL 全部携带内容指纹版本号：资产更新即缓存失效，根治"偶尔变回老立绘"。
   const artKey=pack+":"+(snapshot.artVersion||"0");
-  if(mascot.dataset.characterPack!==pack||mascot.dataset.artKey!==artKey){
-   mascot.dataset.characterPack=pack;mascot.dataset.artKey=artKey;
-   const v="?v="+artKey.replace(/[^a-z0-9]/gi,"-");
-   const base=pack==="lin-cat"?"../../assets/character-packs/lin-cat/frames/":"../../assets/character-packs/gemini-star-v1/frames/";
-   const files=pack==="lin-cat"?{idle:"idle.png",proud:"proud.png",sad:"sad.png",shy:"shy.png",angry:"angry.png"}:{idle:"idle.png",proud:"proud-v3.png",sad:"sad-v3.png",shy:"shy.png",angry:"angry.png"};
-   const idleEl=document.querySelector(".agy-frame--idle");
-   const proudEl=document.querySelector(".agy-expression--proud");
-   const sadEl=document.querySelector(".agy-expression--crying");
-   const shyEl=document.querySelector(".agy-expression--shy");
-   const angryEl=document.querySelector(".agy-expression--angry");
-   if(idleEl)idleEl.src=base+files.idle+v;
-   if(proudEl)proudEl.src=base+files.proud+v;
-   if(sadEl)sadEl.src=base+files.sad+v;
-   if(shyEl)shyEl.src=base+files.shy+v;
-   if(angryEl)angryEl.src=base+files.angry+v;
-  }
+  void paintArtwork(pack,frames,artKey);
   mascot.style.setProperty("--agy-width",(snapshot.displayScale||s.scale)+"px");mascot.style.setProperty("--agy-shift",(snapshot.artShift||0)+"px");mascot.dataset.state=snapshot.state;mascot.dataset.dock=snapshot.dockSide||"";mascot.dataset.facing=snapshot.facing||"left";mascot.dataset.reducedMotion=String(s.reducedMotion);
   bubbleVisibility(!closed&&s.bubbleOn);for(const id of ["quota","web-quota-panel","byok-panel","value","detail"])if($(id))$(id).hidden=true;$("page").textContent=(pages.indexOf(selected)+1)+" / "+pages.length;
   if(temporary){$("title").textContent=temporary.title;$("value").hidden=false;$("value").textContent=temporary.body;$("detail").hidden=!temporary.detail;$("detail").textContent=temporary.detail||"";$("meta").textContent=temporary.meta||"";return;}
@@ -116,6 +160,7 @@
     $("web-model-split").textContent=wq.flashCount||wq.thinkingCount||wq.proCount?((wq.flashCount||0)+" / "+(wq.thinkingCount||0)+" / "+(wq.proCount||0)):"第 0 轮";
    }
    $("meta").textContent=wq.resetHint?("重置时间: "+wq.resetHint):(wc.online?"与浏览器扩展实时联动中":"打开 Gemini 网页即可自动同步");
+/* @byok-dev-start */
   }else if(selected==="claudeGpt"){
    const b=snapshot.byok||{},ap=b.activeProvider,choices=Array.isArray(b.enabledModelChoices)?b.enabledModelChoices:[];
    const statusMap={online:"🟢 联通正常",warning:"🟡 待测速",error:"🔴 连接异常",disabled:"⚪ 未启用"};
@@ -133,6 +178,7 @@
    $("byok-ping").textContent=typeof ap?.pingMs==="number"?("⚡ "+ap.pingMs+" ms"):(ap?.enabled?"点此测速":"未启用");
    $("byok-requests").textContent=(typeof b.todayRequests==="number"?b.todayRequests:0)+" 次";
    $("meta").textContent=(b.gatewayOnline?("网关 127.0.0.1:"+b.port):"网关离线")+" · 点卡片测速查余";
+/* @byok-dev-end */
   }else if(selected==="today"){
    $("title").textContent="今日用量 · 本机";$("value").hidden=false;$("value").textContent=format(l.todayTokens.total);$("detail").hidden=false;
    $("detail").textContent="输入 "+format(l.todayTokens.prompt)+" · 缓存 "+format(l.todayTokens.cache)+" · 输出 "+format(l.todayTokens.output);
@@ -140,21 +186,38 @@
   }else if(selected==="latest"){
    const r=l.latest;$("title").textContent="最近模型步骤";$("value").hidden=false;$("value").textContent=format(r?.tokens.total);$("detail").hidden=false;$("detail").textContent=r?"输入 "+format(r.tokens.input)+" · 输出 "+format(r.tokens.output):"尚无数值记录";
    $("meta").textContent=r?"本机记录 · 费用 —（无价格来源）":"等待真实会话记录";
-  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state)){talkState=snapshot.persistentState||snapshot.state;talkLine=personality.say(talkState==="offline"?"idle":talkState);}$("value").textContent=applyHonorific(talkLine);$("meta").textContent="点点本喵，再聊一句";}
+  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state))chooseTalk();$("value").textContent=applyHonorific(talkLine);$("meta").textContent="点点本喵，再聊一句";}
   if(selected!=="talk")$("value").classList.remove("agy-phrase");
  }
- function message(title,body,detail="",ms=4500,meta=""){clearTimeout(timeout);temporary={title,body,detail,meta};closed=false;render();if(ms>0)timeout=setTimeout(()=>{temporary=null;render();},ms);}
- function select(delta){const pages=getPages();armBubble();clearTimeout(timeout);temporary=null;closed=false;selected=pages[(pages.indexOf(selected)+delta+pages.length)%pages.length];api.save({bubblePage:selected});render();}
+ function message(title,body,detail="",ms=4500,meta=""){clearAmbient();clearTimeout(timeout);temporary={title,body,detail,meta};closed=false;render();if(ms>0)timeout=setTimeout(()=>{temporary=null;render();},ms);}
+ function select(delta){const pages=getPages();armBubble();clearTimeout(timeout);temporary=null;closed=false;selected=pages[(pages.indexOf(selected)+delta+pages.length)%pages.length];if(selected==="talk")chooseTalk(true);api.save({bubblePage:selected});render();}
  $("prev").onclick=()=>select(-1);$("next").onclick=()=>select(1);$("close").onclick=()=>{clearTimeout(autoHide);closed=true;consecutiveClicks=0;render();};$("toggle").onclick=()=>{closed=!closed;if(!snapshot.settings.bubbleOn)api.save({bubbleOn:true});armBubble();render();};$("settings").onclick=()=>api.command("settings");$("quota").onclick=()=>api.command("quota-refresh");
+/* @byok-dev-start */
  if($("byok-panel"))$("byok-panel").onclick=()=>api.command("byok-ping-active");
  if($("byok-model-prev"))$("byok-model-prev").onclick=e=>{e.stopPropagation();armBubble();api.command("byok-cycle-prev");};
  if($("byok-model-next"))$("byok-model-next").onclick=e=>{e.stopPropagation();armBubble();api.command("byok-cycle-next");};
  if($("byok-model-badge"))$("byok-model-badge").onclick=e=>{e.stopPropagation();api.command("byok-open-settings");};
+/* @byok-dev-end */
  if($("web-quota-panel"))$("web-quota-panel").onclick=()=>select(1);
  window.addEventListener("contextmenu",e=>{e.preventDefault();api.command("menu");});
  $("bubble").addEventListener("pointerenter",()=>clearTimeout(autoHide));$("bubble").addEventListener("pointerleave",armBubble);
- const motion=$("motion");
+ $("bubble").addEventListener("focusin",event=>{if(event.target.matches(":focus-visible"))clearTimeout(autoHide);});
+ $("bubble").addEventListener("focusout",event=>{if(!$("bubble").contains(event.relatedTarget))queueMicrotask(armBubble);});
+ function hitsHead(event){
+  const area=sleepShell.getBoundingClientRect();
+  const x=event.clientX-area.left,y=event.clientY-area.top;
+  return x>=area.width*.07&&x<=area.width*.93&&y>=area.height*.035&&y<=area.height*.80;
+ }
  function animatePress(pressed){motion.dataset.pressed=String(pressed);}
+ const pointerDistance=event=>Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y);
+ function cancelPointerPress(){
+  clearTimeout(tapTimer);
+  tapTimer=null;
+  if(!pointer?.pressActive)return;
+  pointer.pressActive=false;
+  animatePress(false);
+  api.pointer("cancel");
+ }
  function activate(){
   const action = snapshot?.settings?.clickCatAction || "talk";
   if (action === "cyclePages") {
@@ -185,27 +248,68 @@
     selected = "webQuota";
     api.save({ bubblePage: "webQuota", bubbleOn: true });
     render();
+/* @byok-dev-start */
   } else if ((consecutiveClicks === 2 || consecutiveClicks === 3) && snapshot?.byok?.available && selected !== "claudeGpt" && selected !== "talk") {
     selected = "claudeGpt";
     api.save({ bubblePage: "claudeGpt", bubbleOn: true });
     render();
+/* @byok-dev-end */
   } else {
     selected = "talk";
-    talkState = snapshot.persistentState || snapshot.state;
-    talkLine = personality.say(talkState === "offline" ? "idle" : talkState);
+    chooseTalk(true);
     api.save({ bubblePage: "talk", bubbleOn: true });
     render();
-    reaction(false, true);
   }
  }
- motion.addEventListener("pointerdown",e=>{if(e.button!==0)return;pointer={id:e.pointerId,x:e.screenX,y:e.screenY,moved:false};motion.setPointerCapture(e.pointerId);animatePress(true);api.pointer({action:"down",point:{x:e.screenX,y:e.screenY}});play("press");});
- motion.addEventListener("pointermove",e=>{
-  if(pointer){if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>8)pointer.moved=true;api.pointer({action:"move",point:{x:e.screenX,y:e.screenY}});return;}
-  const now=Date.now();hoverCount=now-hoverTime<250?hoverCount+1:1;hoverTime=now;if(hoverCount>16&&now-petAt>12000){hoverCount=0;petAt=now;api.pointer("pet");}
+ motion.addEventListener("pointerdown",event=>{
+  if(event.button!==0||!event.isPrimary||pointer)return;
+  const head=hitsHead(event);
+  const sleeping=pet.rest==="sleeping";
+  pointer={id:event.pointerId,startedAt:performance.now(),sleeping,head,x:event.clientX,y:event.clientY,distance:0,pressActive:!sleeping};
+  pet.activity();
+  motion.setPointerCapture(event.pointerId);
+  if(!sleeping){
+   animatePress(true);
+   api.pointer("down");
+   clearTimeout(tapTimer);
+   tapTimer=setTimeout(cancelPointerPress,PetBehavior.tapLimit);
+  }
+  syncPet();
+  if(!sleeping)play("press");
  });
- async function release(cancel=false){if(!pointer)return;pointer=null;const result=await api.pointer(cancel?"cancel":"up");animatePress(false);play("release");if(!result?.moved&&!cancel){activate();reaction(false,true);}}
- motion.addEventListener("pointerup",()=>release());motion.addEventListener("pointercancel",()=>release(true));motion.addEventListener("lostpointercapture",()=>release(true));window.addEventListener("blur",()=>release(true));
- motion.addEventListener("keydown",e=>{if(e.key===" "||e.key==="Enter"){e.preventDefault();activate();reaction(false,true);}});
+ motion.addEventListener("pointerenter",()=>pet.activity());
+ motion.addEventListener("pointermove",event=>{
+  if(pointer?.id!==event.pointerId)return;
+  pointer.distance=Math.max(pointer.distance,pointerDistance(event));
+  if(pointer.distance>PetBehavior.tapSlop)cancelPointerPress();
+ });
+ function release(cancel=false,event){
+  if(!pointer||(event&&event.pointerId!==pointer.id))return;
+  clearTimeout(tapTimer);tapTimer=null;
+  const {sleeping,head,startedAt}=pointer;
+  const distance=event?Math.max(pointer.distance,pointerDistance(event)):pointer.distance;
+  const isTap=!cancel&&PetBehavior.isTap(performance.now()-startedAt,distance);
+  pointer=null;
+  animatePress(false);
+  if(!sleeping)api.pointer(isTap?"up":"cancel");
+  if(isTap)play("release");
+  syncPet();
+  if(isTap){
+   if(pet.activity(true)||sleeping)return;
+   activate();
+   if(head&&pet.tap()==="proud")api.pointer("pet");
+  }
+ }
+ motion.addEventListener("pointerup",event=>release(false,event));
+ motion.addEventListener("pointercancel",event=>release(true,event));
+ motion.addEventListener("lostpointercapture",event=>release(true,event));
+ window.addEventListener("blur",()=>release(true));
+ motion.addEventListener("keydown",event=>{
+  if(event.key!==" "&&event.key!=="Enter")return;
+  event.preventDefault();
+  if(event.repeat)return;
+  if(!pet.activity(true))activate();
+ });
  window.addEventListener("mousemove",e=>{const active=!!e.target.closest(".interactive");if(hit!==active){hit=active;api.hit(active);}});
  window.addEventListener("mouseleave",()=>{hit=false;api.hit(false);});
 
@@ -225,10 +329,41 @@
     reloadImages();
     render();
   });
-  api.subscribe(data=>{if(snapshot&&(!data.settings.sound||data.settings.soundSet!==snapshot.settings.soundSet||data.settings.volume!==snapshot.settings.volume))stopSound();snapshot=data;if(!data.settings.easterEggs||!["idle","offline","pressed","release"].includes(data.state))stopReaction();render();});
+  api.subscribe(data=>{if(snapshot&&(!data.settings.sound||data.settings.soundSet!==snapshot.settings.soundSet||data.settings.volume!==snapshot.settings.volume))stopSound();snapshot=data;render();});
  api.onStep(step=>{if(!closed&&snapshot?.settings.turnCostOn){message("模型步骤完成",format(step.tokens.total)+" tokens","输入 "+format(step.tokens.input)+" · 输出 "+format(step.tokens.output),snapshot.settings.turnCostDurationMs,"真实本机记录 · 非整轮计费");play("release");}});
- function reaction(manual=false,clicked=false){if(!snapshot||!personality)return;const isStr=typeof manual==="string";const kind=personality.reaction({enabled:snapshot.settings.easterEggs,hidden:document.hidden||(isStr?false:(closed||!snapshot.settings.bubbleOn)),busy:!isStr&&(!!temporary||!!pointer||(clicked&&!!mascot.dataset.expression)),state:clicked?snapshot.persistentState:snapshot.state},manual,clicked);if(!kind)return;mascot.dataset.expression=kind;if(isStr||selected==="talk"){selected="talk";closed=false;armBubble();talkLine=personality.say(kind);render();}clearTimeout(eggTimer);eggTimer=setTimeout(()=>{delete mascot.dataset.expression;talkState=null;render();},3200);}
- api.onReaction(payload=>reaction(typeof payload==="string"?payload:true));const ambient=setInterval(()=>reaction(),30000);
- snapshot=await api.get();personality=new window.StarPersonality(snapshot.dialogue);selected=snapshot.settings.bubblePage;render();
- window.addEventListener("beforeunload",()=>{clearTimeout(timeout);clearTimeout(autoHide);clearTimeout(hideAnimation);clearTimeout(eggTimer);clearInterval(ambient);stopSound();});
+ api.onReaction(payload=>{
+  if(payload?.source==="preview"){
+   if(payload.expression==="nap")pet.previewNap();
+   else pet.show(payload.expression,"preview");
+  }
+  else if(typeof payload==="string")pet.show(payload,"system");
+ });
+ let ambientTimer,ambientMessage,previousAmbient;
+ function clearAmbient(){
+  if(!ambientMessage)return;
+  clearTimeout(ambientTimer);
+  if(temporary===ambientMessage){temporary=null;closed=true;render();}
+  ambientMessage=null;
+ }
+ const readyForAmbient=()=>snapshot?.settings.ambientChatter&&snapshot.settings.bubbleOn&&closed&&!pointer&&!temporary&&!document.hidden&&["idle","offline"].includes(snapshot.state);
+ const chatter=new window.CatstellaChatter({
+  allowed:async()=>readyForAmbient()&&await api.canChatter()&&readyForAmbient(),
+  speak:()=>{
+   previousAmbient=window.CatstellaChatter.pickLine(previousAmbient);
+   message("喵言喵语",applyHonorific(previousAmbient),"",0);
+   ambientMessage=temporary;
+   ambientTimer=setTimeout(clearAmbient,4500);
+  }
+ });
+ const quiet=()=>{clearAmbient();chatter.reset();};
+ document.addEventListener("pointerdown",quiet,true);
+ document.addEventListener("keydown",quiet,true);
+ document.addEventListener("visibilitychange",()=>{quiet();syncPet();});
+ api.subscribe(data=>{
+  chatter.configure(data.settings.ambientChatter===true);
+  if(!data.settings.ambientChatter||!data.settings.bubbleOn||!["idle","offline"].includes(data.state)||data.webCompanion?.active)clearAmbient();
+ });
+ snapshot=await api.get();personality=new window.StarPersonality(snapshot.dialogue,Math.random,snapshot.dialogueTags);selected=snapshot.settings.bubblePage;render();
+ chatter.configure(snapshot.settings.ambientChatter===true);
+ window.addEventListener("beforeunload",()=>{clearTimeout(timeout);clearTimeout(autoHide);clearTimeout(hideAnimation);pet.dispose();stopSound();});
 })();

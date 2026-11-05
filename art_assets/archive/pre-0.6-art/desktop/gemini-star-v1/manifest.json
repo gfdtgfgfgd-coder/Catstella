@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "id": "gemini-star-v1",
+  "name": "星语 · Gemini 半身桌宠",
+  "version": "1.1.0",
+  "approvedSource": "../../characters/gemini-bust-idle-v3.png",
+  "coordinateSystem": "normalized; origin top left; original files immutable; user-requested right-facing display mirrors with transition",
+  "frames": {
+    "idle": {
+      "src": "frames/idle.png",
+      "status": "user-approved"
+    },
+    "blink": {
+      "src": "frames/blink.png",
+      "status": "generated-candidate",
+      "enabledByDefault": false
+    },
+    "proud": {
+      "src": "frames/proud-v3.png",
+      "status": "derived-candidate",
+      "enabledByDefault": true
+    },
+    "crying": {
+      "src": "frames/sad-v3.png",
+      "status": "derived-candidate",
+      "enabledByDefault": true
+    }
+  },
+  "render": {
+    "canvas": {
+      "width": 1372,
+      "height": 1146
+    },
+    "blinkNativeCanvas": {
+      "width": 1372,
+      "height": 1147
+    },
+    "blinkFit": "same idle outer box; candidate alignment pending",
+    "defaultWidthCssPx": 220,
+    "minWidthCssPx": 140,
+    "maxWidthCssPx": 360,
+    "fit": "contain",
+    "anchor": [
+      0.5,
+      1
+    ],
+    "motionPaddingCssPx": 16,
+    "neck": "preserve source; no layer stretching",
+    "mirrorArtwork": true,
+    "facingTransitionMs": 260
+  },
+  "styles": "../../motions/gemini-widget.css",
+  "dialogue": "../../dialogue/zh-CN.json",
+  "ui": {
+    "style": "white-navy-thought-ellipse",
+    "speech": "../../ui/bubbles/thought-speech.svg",
+    "quota": "../../ui/bubbles/thought-quota.svg",
+    "turnCost": "../../ui/bubbles/thought-cost.svg",
+    "quotaSpec": "../../ui/bubbles/quota-spec.json"
+  },
+  "audio": "../../audio/codex-maid-widget/manifest.json",
+  "states": {
+    "idle": {
+      "frame": "idle",
+      "motion": "breath",
+      "loop": true
+    },
+    "thinking": {
+      "frame": "idle",
+      "motion": "ponder",
+      "effect": "../../ui/effects/thinking-dots.svg",
+      "loop": true
+    },
+    "success": {
+      "frame": "idle",
+      "motion": "duang",
+      "effect": "../../ui/effects/sparkle.svg",
+      "durationMs": 720,
+      "loop": false
+    },
+    "warning": {
+      "frame": "idle",
+      "motion": "worry",
+      "effect": "../../ui/effects/teardrop.svg",
+      "loop": true
+    },
+    "error": {
+      "frame": "idle",
+      "motion": "worry",
+      "effect": "../../ui/effects/teardrop.svg",
+      "loop": true
+    },
+    "offline": {
+      "frame": "idle",
+      "motion": "still",
+      "loop": false
+    },
+    "pressed": {
+      "frame": "idle",
+      "motion": "compress",
+      "loop": false
+    },
+    "release": {
+      "frame": "idle",
+      "motion": "rebound",
+      "durationMs": 560,
+      "loop": false
+    },
+    "dragged": {
+      "frame": "idle",
+      "motion": "held",
+      "loop": false
+    },
+    "petting": {
+      "frame": "idle",
+      "motion": "nuzzle",
+      "effect": "../../ui/effects/heart.svg",
+      "durationMs": 1600,
+      "loop": false
+    }
+  },
+  "motionPolicy": {
+    "reducedMotion": "static frame + static readable status",
+    "offscreen": "pause",
+    "continuousEffects": "idle/thinking/warning/error only; no strobe",
+    "artworkScaleRange": [
+      0.975,
+      1.025
+    ],
+    "keepBubbleUpright": true
+  },
+  "review": {
+    "base": "user-approved",
+    "blink": "candidate; optional manual preview only until accepted",
+    "motion": "art-preview",
+    "runtime": "automated verification; see root evidence",
+    "billing": "not-verified"
+  },
+  "rights": {
+    "characterDesignCredit": "ZipZipPipe (reference attribution supplied by user; not independently authenticated)",
+    "generation": "built-in imagegen",
+    "redistribution": "not-established; do not infer a license from reference code repositories"
+  }
+}

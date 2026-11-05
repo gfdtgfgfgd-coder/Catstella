@@ -1,5 +1,13 @@
 # 更新记录
 
+## 1.6.0 · 0.6.0 发布：星语/霓音新角色 + 在线图库与更新检测 + 点击语义重做 / 2026-11-05
+
+- **新角色与素材**：默认角色换成星语（`gemini-star-v1`）和霓音（`lin-cat`），由项目提供的五张透明帧适配，沿用原角色包 ID；旧立绘仅在本机 `art_assets/archive/pre-0.6-art/` 备份，不进发行包。内置壁纸换成四张新图（星语、霓音各两张），尺寸与 SHA-256 记录在壁纸包清单。
+- **点击语义重做**：`pet-behavior.js` 统一裁决——只有短按（≤700ms 且位移 ≤10px）才触发互动，长按、滑动、拖动不再弹气泡；点头部按概率触发得意，快速连点会气恼，间隔点按或点出部分台词可能害羞。空闲眨眼；气泡收起后空闲约三分钟打盹，点击唤醒。停靠改由菜单选择左下/右下，不再依赖拖拽。
+- **在线图库与更新**：设置中心「桌宠」「壁纸」各带在线图库（`online-assets/catalog.json`，含 WebP 预览、大小与 SHA-256），检测到本地缺少的素材会提示安装；「关于」支持自动/手动更新检测和在线配色；新增「自动碎碎念」（空闲冒一句，无音效）。桌面与网页联动端口扩为 `127.0.0.1:3921–3923`，并新增焦点互斥（浏览网页端时桌面猫自动隐藏）。
+- **发行结构与精简**：旧独立 Dream Skin 壳层退役到 `archive/legacy-dream-skin/`（只保留内部主题引擎），实验性 BYOK 封存到 `archive/legacy-byok/`（`byokDevelopment:false`，主进程固定 `devGateway=null`、`byokPortal=null`）。安装包删除全部 Chromium `locales/`，并用 Inno `Excludes` 拦掉 `GeneratedVersion.cs`、`IconSwap.exe` 等构建机文件；卸载时清空 `{app}`，避免运行时生成的 `debug.log` 残留导致目录删不掉。安装目录改为 `%LOCALAPPDATA%\Programs\Catstella\Suite`。
+- **验证**：65 项单测全绿；Inno 静默安装 → 无 locales 启动 → 读取统一渲染层设置 → unins000 卸载目录消失全链通过（无 locales 时 Electron 只在 `debug.log` 写 `locale_file_path.empty()` 警告，功能正常）；冷启动隔离测试通过（保存的形象首帧生效、短按可交互、长按/滑动/拖动无效）。发行包 `Catstella-Setup-0.6.0-x64.exe` 172,753,159 字节（164.75 MiB），SHA-256 `94b63ab880d62dec055c6abaf1cdc2cb6d697bd016261a88644e256ffc79e16d`。测试 65 项全绿。版本 0.6.0。
+
 ## 1.5.0 · 界面汉化翻译层 + 立绘缓存击穿 + 帧图同步工具 / 2026-11-03
 
 - **Antigravity 界面汉化（实验）**：宿主为自研 React IDE，"自带汉化文件"仅是 Chromium 层 .pak（只管原生菜单），改 asar 属禁区——故走 **CDP 注入翻译层**（与主题化同通道）：`localize.cjs`（serialized，自包含）字典精确匹配替换可见文本节点，MutationObserver 增量跟随；输入框/代码/终端/[contenteditable] 绝对不碰；原文记录于数组、关闭语言时完整还原；独立 `LocalizationController` 按签名增量注入/销毁。统一面板新增「Antigravity 界面语言」选择（English / 简体中文），起步字典 60+ 条（数据目录 JSON 可持续扩充）。沙箱验证：注入→翻译→保护区免疫→销毁→还原全链路。

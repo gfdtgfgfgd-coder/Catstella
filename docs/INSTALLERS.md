@@ -1,6 +1,6 @@
-# Windows 独立安装包
+# Windows 套件安装包
 
-两个插件各自使用一个安装EXE，不依赖另一个插件或工程目录。安装程序使用Windows自带C#/.NET Framework编译器；启动器、安装器和卸载源码位于tools/installer/。
+一个 `Catstella-Setup-<版本>-x64.exe` 安装桌宠与 Dream Skin 主题引擎。实验性 BYOK 网关已封存到 `archive/legacy-byok/`。覆盖安装会清理原安装目录中的 BYOK 程序文件和启用标记，个人配置仍保留。可选的 Web 伴侣组件附带扩展包和安装指引，由用户在浏览器里安装。构建只打包主题运行模块，并移除 Catstella 不使用的 Chromium locale 文件。安装器使用 Inno Setup；启动与卸载源码在 `tools/installer/`。
 
 ## 构建
 
@@ -10,14 +10,15 @@
 npm ci
 npm run build:native
 npm run build:installers
-npm run verify:installers
 ```
 
-输出位于dist/installers/。仅从已脱敏公开目录构建，包含各自的src/assets、shared、许可和npm锁定Electron运行时。编译后的原生窗口跟随程序只放入挂件包。不要从含私人参考图和运行配置的目录打包。
+输出位于 `dist/installers/`。桌面组件包含两个项目的 `src/assets`、共享代码、许可和锁定的 Electron 运行时；Web 扩展从活动 Web 工作区现场打包。私人素材和本机配置不参与打包。
+
+完整安装、启动和卸载验证用 `npm run verify:installers`，请在干净的 Windows 测试账户或虚拟机运行：虽然安装目录是临时的，安装和卸载仍会使用当前账户的套件注册表项。
 
 ## 自启动与联动
 
-配置位于HKCU\Software\AntigravityStarSuite\Widget或Skin；登录项位于HKCU\Software\Microsoft\Windows\CurrentVersion\Run，名称为AntigravityStarSuiteWidget或Skin。两个插件独立配置。
+套件配置位于 `HKCU\Software\AntigravityStarSuite\Suite`。登录项位于 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，名称为 `AntigravityStarSuiteSuite`。
 
 启动设置关闭全部选项后删除对应Run项，联动检测最多数秒退出。后台检测只检查当前Windows会话的Antigravity进程是否存在，不读取标题、会话或登录凭据。多台电脑上的安装目录无须相同。多个宿主同时运行时按“是否存在任一进程”触发，未穷举宿主更新/重启、多用户及多屏场景。
 
@@ -25,8 +26,8 @@ npm run verify:installers
 
 ## 卸载与升级
 
-卸载入口属于每个插件自己的当前用户卸载项。卸载前向对应插件发送正常退出指令，清理自己创建的快捷方式和登录项，再由临时目录工作进程删除带类型标记的安装目录。个人设置目录保留。卸载工作进程可能在系统临时目录保留一个很小的EXE，后续可由系统临时文件清理移除。
+从 Windows 的已安装应用卸载套件。卸载时先让套件退出，再清理快捷方式、登录项，并清空整个安装目录（含 Electron 无 locales 时生成的 `debug.log` 等运行时残留）。个人设置目录保留。
 
-同一插件重装可选择原安装目录。为避免升级时文件占用，建议先从托盘退出插件；不要把多个插件装进同一目录。不要选择包含其他文件的目录，安装器会拒绝覆盖没有匹配安装标记的非空目录。
+重装可选择原安装目录。安装器会请求旧套件退出，等待该目录的旧进程释放文件，并由 Windows 检查仍被占用的程序文件。
 
-当前安装包没有签名或自动在线更新功能。SHA256SUMS用于下载完整性核对。发布前验证包括中文目录独立提取、两个真实Electron界面、自启动/联动选项和隔离Run项清理、带标记目录卸载；不等同第二台设备或实际重新登录验收。
+当前安装包未签名。套件会检查 GitHub 的正式桌面发行包，提示新版本；升级仍需手动下载和安装。发行标签、附件命名和在线图库发布流程见 [在线主题与壁纸](../online-assets/README.md)。

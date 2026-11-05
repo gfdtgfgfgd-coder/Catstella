@@ -1,18 +1,21 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;user-select:none;font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}*{box-sizing:border-box}
 #widget{height:100%;display:flex;align-items:flex-end;justify-content:center;padding:0 20px 10px}
 .agy-art{flex:none}
-.agy-art .agy-bubble{position:absolute;left:50%;bottom:calc(100% + 54px);margin:0;transform:translateX(-50%);animation:none;width:316px;max-width:316px;min-height:202px;padding:23px 31px 19px}
+.agy-art{--agy-bubble-gap:54px;--agy-bubble-room:calc(100vh - var(--agy-width) - var(--agy-bubble-gap) - 16px)}
+.agy-art .agy-bubble{position:absolute;left:50%;bottom:calc(100% + var(--agy-bubble-gap));margin:0;transform:translateX(-50%);animation:none;width:316px;max-width:calc(100vw - 32px);min-height:min(202px,var(--agy-bubble-room));max-height:var(--agy-bubble-room);padding:23px 31px 19px}
 .agy-art .agy-bubble[hidden],.agy-art [hidden]{display:none!important}
 .agy-art .agy-bubble__title{font-size:18px}.agy-art .agy-bubble__meta{font-size:10px;line-height:1.4;margin:4px 0}
-.agy-art .agy-bubble__title{position:static}.agy-art #close{position:absolute;right:17px;top:50%;transform:translateY(-50%);font-size:13px;color:#8892b8}
+.agy-art .agy-bubble__title{position:static;flex:none}.agy-art #close{position:absolute;right:17px;top:50%;transform:translateY(-50%);font-size:13px;color:#8892b8}
+.agy-bubble__body{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#bda7e7 transparent}
+.agy-bubble__body:focus-visible{outline:2px solid #a490ec;outline-offset:-2px;border-radius:8px}
 .agy-art .agy-bubble__value{font-size:38px}.agy-art #detail{font-size:12px;color:#697bac;margin-top:4px}
 .agy-art .agy-phrase{font-size:24px}
-.bubble-nav{display:flex;justify-content:center;align-items:center;gap:8px;height:22px;margin-top:3px}
+.bubble-nav{display:flex;flex:none;justify-content:center;align-items:center;gap:8px;height:22px;margin-top:3px}
 .agy-art .bubble-nav button{padding:0 8px;background:#f1eef9;border:1px solid #e0dbef;line-height:20px;font-size:17px;border-radius:5px}.bubble-nav span{font-size:9px;color:#8d8aa5}
 .widget-tools{position:absolute;right:-19px;top:11%;display:flex;flex-direction:column;gap:6px;opacity:0;transition:opacity 150ms}
 .agy-art:hover .widget-tools,.widget-tools:focus-within{opacity:1}
 .widget-tools button{width:26px;height:26px;border:1px solid #aaa8d7;border-radius:7px;background:#fff;color:#4f5a93;font-size:13px;cursor:pointer}
-.agy-motion{cursor:grab;touch-action:none;outline:none}.agy-motion:active{cursor:grabbing}
+.agy-motion{cursor:pointer;touch-action:none;outline:none}
 .agy-motion:focus-visible{filter:drop-shadow(0 0 3px #a490ec)}
 /* Star crystal theme: runtime decoration, approved character pixels stay unchanged. */
 .agy-art .agy-bubble{border:2px solid #b89af4;background:radial-gradient(circle at 18% 25%,#f8dcff 0,transparent 30%),radial-gradient(circle at 85% 70%,#d8e5ff 0,transparent 35%),linear-gradient(135deg,#fff9fffa,#eee6fffa 55%,#e0dcfffa);color:#6842a2;box-shadow:inset 0 0 20px #fff,0 0 16px #b58cff45,0 5px 18px #48317928}
@@ -24,15 +27,17 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 .agy-art .agy-quota__fill{background:linear-gradient(90deg,#7778ff,#b47dff,#f1a5e6);box-shadow:0 0 10px #b381ff}
 .agy-art .agy-quota__caption,.agy-art .agy-bubble__meta,.agy-art #detail{color:#80659f}
 .agy-art .bubble-nav button{color:#9672bc;border-color:#ded0ed;background:#fcf5ffb0}
-.agy-art[data-state="pressed"] .agy-motion,.agy-art[data-state="dragged"] .agy-motion{animation:none;transform:scale(1.045,.94)}
-.agy-art[data-state="release"] .agy-motion{animation:none}
 
 .agy-face{position:relative}.agy-expression{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;pointer-events:none}
-.agy-art[data-expression="proud"] .agy-expression--proud,.agy-art[data-expression="crying"] .agy-expression--crying,.agy-art[data-expression="shy"] .agy-expression--shy,.agy-art[data-expression="angry"] .agy-expression--angry{opacity:1}
+.agy-art:not([data-art-ready="true"]) .agy-face{visibility:hidden}
+.agy-art .agy-frame--idle{aspect-ratio:1;object-fit:contain;object-position:center bottom}
+.agy-art .agy-frame--blink{object-fit:contain;object-position:center bottom;pointer-events:none}
+.agy-expression{object-position:center bottom}
+.agy-art[data-expression="proud"] .agy-expression--proud,.agy-art[data-expression="shy"] .agy-expression--shy,.agy-art[data-expression="angry"] .agy-expression--angry{opacity:1}
 .agy-art[data-expression] .agy-frame--idle{opacity:0}.agy-art #quip{font-size:11px}
 
 /* Keep the pointer surface fixed: no compression or re-entry animation on press. */
-.agy-art[data-state="pressed"] .agy-motion,.agy-art[data-state="dragged"] .agy-motion,.agy-art[data-state="release"] .agy-motion{transform:none;animation:none}
+.agy-art[data-state="pressed"] .agy-motion,.agy-art[data-state="release"] .agy-motion{transform:none;animation:none}
 .agy-face{transition:transform 260ms cubic-bezier(.22,.7,.3,1)}
 .agy-art[data-facing="left"] .agy-face{transform:rotateY(180deg)}
 .agy-art[data-reduced-motion="true"] .agy-face{transition:none}
@@ -56,7 +61,6 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 .agy-art .agy-bubble{left:calc(50% - var(--agy-shift,0px));--agy-anchor:calc(60% + var(--agy-shift,0px))}
 .agy-art[data-facing="left"] .agy-bubble{--agy-anchor:calc(60% + var(--agy-shift,0px) - var(--agy-width)*.116)}
 .widget-tools{right:5px}
-.agy-art[data-state="dragged"] .agy-motion[data-pressed="true"] .agy-face{scale:1}
 .agy-art #caption:empty{display:none}
 
 /* Bubble grows from its thought-dot connection, then retracts along the same path. */
@@ -82,16 +86,23 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 
 .agy-art[data-state="idle"] .agy-motion,
 .agy-art[data-state="offline"] .agy-motion,
-.agy-art:not([data-state="pressed"]):not([data-state="dragged"]):not([data-state="release"]):not([data-state="petting"]) .agy-motion {
+.agy-art:not([data-state="pressed"]):not([data-state="release"]):not([data-state="petting"]) .agy-motion {
   animation: agy-breath 4.2s ease-in-out infinite;
   transform-origin: 50% 100%;
 }
 
 .agy-art[data-reduced-motion="true"] .agy-motion,
-.agy-art[data-state="pressed"] .agy-motion,
-.agy-art[data-state="dragged"] .agy-motion {
+.agy-art[data-state="pressed"] .agy-motion {
   animation: none !important;
 }
+
+.agy-sleep-shell{transform:translateY(0);transform-origin:50% 100%;transition:transform 460ms cubic-bezier(.2,.65,.3,1)}
+.agy-art[data-rest="sleeping"] .agy-sleep-shell{transform:translateY(14%)}
+.agy-art:is([data-rest="sleeping"],[data-rest="waking"]) .agy-motion{animation:none!important}
+.agy-art[data-rest="sleeping"] .agy-motion .agy-effect{display:none}
+.agy-art[data-rest="waking"] .agy-sleep-shell{--agy-nuzzle-lift:-3%;--agy-nuzzle-settle:1%;animation:agy-nuzzle var(--agy-wake-duration) ease-out both;transition:none}
+.agy-art[data-reduced-motion="true"] .agy-sleep-shell{animation:none;transition:none}
+@media (prefers-reduced-motion:reduce){.agy-sleep-shell{animation:none!important;transition:none!important}}
 
 /* BYOK Mascot Bubble Status Panel */
 .agy-byok-panel { margin: 4px 0 6px; cursor: pointer; }

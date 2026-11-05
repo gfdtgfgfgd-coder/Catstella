@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "aica-clouds",
+  "name": "霓音 · 云端来信",
+  "kind": "image",
+  "file": "wallpaper.png",
+  "width": 1671,
+  "height": 941,
+  "sha256": "007c9fd09bd952e0fc2ee9641c3d0b5aa89278ee6d6bcee868703a155f53b09d",
+  "defaultFit": "adaptive"
+}

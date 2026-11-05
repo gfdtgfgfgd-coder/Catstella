@@ -79,14 +79,15 @@ class CompanionBridgeServer {
     this.resolveWallpaperFile = options.resolveWallpaperFile || (() => null);
     this.onPatch = options.onPatch || (() => {});
     this.onWebUpdate = options.onWebUpdate || (() => {});
-    this.onOpenSettings = options.onOpenSettings || (() => {});
-    this.portalNonce = options.portalNonce || crypto.randomBytes(16).toString("hex");
+    this.onOpenSettings = options.onOpenSettings;
+    this.portalNonce = this.onOpenSettings ? options.portalNonce || crypto.randomBytes(16).toString("hex") : null;
 
     this.server = null;
     this.boundPort = null;
     this.webState = {
       lastSeen: 0,
       active: false,
+      visible: false,
       quota: null,
       client: ""
     };
@@ -100,6 +101,7 @@ class CompanionBridgeServer {
       port: this.boundPort,
       online,
       active,
+      visible: online && this.webState.visible === true,
       lastSeen: this.webState.lastSeen || null,
       quota: this.webState.quota,
       client: this.webState.client || ""
@@ -160,7 +162,8 @@ class CompanionBridgeServer {
         id: w.id,
         title: w.title || w.name || w.id,
         fileName: w.fileName || "",
-        preview: w.preview || ""
+        preview: w.preview || "",
+        revision: (() => { try { const stat = fs.statSync(this.resolveWallpaperFile(w.id)); return w.id + ':' + Math.round(stat.mtimeMs) + ':' + stat.size; } catch { return w.id; } })()
       }));
       this.sendJson(req, res, 200, { ok: true, wallpapers: items });
       return;
@@ -194,7 +197,7 @@ class CompanionBridgeServer {
       return;
     }
 
-    if (req.method === "POST" && parsed.pathname === "/companion/open-settings") {
+    if (this.onOpenSettings && req.method === "POST" && parsed.pathname === "/companion/open-settings") {
       let raw = "";
       req.on("data", chunk => {
         raw += chunk.toString("utf8");
@@ -232,12 +235,14 @@ class CompanionBridgeServer {
           const body = raw ? JSON.parse(raw) : {};
           const prevOnline = this.getWebSnapshot().online;
           const prevActive = this.webState.active;
+          const prevVisible = this.webState.visible;
           const prevQuotaJson = JSON.stringify(this.webState.quota);
 
           this.webState.lastSeen = Date.now();
           if (typeof body.webActive === "boolean") {
             this.webState.active = body.webActive;
           }
+          this.webState.visible = typeof body.webVisible === 'boolean' ? body.webVisible : body.webActive === true;
           if (body.webQuota && typeof body.webQuota === "object") {
             this.webState.quota = sanitizeWebQuota(body.webQuota);
           }
@@ -252,6 +257,7 @@ class CompanionBridgeServer {
           const changed =
             !prevOnline ||
             prevActive !== this.webState.active ||
+            prevVisible !== this.webState.visible ||
             prevQuotaJson !== JSON.stringify(this.webState.quota);
 
           if (changed) {

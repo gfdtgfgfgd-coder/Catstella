@@ -1,60 +1,82 @@
-const {app,BrowserWindow,screen,Tray,Menu,ipcMain,nativeImage,globalShortcut,shell,powerMonitor}=require("electron");
-const path=require("node:path"),os=require("node:os");
+const {app,BrowserWindow,screen,Tray,Menu,ipcMain,nativeImage,globalShortcut,shell,powerMonitor,net}=require("electron");
+const path=require("node:path"),os=require("node:os"),{pathToFileURL}=require("node:url");
 const {SettingsManager}=require("../domain/settings.cjs"),{UsageLedger}=require("../domain/ledger.cjs"),{WidgetStateMachine}=require("../domain/state-machine.cjs"),{TranscriptAdapter}=require("../adapters/transcript-adapter.cjs"),{AudioManager}=require("../domain/audio-manager.cjs");
 const {HostQuotaAdapter}=require("../adapters/host-quota.cjs");
-const {ForegroundMonitor,hostPlacement,characterPlacement,snapToEdges}=require("../domain/host-visibility.cjs");
-const {GatewayCoordinator,defaultModelsPath}=require("../../../shared/gateway/index.cjs");
+const {ForegroundMonitor,hostPlacement,characterPlacement,widgetLayout}=require("../domain/host-visibility.cjs");
+// BYOK is sealed in archive/legacy-byok and must not be loaded by normal or release runs.
+const devGateway=null;
 const {CompanionBridgeServer}=require("../../../shared/companion-bridge.cjs");
+const {createOnlineActions}=require("./online.cjs");
+const {CompanionVisibility}=require("../domain/companion-visibility.cjs");
 // 星语皮肤并入同一实例：设置/壁纸/宿主主题化全部由挂件主进程托管，全局只保留一个托盘图标。
-const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs"),{LocalizationController}=require("../../../Antigravity-Dream-Skin/src/domain/localization-controller.cjs"),{ByokPortalController}=require("../../../Antigravity-Dream-Skin/src/domain/byok-portal-controller.cjs");
+const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs"),{LocalizationController}=require("../../../Antigravity-Dream-Skin/src/domain/localization-controller.cjs");
 let localizationDict={};
 try{const loaded=require("../../../Antigravity-Dream-Skin/assets/localization/zh-CN.json");for(const k of Object.keys(loaded))if(!k.startsWith("$"))localizationDict[k]=loaded[k];}catch{}
 const skinDataDir=path.join(os.homedir(),".antigravity-dream-skin");
 const dataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11)||path.join(os.homedir(),".antigravity-cat-widget");
-app.setPath("userData",path.join(dataDir,"runtime"));app.setName("喵言喵语桌宠");
+app.setPath("userData",path.join(dataDir,"runtime"));app.setName("Catstella");
 // Transparent Chromium surfaces can stop presenting after GPU/desktop transitions.
 app.disableHardwareAcceleration();
 if(!app.requestSingleInstanceLock())app.quit();
+else if(process.argv.includes("--quit")&&!devGateway)app.quit();
 else if(process.argv.includes("--quit")){
- const rtFile=path.join(path.dirname(defaultModelsPath()),"gateway-runtime.json");
+ const rtFile=path.join(path.dirname(devGateway.defaultModelsPath()),"gateway-runtime.json");
  try{if(require("node:fs").existsSync(rtFile)){const rt=JSON.parse(require("node:fs").readFileSync(rtFile,"utf8"));if(rt?.port&&rt?.adminToken){const req=require("node:http").request({hostname:"127.0.0.1",port:rt.port,path:"/admin/shutdown",method:"POST",headers:{"x-catstella-token":rt.adminToken,"Content-Length":"2"},timeout:800},()=>app.quit());req.on("error",()=>app.quit());req.end("{}");setTimeout(()=>app.quit(),900);}else app.quit();}else app.quit();}catch{app.quit();}
 }
 else{
- let quitting=false,shutdownDaemonOnQuit=false,recoveryTimer,visualTimer,visualChecking=false,blankFrames=0,visualCheckInterval=15000,uptimeCheckTimer,bridgeMonitorTimer;
+ let quitting=false,shutdownDaemonOnQuit=false,recoveryTimer,visualTimer,visualChecking=false,blankFrames=0,visualCheckInterval=15000,uptimeCheckTimer,bridgeMonitorTimer,updateCheckTimer,initialShowTimer;
  const recoveryLog=reason=>{try{require("node:fs").appendFileSync(path.join(dataDir,"recovery.log"),new Date().toISOString()+" "+reason+"\n");}catch{}};
  // BYOK Highest Startup Priority: bind/handshake gateway BEFORE UI rendering and Dream Skin injection.
  const explicitDataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11);
  const explicitModelsPath=process.argv.find(a=>a.startsWith("--models-path="))?.slice(14);
  const installRoot=[path.resolve(__dirname,"../../../../.."),path.resolve(__dirname,"../../../.."),path.resolve(__dirname,"../../..")].find(d=>require("node:fs").existsSync(path.join(d,".starsuite-install")))||path.resolve(__dirname,"../../..");
- const modelsFilePath=explicitModelsPath||(explicitDataDir?path.join(explicitDataDir,".catstella","models.json"):defaultModelsPath());
- const byokGateway=new GatewayCoordinator({filePath:modelsFilePath,installRoot,argv:process.argv,env:process.env});
- const byokHandshake=byokGateway.available?byokGateway.ensureReady().catch(err=>{recoveryLog("byok-handshake-failed "+err.message);return{available:true,ready:false};}):Promise.resolve({available:false,ready:false});
- let win,tray,panel,drag=null,source={online:false,source:"正在读取本机日志",files:0},saveTimer,displayScale=null,hostArea=null,hostLayout=null,dragTimer=null,facing="right",dockSide="",artShift=0;
+ const modelsFilePath=explicitModelsPath||(explicitDataDir?path.join(explicitDataDir,".catstella","models.json"):devGateway?.defaultModelsPath());
+ const byokGateway=devGateway?new devGateway.GatewayCoordinator({filePath:modelsFilePath,installRoot,argv:process.argv,env:process.env}):null;
+ const byokHandshake=byokGateway?.available?byokGateway.ensureReady().catch(err=>{recoveryLog("byok-handshake-failed "+err.message);return{available:true,ready:false};}):Promise.resolve({available:false,ready:false});
+ let win,tray,panel,source={online:false,source:"正在读取本机日志",files:0},saveTimer,displayScale=null,hostArea=null,hostLayout=null,facing="right",dockSide="",artShift=0;
  const foreground=new ForegroundMonitor(),quotaAdapter=new HostQuotaAdapter();
+ const companionVisibility=new CompanionVisibility();
  const dialogue=require("../../assets/dialogue/zh-CN.json");
  const running=new Set();
  const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(),audio=new AudioManager();
  const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
  const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
+ const characterDir=path.join(dataDir,"character-packs");
+ const online=createOnlineActions({dataDir,wallpaperDir:skinManager.userDir,characterDir,fetcher:(...args)=>net.fetch(...args),
+  onInstalled:kind=>{if(kind==="character")cachedCharacterPacks=null;else cachedWallpapers=null;publish();},version:require("../../../package.json").version,settings,nativeImage,shell,apply,onCheck:result=>{
+  const next=result.status==="available"?result:null;
+  if(next?.latest!==availableUpdate?.latest){availableUpdate=next;updateMenu();}
+ }});
  const skinController=new HostController(skinManager,()=>{publish();updateMenu();},{owner:"starsuite-desktop-host"});
  const localization=new LocalizationController(()=>{publish();},{dict:localizationDict});
- const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版基米乃","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
+ const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版 Stella","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
+ let availableUpdate=null;
  let cachedCharacterPacks=null,cachedWallpapers=null,lastPackScan=0,lastWallScan=0;
  const getCharacterPacks=()=>{
   const now=Date.now();if(cachedCharacterPacks&&now-lastPackScan<15000)return cachedCharacterPacks;
-  try{
-   const fs=require("node:fs"),packsDir=path.join(__dirname,"../../assets/character-packs");
-   if(!fs.existsSync(packsDir))return cachedCharacterPacks=[];
-   const dirs=fs.readdirSync(packsDir,{withFileTypes:true}).filter(d=>d.isDirectory());
-   cachedCharacterPacks=dirs.map(d=>{
-    const manifestPath=path.join(packsDir,d.name,"manifest.json");let manifest={};
-    try{manifest=JSON.parse(fs.readFileSync(manifestPath,"utf8"));}catch{}
-    const idleFrame=path.join(packsDir,d.name,manifest.frames?.idle?.src||"frames/idle.png");
-    let preview="";try{if(fs.existsSync(idleFrame))preview=nativeImage.createFromPath(idleFrame).resize({width:160}).toDataURL();}catch{}
-    return{id:d.name,name:manifest.name||d.name,description:manifest.description||(d.name==="lin-cat"?"居家水母冲锋衣 · 猫猫领口":"星空魔女礼装 · 异色瞳"),preview};
-   });
-   lastPackScan=now;return cachedCharacterPacks;
-  }catch{return cachedCharacterPacks=[];}
+  const fs=require("node:fs");
+  const bundled=path.join(__dirname,"../../assets/character-packs");
+  const packs=[];
+  for(const root of [bundled,characterDir]){
+   let entries=[];
+   try{entries=fs.readdirSync(root,{withFileTypes:true});}catch{}
+   for(const entry of entries){
+    if(!entry.isDirectory()||!/^[a-z][a-z0-9-]{0,60}$/.test(entry.name))continue;
+    const dir=path.join(root,entry.name);
+    try{
+     const manifest=JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8"));
+     const idle=path.join(dir,"frames","idle.png");
+     if(!fs.statSync(idle).isFile()||packs.some(pack=>pack.id===entry.name))continue;
+     const preview=nativeImage.createFromPath(idle).resize({width:160}).toDataURL();
+     const frames=root===characterDir?Object.fromEntries(["idle","blink","proud","sad","shy"].flatMap(frame=>{
+      const file=path.join(dir,"frames",frame+".png");
+      return fs.existsSync(file)?[[frame,pathToFileURL(file).href]]:[];
+     })):null;
+     packs.push({id:entry.name,name:manifest.name||entry.name,description:manifest.description||"",preview,frames});
+    }catch{}
+   }
+  }
+  cachedCharacterPacks=packs;lastPackScan=now;return packs;
  };
  const getWallpapers=()=>{
   const now=Date.now();if(cachedWallpapers&&now-lastWallScan<15000)return cachedWallpapers;
@@ -109,19 +131,22 @@ else{
     },
     desktop:{
      characterPack:settings.get("characterPack")||"gemini-star-v1",
+     characterPackIds:getCharacterPacks().map(pack=>pack.id),
      scale:settings.get("scale")||220,
      sound:settings.get("sound")===true,
+     easterEggs:settings.get("easterEggs")===true,
      clickCatAction:settings.get("clickCatAction")||"talk",
      themePreset:ds.themePreset||"violet",
      skinEnabled:ds.enabled===true,
      wallpaperId:activeWall?.id||ds.wallpaperId||"gemini-character-sheet-v1",
      wallpaperTitle:activeWall?.title||"默认星语设定集",
      wallpaperRev:(activeWall?.id||ds.wallpaperId||"default")+":"+wallMtime,
+     wallpaperTransition:ds.transition==="none"?"none":"fade",
      opacity:ds.opacity??22,
      scrim:ds.scrim??25,
      slideshow:ds.slideshow!==false,
      slideshowIntervalMinutes:ds.slideshowIntervalMinutes||5,
-     hostActive:Boolean(hostArea&&foreground.state.kind==="host"),
+     hostActive:foreground.state.foregroundKind==="host",
      agyQuota:{
       fiveHour:manual?settings.get("manualPercent"):gData.fiveHour??null,
       weekly:manual?settings.get("manualWeeklyPercent"):(isArgon&&typeof q?.argon?.weekly==="number"?q.argon.weekly:(gData.weekly??null)),
@@ -164,13 +189,13 @@ else{
    if(Object.keys(next).length)apply(next);
   },
   onWebUpdate:()=>{syncVisibility();publish();},
-  onOpenSettings:tab=>openSettings(tab==="byok"?"models":tab)
+  onOpenSettings:byokGateway?.available?(tab=>openSettings(tab==="byok"?"models":tab)):undefined
  });
- const byokPortal=new ByokPortalController({owner:"starsuite-byok-portal",onOpenSettings:tab=>openSettings(tab==="byok"?"models":tab)});
+ const byokPortal=null;
 
- const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway.getSnapshot(),facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
+ const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway?.getSnapshot()??{available:false,gatewayOnline:false},facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,dialogueTags:dialogue.expressionTags,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{visible:win?.isVisible()===true,supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
  const send=(channel,data)=>{for(const w of [win,panel])if(w&&!w.isDestroyed())w.webContents.send(channel,data);};
- const syncByokPortal=()=>{if(byokGateway.available)byokPortal.setFromSnapshot(byokGateway.getSnapshot(),{port:companionBridge.boundPort,portalNonce:companionBridge.portalNonce}).catch(()=>{});};
+ const syncByokPortal=()=>{if(byokPortal)byokPortal.setFromSnapshot(byokGateway.getSnapshot(),{port:companionBridge.boundPort,portalNonce:companionBridge.portalNonce}).catch(()=>{});};
  const publish=()=>{const snap=snapshot();send("widget:snapshot",snap);syncByokPortal();};
  function syncQuotaState(){if(["idle","warning"].includes(sm.persistentState)){const isArgon=Boolean(quotaAdapter.snapshot.modelInfo?.modelName?.toLowerCase().includes("argon"));const values=settings.get("manualQuota")?[settings.get("manualPercent"),settings.get("manualWeeklyPercent")]:(isArgon&&typeof quotaAdapter.snapshot.argon?.weekly==="number")?[quotaAdapter.snapshot.argon.weekly,quotaAdapter.snapshot.argon.fiveHour]:[quotaAdapter.snapshot.fiveHour,quotaAdapter.snapshot.weekly,quotaAdapter.snapshot.argon?.weekly];sm.setPersistentState(values.some(v=>typeof v==="number"&&v<=20)?"warning":"idle");}}
  // 壁纸轮播（分钟级，上游 slideshow 语义）与旧字段一次性迁移。
@@ -197,24 +222,34 @@ else{
   }
   const packs=skinManager.listPacks(true).filter(p=>p.file);
   const file=skinSettings.get("wallpaperFile"),currentId=skinSettings.get("wallpaperId");
-  const patch={};
-  if(!file&&currentId){const pack=packs.find(p=>p.id===currentId);if(pack)patch.wallpaperFile=pack.file;}
-  if(typeof file==="string"&&file){const pack=packs.find(p=>p.file&&path.resolve(p.file)===path.resolve(file));if(pack&&pack.id!==currentId)patch.wallpaperId=pack.id;}
-  if(Object.keys(patch).length)skinSettings.update(patch);
+  const byFile=file&&packs.find(pack=>[pack.file,...(pack.aliasFiles||[])].some(candidate=>path.resolve(candidate)===path.resolve(file)));
+  const selected=byFile||packs.find(pack=>pack.id===currentId||pack.aliases?.includes(currentId))||packs[0];
+  if(selected&&(selected.file!==file||selected.id!==currentId))skinSettings.update({wallpaperId:selected.id,wallpaperFile:selected.file});
  }
- function bounds(size=settings.get("scale")){return{width:Math.max(360,size+80),height:Math.round(size*1146/1372+340)};}
- function safePosition(x,y,w,h){const area=screen.getDisplayNearestPoint({x:Number.isFinite(x)?x:screen.getPrimaryDisplay().workArea.x,y:Number.isFinite(y)?y:0}).workArea;return{x:Math.round(Number.isFinite(x)?Math.max(area.x,Math.min(area.x+area.width-w,x)):area.x+area.width-w-18),y:Math.round(Number.isFinite(y)?Math.max(area.y,Math.min(area.y+area.height-h,y)):area.y+area.height-h-18)};}
+ function desktopBounds(x,y,previous){
+  const saved=Number.isFinite(x)&&Number.isFinite(y);
+  const display=previous?screen.getDisplayMatching(previous):saved?screen.getDisplayNearestPoint({x,y}):screen.getPrimaryDisplay();
+  const area=display.workArea;
+  const {scale,width,height}=widgetLayout(area,settings.get("scale"));
+  displayScale=scale;
+  const left=previous?previous.x+previous.width-width:saved?x:area.x+area.width-width-18;
+  const top=previous?previous.y+previous.height-height:saved?y:area.y+area.height-height-18;
+  return characterPlacement(area,scale,{width,height},left+(width-scale)/2,top).bounds;
+ }
  function applyStandaloneTopmost(){
   if(!win||win.isDestroyed())return;
   const wantTop=Boolean(settings.get("alwaysOnTop"));
-  if(win.isAlwaysOnTop()!==wantTop)win.setAlwaysOnTop(wantTop,wantTop?"pop-up-menu":"normal");
+  if(process.platform==='darwin'||process.platform==='linux'){
+   win.setAlwaysOnTop(wantTop,wantTop?"screen-saver":"normal");
+  }else{
+   if(win.isAlwaysOnTop()!==wantTop)win.setAlwaysOnTop(wantTop,wantTop?"pop-up-menu":"normal");
+  }
  }
  // 宿主消失时优雅退守：恢复独立桌面尺寸与位置（用户最后的自由坐标，缺省右下角），绝不闪退或强行隐藏。
  function degradeToStandalone(){
   if(!win||win.isDestroyed())return;
-  hostArea=null;hostLayout=null;displayScale=settings.get("scale");artShift=0;dockSide="";
-  const dim=bounds(),pos=safePosition(settings.get("x"),settings.get("y"),dim.width,dim.height);
-  win.setBounds({...pos,...dim});
+  hostArea=null;hostLayout=null;artShift=0;dockSide="";
+  win.setBounds(desktopBounds(settings.get("x"),settings.get("y")));
   applyStandaloneTopmost();
   if(!win.isVisible())win.showInactive();
   win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
@@ -223,17 +258,22 @@ else{
  function syncVisibility(){
   if(!win||win.isDestroyed())return;
   const webSnap=companionBridge.getWebSnapshot();
-  if(settings.get("petDisplayMode")==="prefer-web"&&webSnap.active&&foreground.state.kind!=="host"){
+  if(companionVisibility.hideDesktop(settings.get("petDisplayMode"),webSnap,foreground.state)){
    if(win.isVisible())win.hide();
    return;
   }
-  if(!settings.get("hostWindowOnly")){
-   hostArea=null;hostLayout=null;displayScale=settings.get("scale");
+  if(process.platform!=='win32'){
+   hostArea=null;hostLayout=null;
    applyStandaloneTopmost();
    if(!win.isVisible())win.showInactive();
    return;
   }
-  if(drag)return;
+  if(!settings.get("hostWindowOnly")){
+   hostArea=null;hostLayout=null;
+   applyStandaloneTopmost();
+   if(!win.isVisible())win.showInactive();
+   return;
+  }
   const previousArea=hostArea;let state=foreground.state;
   if(state.bounds)state={...state,bounds:screen.screenToDipRect(null,state.bounds)};
   const placement=hostPlacement(state,settings.get("scale"),settings.get("hostOffsetX"),settings.get("hostOffsetY"),settings.get("hostDock"));
@@ -243,7 +283,6 @@ else{
   if(!placement){
    const wasFollowing=!!hostArea;
    hostArea=null;hostLayout=null;
-   if(drag){drag=null;sm.handlePointerUp();}
    if(settings.get("standaloneDesktopMode")){
     if(wasFollowing||!win.isVisible())degradeToStandalone();
     publish();return;
@@ -287,8 +326,11 @@ else{
   win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
  }
  function apply(partial){
-  const allowed=["characterPack","scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","snap","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","standaloneDesktopMode","clickCatAction","easterEggs","syncCharacter","syncWallpaper","syncInteraction","petDisplayMode"];
-  const oldScale=settings.get("scale"),oldHostOnly=settings.get("hostWindowOnly");
+  const allowed=["characterPack","scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","standaloneDesktopMode","clickCatAction","easterEggs","ambientChatter","autoUpdateCheck","syncCharacter","syncWallpaper","syncInteraction","petDisplayMode"];
+  if(partial?.characterPack!==undefined&&!getCharacterPacks().some(pack=>pack.id===partial.characterPack)){
+   partial={...partial};delete partial.characterPack;
+  }
+  const oldScale=settings.get("scale"),oldHostOnly=settings.get("hostWindowOnly"),oldDisplayMode=settings.get("petDisplayMode");
   if(!oldHostOnly&&partial?.hostWindowOnly===true&&win){const pos=win.getBounds();settings.update({x:pos.x,y:pos.y});}
   settings.update(Object.fromEntries(Object.entries(partial||{}).filter(([k])=>allowed.includes(k))));
   if(partial?.dreamSkin&&typeof partial.dreamSkin==="object"&&!Array.isArray(partial.dreamSkin)){
@@ -306,12 +348,18 @@ else{
    scheduleSlideshow();
   }
   syncQuotaState();
-  if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());else foreground.stop();
+  if(oldHostOnly!==settings.get("hostWindowOnly")||oldDisplayMode!==settings.get("petDisplayMode"))foreground.stop();
+  if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
+  else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();
+  else foreground.stop();
   if(win){
-   if(!settings.get("hostWindowOnly")&&(settings.get("scale")!==oldScale||oldHostOnly)){
-    const old=win.getBounds(),dim=bounds();
-    const pos=oldHostOnly?safePosition(settings.get("x"),settings.get("y"),dim.width,dim.height):safePosition(old.x+old.width-dim.width,old.y+old.height-dim.height,dim.width,dim.height);
-    win.setBounds({...pos,...dim});
+   const following=settings.get("hostWindowOnly");
+   if(!following&&oldHostOnly){
+    artShift=0;dockSide="";
+    win.setBounds(desktopBounds(settings.get("x"),settings.get("y")));
+   }else if(settings.get("scale")!==oldScale&&!hostArea){
+    win.setBounds(desktopBounds(null,null,win.getBounds()));
+    if(dockSide)dock(dockSide);
    }
    if(!settings.get("hostWindowOnly"))applyStandaloneTopmost();
    win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
@@ -323,16 +371,16 @@ else{
   const page=typeof targetPage==="string"?targetPage:"";
   if(panel&&!panel.isDestroyed()){panel.show();panel.focus();if(page)panel.webContents.send("widget:navigate",page);return;}
   // 无边框自绘标题栏设置中心（用户 fork 设计）：拖拽区 + 最小化/关闭按钮。
-  const work=screen.getPrimaryDisplay().workAreaSize,pw=Math.min(1080,Math.max(880,work.width-80)),ph=Math.min(740,Math.max(580,work.height-60));panel=new BrowserWindow({width:pw,height:ph,minWidth:860,minHeight:580,frame:false,transparent:true,hasShadow:true,resizable:true,autoHideMenuBar:true,title:"喵言喵语 · 设置中心",backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+  const work=screen.getPrimaryDisplay().workAreaSize,pw=Math.min(1080,Math.max(880,work.width-80)),ph=Math.min(740,Math.max(580,work.height-60));panel=new BrowserWindow({width:pw,height:ph,minWidth:860,minHeight:580,frame:false,transparent:true,hasShadow:true,resizable:true,autoHideMenuBar:true,title:"Catstella · 设置中心",backgroundColor:"#00000000",webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   panel.loadFile(path.join(__dirname,"../renderer/settings.html"),page?{hash:page}:undefined);
   if(page)panel.webContents.once("did-finish-load",()=>{if(panel&&!panel.isDestroyed())panel.webContents.send("widget:navigate",page);});
   panel.on("closed",()=>panel=null);
  }
- function reset(){if(settings.get("hostWindowOnly")){settings.update({hostOffsetX:18,hostOffsetY:18,hostDock:""});syncVisibility();publish();return;}const dim=bounds(),pos=safePosition(null,null,dim.width,dim.height);win.setBounds({...pos,...dim});settings.update(pos);show();}
+ function reset(){if(settings.get("hostWindowOnly")&&hostArea){settings.update({hostOffsetX:18,hostOffsetY:18,hostDock:""});syncVisibility();publish();return;}if(!win||win.isDestroyed())return;const pos=desktopBounds();artShift=0;dockSide="";win.setBounds(pos);settings.update({x:pos.x,y:pos.y});show();publish();}
  function recall(){show();win?.show();if(!settings.get("hostWindowOnly"))applyStandaloneTopmost();win?.moveTop();if(settings.get("hostWindowOnly")&&!win?.isVisible())openSettings();}
  function updateMenu(){
   if(!tray)return;
-  const byokSnap=byokGateway.getSnapshot();
+  const byokSnap=byokGateway?.getSnapshot();
   const byokItems=[];
   if(byokSnap?.available){
    const choices=Array.isArray(byokSnap.enabledModelChoices)?byokSnap.enabledModelChoices:[];
@@ -353,7 +401,7 @@ else{
    }
    byokItems.push({label:"🔌 BYOK 模型网关",submenu:sub});
   }
-  tray.setContextMenu(Menu.buildFromTemplate([{label:"喵言喵语 · 星语套件",enabled:false},{label:"显示 / 唤回挂件",click:recall},{label:"重启套件",click:()=>{app.relaunch();app.quit();}},{label:"统一设置中心",click:()=>openSettings()},...byokItems,{type:"separator"},
+  tray.setContextMenu(Menu.buildFromTemplate([{label:"Catstella",enabled:false},{label:"显示 / 唤回挂件",click:recall},{label:"重启套件",click:()=>{app.relaunch();app.quit();}},{label:"统一设置中心",click:()=>openSettings()},...byokItems,...(availableUpdate?[{label:"有新版 "+availableUpdate.latest+" · 查看发行页",click:()=>void online.handle("release")}]:[]),{type:"separator"},
   {label:"应用到 Antigravity（皮肤）",type:"checkbox",checked:skinSettings.get("enabled")===true,click:()=>{skinSettings.update({enabled:skinSettings.get("enabled")!==true});skinController.update(skinSettings.getAll());publish();}},
   {label:"切换下一张壁纸",click:()=>{rotateWallpaper();publish();}},{type:"separator"},
   {label:"仅在 Antigravity 窗口内显示",type:"checkbox",checked:settings.get("hostWindowOnly"),click:()=>apply({hostWindowOnly:!settings.get("hostWindowOnly")})},
@@ -361,24 +409,31 @@ else{
   {label:"显示气泡",type:"checkbox",checked:settings.get("bubbleOn"),click:()=>apply({bubbleOn:!settings.get("bubbleOn")})},
   {label:"桌面模式始终置顶",type:"checkbox",enabled:!settings.get("hostWindowOnly"),checked:!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"),click:()=>apply({alwaysOnTop:!settings.get("alwaysOnTop")})},
   {label:"鼠标穿透 · Ctrl+Alt+Shift+G 恢复",type:"checkbox",checked:settings.get("clickThrough"),click:()=>apply({clickThrough:!settings.get("clickThrough")})},
-  {label:"停靠左下角",click:()=>dock("left")},{label:"停靠右下角",click:()=>dock("right")},{label:"重置位置",click:reset},{type:"separator"},{label:"退出喵言喵语",click:()=>app.quit()}]));
+  {label:"停靠左下角",click:()=>dock("left")},{label:"停靠右下角",click:()=>dock("right")},{label:"重置位置",click:reset},{type:"separator"},{label:"退出 Catstella",click:()=>app.quit()}]));
  }
  function createWindow(){
-  const dim=bounds(),pos=safePosition(settings.get("x"),settings.get("y"),dim.width,dim.height);
-  win=new BrowserWindow({...dim,...pos,frame:false,transparent:true,hasShadow:false,resizable:false,skipTaskbar:true,alwaysOnTop:!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"),show:false,
+  const pos=desktopBounds(settings.get("x"),settings.get("y"));
+  win=new BrowserWindow({...pos,frame:false,transparent:true,hasShadow:false,resizable:false,skipTaskbar:true,alwaysOnTop:!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"),show:false,
    webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
-  win.loadFile(path.join(__dirname,"../renderer/index.html"));win.once("ready-to-show",show);win.on("closed",()=>{foreground.stop();win=null;if(!quitting)setTimeout(show,250);});
+  win.loadFile(path.join(__dirname,"../renderer/index.html"));
+  clearTimeout(initialShowTimer);
+  initialShowTimer=setTimeout(()=>{if(win&&!win.isDestroyed()&&!win.isVisible()){recoveryLog("renderer-ready-timeout");show();}},5000);
+  win.on("closed",()=>{clearTimeout(initialShowTimer);foreground.stop();win=null;if(!quitting)setTimeout(show,250);});
   win.webContents.setWindowOpenHandler(()=>({action:"deny"}));win.webContents.on("will-navigate",e=>e.preventDefault());
   win.webContents.on("render-process-gone",()=>{if(!quitting&&win&&!win.isDestroyed())win.destroy();});
   win.webContents.on("did-finish-load",()=>{blankFrames=0;publish();});
+  win.on("show",publish);win.on("hide",publish);
   let unresponsiveTimer;
   win.on("unresponsive",()=>{const stuck=win;clearTimeout(unresponsiveTimer);unresponsiveTimer=setTimeout(()=>{if(!quitting&&win===stuck&&!stuck.isDestroyed())stuck.destroy();},10000);});
   win.on("responsive",()=>clearTimeout(unresponsiveTimer));win.on("closed",()=>clearTimeout(unresponsiveTimer));
  }
  function trusted(e){return[win,panel].some(w=>w&&!w.isDestroyed()&&e.sender===w.webContents);}
+ ipcMain.handle("widget:online",(e,action,value)=>panel&&!panel.isDestroyed()&&e.sender===panel.webContents?online.handle(action,value):null);
+ ipcMain.handle("widget:can-chatter",e=>Boolean(win&&!win.isDestroyed()&&e.sender===win.webContents&&win.isVisible()&&!panel?.isVisible()&&!companionBridge.getWebSnapshot().active&&settings.get("ambientChatter")&&settings.get("bubbleOn")&&["idle","offline"].includes(sm.currentState)&&powerMonitor.getSystemIdleState(300)==="active"));
  ipcMain.handle("widget:get",e=>trusted(e)?snapshot():null);
  ipcMain.handle("widget:settings",(e,v)=>trusted(e)?apply(v):null);
- ipcMain.handle("widget:byok",(e,payload)=>trusted(e)?byokGateway.handleAction(payload?.action,payload?.data):null);
+ ipcMain.on("widget:ready",e=>{if(!win||win.isDestroyed()||e.sender!==win.webContents)return;clearTimeout(initialShowTimer);show();});
+ if(byokGateway?.available)ipcMain.handle("widget:byok",(e,payload)=>trusted(e)?byokGateway.handleAction(payload?.action,payload?.data):null);
  ipcMain.on("widget:command",(e,command)=>{
   if(!trusted(e))return;
   if(command==="settings")openSettings();
@@ -393,7 +448,7 @@ else{
    if(panel&&!panel.isDestroyed())panel.webContents.send("widget:snapshot",snapshot());
   }
   else if(command==="open-character-dir"){
-   const dir=path.join(__dirname,"../../assets/character-packs");
+   const dir=characterDir;
    require("node:fs").mkdirSync(dir,{recursive:true});
    shell.openPath(dir);
   }
@@ -403,59 +458,45 @@ else{
    shell.openPath(dir);
   }
   else if(command==="next-wallpaper"){rotateWallpaper();publish();}
+  else if(command==="open-project-repo")void shell.openExternal("https://github.com/lynnfei/Catstella");
+  else if(command==="open-upstream-repo")void shell.openExternal("https://github.com/Monokumakuki/Antigravity-Star-Suite");
   else if(command==="menu")tray?.popUpContextMenu();
   else if(command==="quit")app.quit();
   else if(command==="reset")reset();
   else if(command==="dock-left")dock("left");else if(command==="dock-right")dock("right");
   else if(command==="show-bubble")apply({bubbleOn:true});
-  else if(command==="preview-reaction")send("widget:reaction",{});
-  else if(command&&command.startsWith("preview-reaction"))send("widget:reaction",command.includes(":")?command.split(":")[1]:{});
+  else if(typeof command==="string"&&(command==="preview-reaction"||command.startsWith("preview-reaction:"))){
+   const expression=command.split(":")[1]||"proud";
+   if(["proud","shy","angry","nap"].includes(expression))send("widget:reaction",{source:"preview",expression});
+  }
   else if(command==="quota-refresh")quotaAdapter.openNativeQuota().catch(()=>{});
-  else if(command==="byok-ping-active"){const activeId=byokGateway.getSnapshot().activeProvider?.id;if(activeId){byokGateway.handleAction("ping",{providerId:activeId}).catch(()=>{});byokGateway.handleAction("fetchBalance",{providerId:activeId}).catch(()=>{});}}
-  else if(command==="byok-cycle-prev")byokGateway.handleAction("cycleActiveModel",{delta:-1}).then(()=>{publish();updateMenu();}).catch(()=>{});
-  else if(command==="byok-cycle-next")byokGateway.handleAction("cycleActiveModel",{delta:1}).then(()=>{publish();updateMenu();}).catch(()=>{});
-  else if(command==="byok-open-settings")openSettings("models");
+  else if(byokGateway?.available&&command==="byok-ping-active"){const activeId=byokGateway.getSnapshot().activeProvider?.id;if(activeId){byokGateway.handleAction("ping",{providerId:activeId}).catch(()=>{});byokGateway.handleAction("fetchBalance",{providerId:activeId}).catch(()=>{});}}
+  else if(byokGateway?.available&&command==="byok-cycle-prev")byokGateway.handleAction("cycleActiveModel",{delta:-1}).then(()=>{publish();updateMenu();}).catch(()=>{});
+  else if(byokGateway?.available&&command==="byok-cycle-next")byokGateway.handleAction("cycleActiveModel",{delta:1}).then(()=>{publish();updateMenu();}).catch(()=>{});
+  else if(byokGateway?.available&&command==="byok-open-settings")openSettings("models");
  });
- function dragMove(point){
-  if(!drag||!win)return;const p=point||drag.last,dx=p.x-drag.point.x,dy=p.y-drag.point.y;
-  drag.last=p;if(!drag.moved&&Math.hypot(dx,dy)<=8)return;
-  if(!drag.moved){drag.moved=true;sm.handleDragStart();}
-  const a=hostArea||screen.getDisplayNearestPoint(p).workArea,size=displayScale||settings.get("scale");
-  const placement=characterPlacement(a,size,drag.bounds,drag.visualX+dx,drag.bounds.y+dy);
-  win.setBounds(placement.bounds);artShift=placement.artShift;dockSide="";
-  facing=placement.visualX+size/2<a.x+a.width/2?"left":"right";publish();
- }
  function dock(side){
   if(!win)return;if(settings.get("hostWindowOnly"))syncVisibility();
-  const size=displayScale||settings.get("scale"),b={...win.getBounds(),...bounds(size)},a=hostArea||screen.getDisplayMatching(b).workArea;
-  const placement=characterPlacement(a,size,b,side==="left"?a.x:a.x+a.width-size,a.y+a.height-b.height);
+  const a=hostArea||screen.getDisplayMatching(win.getBounds()).workArea;
+  const {scale:size,width,height}=widgetLayout(a,settings.get("scale"));
+  const placement=characterPlacement(a,size,{width,height},side==="left"?a.x:a.x+a.width-size,a.y+a.height-height);
+  displayScale=size;
   win.setBounds(placement.bounds);artShift=placement.artShift;dockSide=side;facing=side;
   if(hostArea)settings.update({hostOffsetX:side==="left"?a.width-size:0,hostOffsetY:0,hostDock:side});else settings.update({x:placement.bounds.x,y:placement.bounds.y});publish();
  }
- ipcMain.handle("widget:pointer",(e,payload)=>{
-  const action=typeof payload==="string"?payload:payload?.action,raw=payload?.point,point=raw&&Number.isFinite(raw.x)&&Number.isFinite(raw.y)&&Math.abs(raw.x)<100000&&Math.abs(raw.y)<100000?{x:raw.x,y:raw.y}:null;
-  if(!trusted(e)||!win)return{moved:false};
-  if(action==="down"){clearInterval(dragTimer);win.setIgnoreMouseEvents(false);const start=point||screen.getCursorScreenPoint();drag={point:start,last:start,bounds:{...win.getBounds(),...bounds(displayScale||settings.get("scale"))},visualX:win.getBounds().x+(bounds(displayScale||settings.get("scale")).width-(displayScale||settings.get("scale")))/2+artShift,moved:false};sm.handlePointerDown();}
-  else if(action==="move"&&point)dragMove(point);
-  else if(action==="up"||action==="cancel"){
-   clearInterval(dragTimer);dragTimer=null;if(!drag)return{moved:false};dragMove();const moved=drag.moved;drag=null;
-   if(moved){const size=displayScale||settings.get("scale"),old={...win.getBounds(),...bounds(size)},area=hostArea||screen.getDisplayMatching(old).workArea;
-    let visualX=old.x+(old.width-size)/2+artShift,y=old.y;
-    if(settings.get("snap"))({visualX,y}=snapToEdges(area,size,old.height,visualX,y));
-    const placement=characterPlacement(area,size,old,visualX,y);win.setBounds(placement.bounds);artShift=placement.artShift;
-    dockSide=Math.abs(visualX-area.x)<2?"left":Math.abs(visualX+size-area.x-area.width)<2?"right":"";
-    facing=visualX+size/2<area.x+area.width/2?"left":"right";
-    if(hostArea)settings.update({hostDock:dockSide,hostOffsetX:Math.max(0,hostArea.x+hostArea.width-placement.visualX-size),hostOffsetY:Math.max(0,hostArea.y+hostArea.height-placement.bounds.y-old.height)});else settings.update({x:placement.bounds.x,y:placement.bounds.y});
-   }sm.handlePointerUp();return{moved};
-  }else if(action==="pet")sm.handlePetting();
-  return{moved:!!drag?.moved};
+ ipcMain.handle("widget:pointer",(e,action)=>{
+  if(!trusted(e)||e.sender!==win?.webContents)return;
+  if(action==="down")sm.handlePointerDown();
+  else if(action==="up"&&sm.currentState==="pressed")sm.handlePointerUp();
+  else if(action==="cancel"&&sm.currentState==="pressed")sm.clearTransient();
+  else if(action==="pet")sm.handlePetting();
  });
- ipcMain.on("widget:hit",(e,interactive)=>{if(trusted(e)&&win&&!drag)win.setIgnoreMouseEvents(settings.get("clickThrough")||interactive!==true,{forward:true});});
+ ipcMain.on("widget:hit",(e,interactive)=>{if(trusted(e)&&e.sender===win?.webContents)win.setIgnoreMouseEvents(settings.get("clickThrough")||interactive!==true,{forward:true});});
  ipcMain.handle("widget:audio",(e,type)=>trusted(e)&&["press","release"].includes(type)?audio.getAudioFile(type):null);
  quotaAdapter.on("change",()=>{syncQuotaState();publish();});
- byokGateway.on("change",()=>{publish();updateMenu();});
+ byokGateway?.on("change",()=>{publish();updateMenu();});
  let byokBusy=false,byokIdleTimer=null;
- byokGateway.on("activity",ev=>{
+ byokGateway?.on("activity",ev=>{
   clearTimeout(byokIdleTimer);
   if(ev?.phase==="start"){
    byokBusy=true;
@@ -464,7 +505,7 @@ else{
   }else if(ev?.phase==="error"){
    byokBusy=false;
    if(!running.size){sm.setPersistentState(source.online?"idle":"offline");syncQuotaState();}
-   send("widget:reaction","crying");
+   send("widget:reaction","angry");
   }else if(ev?.phase==="end"){
    byokBusy=false;
    if(!running.size&&sm.persistentState==="thinking"){sm.setPersistentState(source.online?"idle":"offline");syncQuotaState();}
@@ -483,26 +524,29 @@ else{
  adapter.on("status",status=>{source=status;if(!status.online&&!byokBusy)sm.setPersistentState("offline");else if(sm.persistentState==="offline")sm.setPersistentState((running.size||byokBusy)?"thinking":"idle");syncQuotaState();publish();});
  app.on("second-instance",(_event,args)=>{
   if(args.includes("--quit")){shutdownDaemonOnQuit=true;app.quit();return;}
-  if(args.includes("--settings-byok")){openSettings("models");return;}
+  if(byokGateway?.available&&args.includes("--settings-byok")){openSettings("models");return;}
   if(args.includes("--settings")){openSettings();return;}
   if(args.includes("--enable")||args.includes("--disable")){skinSettings.update({enabled:args.includes("--enable")});skinController.update(skinSettings.getAll());publish();}
   if(!args.includes("--background"))recall();
  });
  app.whenReady().then(async()=>{
-  if(byokGateway.available)await Promise.race([byokHandshake,new Promise(r=>setTimeout(r,450))]);
+  if(byokGateway?.available)await Promise.race([byokHandshake,new Promise(r=>setTimeout(r,450))]);
   await companionBridge.start().catch(err=>recoveryLog("companion-bridge-failed "+err.message));
   createWindow();
-  if(process.argv.includes("--settings-byok"))openSettings("models");
+  void online.check();
+  updateCheckTimer=setInterval(()=>void online.check(),60*60_000);
+  if(byokGateway?.available&&process.argv.includes("--settings-byok"))openSettings("models");
   else if(process.argv.includes("--settings"))openSettings();
   try{tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"../../assets/character-packs/gemini-star-v1/frames/idle.png")).resize({width:24,height:24}));
-  tray.setToolTip("喵言喵语 · 星语套件");tray.on("double-click",recall);updateMenu();}catch(error){recoveryLog("tray-init-failed "+error.message);}
+  tray.setToolTip("Catstella");tray.on("double-click",recall);updateMenu();}catch(error){recoveryLog("tray-init-failed "+error.message);}
   migrateLegacyDreamSettings();
   skinController.start(skinSettings.getAll());
-  if(byokGateway.available){syncByokPortal();byokPortal.start();}
+  if(byokPortal){syncByokPortal();byokPortal.start();}
   localization.start();
   scheduleSlideshow();
   globalShortcut.register("CommandOrControl+Alt+G",recall);globalShortcut.register("CommandOrControl+Alt+Shift+G",()=>{apply({clickThrough:false});recall();});
   if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
+  else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();
   audio.setEnabled(settings.get("sound"));audio.setVolume(settings.get("volume"));audio.setPreset(settings.get("soundSet"));adapter.start();quotaAdapter.start();
   let lastWebOnline=false,lastWebActive=false;
   bridgeMonitorTimer=setInterval(()=>{
@@ -512,7 +556,7 @@ else{
     syncVisibility();publish();
    }
   },3500);
-  recoveryTimer=setInterval(()=>{if(!win||win.isDestroyed()){show();return;}if(settings.get("hostWindowOnly"))foreground.start(win.getNativeWindowHandle());},2000);
+  recoveryTimer=setInterval(()=>{if(!win||win.isDestroyed()){show();return;}if(settings.get("hostWindowOnly"))foreground.start(win.getNativeWindowHandle());else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();},2000);
   // Adaptive visual check interval based on uptime
   uptimeCheckTimer=setInterval(()=>{
    const uptime=process.uptime();
@@ -522,7 +566,7 @@ else{
   visualTimer=setInterval(async()=>{
    if(Date.now()-lastVisualCheck<visualCheckInterval)return;
    lastVisualCheck=Date.now();
-   if(visualChecking||drag||!win||win.isDestroyed()||!win.isVisible()||(settings.get("hostWindowOnly")&&!hostArea))return;
+   if(visualChecking||!win||win.isDestroyed()||!win.isVisible()||(settings.get("hostWindowOnly")&&!hostArea))return;
    visualChecking=true;const checked=win;
    try{
     const healthy=await Promise.race([checked.webContents.executeJavaScript(`(()=>{const face=document.querySelector('.agy-face');if(!face)return false;const r=face.getBoundingClientRect();if(r.width<20||r.height<20)return false;let node=face;while(node){const s=getComputedStyle(node);if(s.display==='none'||s.visibility==='hidden'||Number(s.opacity)===0)return false;node=node.parentElement;}return [...face.querySelectorAll('img')].some(img=>img.complete&&img.naturalWidth>0&&Number(getComputedStyle(img).opacity)>0);})()`),new Promise((_,reject)=>{const timer=setTimeout(()=>reject(Error("renderer-check-timeout")),4000);timer.unref();})]);
@@ -534,7 +578,7 @@ else{
    }catch(error){if(win===checked&&!checked.isDestroyed()){recoveryLog("surface-check-recreate "+error.message);checked.destroy();}}
    finally{visualChecking=false;}
   },15000);
-  const resume=()=>{drag=null;hostLayout=null;foreground.stop();show();publish();
+  const resume=()=>{if(sm.currentState==="pressed")sm.clearTransient();hostLayout=null;foreground.stop();show();publish();
    if(win&&!win.isDestroyed()){
      win.webContents.send('widget:force-repaint');
      win.webContents.invalidate();
@@ -542,8 +586,15 @@ else{
   };
   powerMonitor.on("resume",resume);powerMonitor.on("unlock-screen",resume);
   screen.on("display-removed",reset);
-  screen.on("display-metrics-changed",()=>{if(settings.get("hostWindowOnly")){syncVisibility();publish();}});
+  screen.on("display-metrics-changed",()=>{
+   if(!win||win.isDestroyed())return;
+   if(!hostArea){
+    if(dockSide){dock(dockSide);return;}
+    win.setBounds(desktopBounds(null,null,win.getBounds()));
+   }
+   syncVisibility();publish();
+  });
  });
- app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(dragTimer);clearInterval(bridgeMonitorTimer);clearTimeout(byokIdleTimer);if(slideshowTimer)clearInterval(slideshowTimer);foreground.stop();adapter.stop();quotaAdapter.stop();companionBridge.stop().catch(()=>{});byokPortal.stop().catch(()=>{});byokGateway.stop({shutdownDaemon:shutdownDaemonOnQuit}).catch(()=>{});skinController.stop();localization.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
+ app.on("before-quit",()=>{quitting=true;clearInterval(visualTimer);clearInterval(recoveryTimer);clearInterval(bridgeMonitorTimer);clearInterval(updateCheckTimer);clearTimeout(byokIdleTimer);if(slideshowTimer)clearInterval(slideshowTimer);foreground.stop();adapter.stop();quotaAdapter.stop();companionBridge.stop().catch(()=>{});byokPortal?.stop().catch(()=>{});byokGateway?.stop({shutdownDaemon:shutdownDaemonOnQuit}).catch(()=>{});skinController.stop();localization.stop();sm.destroy();clearTimeout(saveTimer);ledger.save();globalShortcut.unregisterAll();tray?.destroy();});
  app.on("window-all-closed",()=>{if(!tray)app.quit();});
 }

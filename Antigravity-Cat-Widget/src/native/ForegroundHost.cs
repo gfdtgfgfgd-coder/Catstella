@@ -60,6 +60,21 @@ internal static class ForegroundHost {
         EnumWindows(delegate(IntPtr w,IntPtr data){Rect r;if(IsWindowVisible(w)&&IsHost(w)&&GetClientRect(w,out r)){long area=(long)(r.Right-r.Left)*(r.Bottom-r.Top);if(area>largest){largest=area;result=w;}}return true;},IntPtr.Zero);
         return result;
     }
+    private static string ForegroundKind(IntPtr window, uint pid, int parentId) {
+        if(window==IntPtr.Zero)return "shell";
+        if(pid==(uint)parentId)return "self";
+        if(IsHost(GetAncestor(window,3)))return "host";
+        var name=new StringBuilder(128);GetClassName(window,name,name.Capacity);
+        string cls=name.ToString();
+        if(cls=="Progman"||cls=="WorkerW")return "desktop";
+        if(cls=="Shell_TrayWnd"||cls=="Shell_SecondaryTrayWnd"||cls=="NotifyIconOverflowWindow"||cls=="TopLevelWindowForOverflowXamlIsland")return "shell";
+        try{using(var process=Process.GetProcessById((int)pid)){
+            string processName=process.ProcessName.ToLowerInvariant();
+            if(processName=="shellexperiencehost"||processName=="startmenuexperiencehost"||processName=="shellhost")return "shell";
+            if(processName=="msedge"||processName=="chrome"||processName=="firefox"||processName=="zen"||processName=="brave"||processName=="vivaldi"||processName=="waterfox"||processName=="floorp")return "browser";
+        }}catch{}
+        return "other";
+    }
     private static void Main(string[] args) {
         int parentId;
         if (args.Length < 1 || !Int32.TryParse(args[0], out parentId)) return;
@@ -84,12 +99,14 @@ internal static class ForegroundHost {
                 int pollInterval = 16;
                 bool available = false;
                 bool lastWantTop = false;
+                string foregroundKind = "unknown";
                 do {
                     Message queued;while(PeekMessage(out queued,IntPtr.Zero,0,0,1)){}
                     string kind = "unknown", bounds = null;
                     try {
                         IntPtr window = GetForegroundWindow(); uint pid;
                         GetWindowThreadProcessId(window, out pid);
+                        if(window!=previousForeground||foregroundKind=="unknown")foregroundKind=ForegroundKind(window,pid,parentId);
                         if(widget!=IntPtr.Zero){
                             IntPtr foregroundHost=GetAncestor(window,3);
                             if(IsHost(foregroundHost))lastHost=foregroundHost;
@@ -105,7 +122,7 @@ internal static class ForegroundHost {
                             // Only touch z-order when desired layer changes, actual WS_EX_TOPMOST drifted,
                             // or foreground switched to a non-host window. Never spam SetWindowPos on idle
                             // heartbeats — doing so causes DWM / Windows 11 floating taskbar z-order flicker.
-                            if(wantTop!=lastWantTop || isTopmost!=wantTop || (foregroundChanged && !wantTop)){
+                            if((foregroundKind!="shell"||!available)&&(wantTop!=lastWantTop || isTopmost!=wantTop || (foregroundChanged && !wantTop))){
                                 if(wantTop){
                                     SetWindowPos(widget,new IntPtr(-1),0,0,0,0,0x0013);
                                 }else{
@@ -129,6 +146,7 @@ internal static class ForegroundHost {
                             pollInterval = available ? 16 : 32;
 
                         }else{
+                            previousForeground=window;
                             IntPtr foregroundHost=GetAncestor(window,3);
                             if(IsHost(foregroundHost))lastHost=foregroundHost;
                             if(!IsHost(lastHost))lastHost=FindHost();
@@ -136,7 +154,7 @@ internal static class ForegroundHost {
                         }
                     } catch { lastHost = IntPtr.Zero; }
                     pollInterval = available ? 16 : 32;
-                    string message = "{\"restoreGeneration\":" + restoreGeneration + ",\"kind\":\"" + kind + "\",\"bounds\":" + (bounds ?? "null") + ",\"attached\":" + ((widget!=IntPtr.Zero&&lastHost!=IntPtr.Zero)?"true":"false") + ",\"widgetVisible\":" + ((widget!=IntPtr.Zero&&IsWindowVisible(widget))?"true":"false") + ",\"hostId\":\"" + lastHost.ToInt64() + "\",\"nativeFollowing\":" + ((widget!=IntPtr.Zero)?"true":"false") + "}";
+                    string message = "{\"foregroundKind\":\"" + foregroundKind + "\",\"restoreGeneration\":" + restoreGeneration + ",\"kind\":\"" + kind + "\",\"bounds\":" + (bounds ?? "null") + ",\"attached\":" + ((widget!=IntPtr.Zero&&lastHost!=IntPtr.Zero)?"true":"false") + ",\"widgetVisible\":" + ((widget!=IntPtr.Zero&&IsWindowVisible(widget))?"true":"false") + ",\"hostId\":\"" + lastHost.ToInt64() + "\",\"nativeFollowing\":" + ((widget!=IntPtr.Zero)?"true":"false") + "}";
                     if (message != previous || heartbeat.ElapsedMilliseconds>=1000) { Console.WriteLine(message); Console.Out.Flush(); previous = message; heartbeat.Restart(); }
                 } while (!stopping && !parent.WaitForExit(pollInterval));
                 if(locationHook!=IntPtr.Zero)UnhookWinEvent(locationHook);

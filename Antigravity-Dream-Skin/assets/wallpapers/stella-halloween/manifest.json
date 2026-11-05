@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "stella-halloween",
+  "name": "星语 · 万圣星夜",
+  "kind": "image",
+  "file": "wallpaper.jpg",
+  "width": 1376,
+  "height": 768,
+  "sha256": "87a47c90b54cad43138a1b3a2349e05074189352ae71995fe6a16a8cc93c7c37",
+  "defaultFit": "adaptive"
+}

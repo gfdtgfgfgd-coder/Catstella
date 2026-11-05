@@ -1,12 +1,12 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>星语 · Web 插件安装指引</title><style>body{max-width:760px;margin:32px auto;padding:0 20px;font:14px/1.8 "Microsoft YaHei UI","Segoe UI",sans-serif;color:#393148;background:#f8f6fb}h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-left:4px solid #a58bd1;padding-left:10px}code{background:#ece5f6;border-radius:6px;padding:1px 7px;font-family:Consolas,monospace;font-size:13px}ol li{margin:6px 0}.note{background:#fff;border:1px solid #e2d8ee;border-radius:10px;padding:12px 16px;color:#7c6a90;font-size:13px}</style></head><body>
-<h1>星语 · Web 端插件安装指引</h1>
-<p>安装包已把插件文件复制到本目录（<code>web-extension</code>）。浏览器插件需要按下面的步骤手动加载一次，之后随浏览器常驻。</p>
-<h2>Firefox（推荐 · 临时加载 / ESR 策略）</h2>
-<ol><li>地址栏输入 <code>about:debugging#/runtime/this-firefox</code> 回车；</li><li>点击「临时载入附加组件…」，选择本目录的 <code>kimino-gemini-companion.xpi</code>；</li><li>打开 <code>gemini.google.com</code>，桌宠出现在头像旁。</li></ol>
-<div class="note">临时加载在 Firefox 重启后失效；如需永久使用，可申请 Firefox 开发者账号自行签名，或等待我们上架 Mozilla Add-ons（从长计议中）。</div>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Catstella · Web 插件安装指引</title><style>body{max-width:760px;margin:32px auto;padding:0 20px;font:14px/1.8 "Microsoft YaHei UI","Segoe UI",sans-serif;color:#393148;background:#f8f6fb}h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-left:4px solid #a58bd1;padding-left:10px}code{background:#ece5f6;border-radius:6px;padding:1px 7px;font-family:Consolas,monospace;font-size:13px}ol li{margin:6px 0}.note{background:#fff;border:1px solid #e2d8ee;border-radius:10px;padding:12px 16px;color:#7c6a90;font-size:13px}</style></head><body>
+<h1>Catstella · Web 端插件安装指引</h1>
+<p>安装包会把插件文件复制到本目录（<code>web-extension</code>）。请按浏览器对应的步骤加载扩展。</p>
+<h2>Firefox（临时加载）</h2>
+<ol><li>地址栏输入 <code>about:debugging#/runtime/this-firefox</code> 回车；</li><li>点击「临时载入附加组件…」，选择本目录的 <code>kimino-gemini-companion.xpi</code>；</li><li>打开 <code>gemini.google.com</code>，桌宠默认出现在右下角。</li></ol>
+<div class="note">随附 XPI 为未签名测试包。重启 Firefox 后需要重新临时加载。</div>
 <h2>Edge / Chrome（开发者模式）</h2>
-<ol><li>地址栏输入 <code>edge://extensions</code>（Chrome 为 <code>chrome://extensions</code>）回车；</li><li>打开右上角/左侧「开发人员模式」；</li><li>「解压缩的扩展」加载本目录解压后的 <code>kimino-gemini-companion-edge-chrome.zip</code>（先解压），或直接把 zip 拖入页面（部分版本支持）。</li></ol>
+<ol><li>地址栏输入 <code>edge://extensions</code>（Chrome 为 <code>chrome://extensions</code>）回车；</li><li>打开右上角/左侧「开发人员模式」；</li><li>先解压 <code>kimino-gemini-companion-edge-chrome.zip</code>，再用「加载解压缩的扩展」选择含 <code>manifest.json</code> 的目录。</li></ol>
 <div class="note">每次更新插件后，在扩展卡片上点「重新加载」即可。</div>
 <h2>常见问题</h2>
-<p>· 插件只读取页面本地区域额度与状态，不上传任何数据。<br>· 插件与桌面端套件相互独立：桌宠读本机日志，插件读页面，双端不冲突。<br>· 卸载：直接在浏览器扩展页移除，并删除本目录。</p>
+<p>· 扩展在浏览器里读取额度和会话用量。桌面联动使用本机环回连接。<br>· 更新检测和在线图库会访问 Catstella 的 GitHub 仓库。<br>· 卸载：直接在浏览器扩展页移除，并删除本目录。</p>
 </body></html>

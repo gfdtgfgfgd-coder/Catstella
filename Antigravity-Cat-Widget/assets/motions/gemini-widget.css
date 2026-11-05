@@ -27,8 +27,7 @@
 .agy-art[data-state="error"] .agy-motion { animation: agy-worry 3.6s ease-in-out infinite; }
 .agy-art[data-state="warning"] .agy-effect--tear,
 .agy-art[data-state="error"] .agy-effect--tear { display: block; animation: agy-tear 2.4s ease-in-out infinite; }
-.agy-art[data-state="pressed"] .agy-motion,
-.agy-art[data-state="dragged"] .agy-motion { transform: scale(1.018, .975); }
+.agy-art[data-state="pressed"] .agy-motion { transform: scale(1.018, .975); }
 .agy-art[data-state="release"] .agy-motion { animation: agy-rebound 560ms ease-out both; }
 .agy-art[data-state="petting"] .agy-motion { animation: agy-nuzzle 1.6s ease-in-out both; }
 .agy-art[data-state="petting"] .agy-effect--heart { display: block; animation: agy-heart 1.6s ease-out both; }
@@ -83,7 +82,12 @@
 @keyframes agy-duang { 0%,100% { transform: translateY(0) scale(1); } 18% { transform: scale(1.02,.98); } 43% { transform: translateY(-7px) scale(.99,1.02); } 70% { transform: translateY(0) scale(1.012,.988); } }
 @keyframes agy-worry { 0%,100% { transform: rotate(-.35deg); } 50% { transform: rotate(.35deg) translateY(1px); } }
 @keyframes agy-rebound { 0% { transform: scale(1.018,.975); } 36% { transform: scale(.985,1.02); } 65% { transform: scale(1.009,.993); } 100% { transform: scale(1); } }
-@keyframes agy-nuzzle { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-1.1deg); } 70% { transform: rotate(1.1deg); } }
+@keyframes agy-nuzzle {
+  0% { transform: translateY(var(--agy-nuzzle-start, 0px)) rotate(0); }
+  25% { transform: translateY(var(--agy-nuzzle-lift, 0px)) rotate(-1.1deg); }
+  70% { transform: translateY(var(--agy-nuzzle-settle, 0px)) rotate(1.1deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
 @keyframes agy-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes agy-tear { 0%,100% { transform: translateY(0); opacity: .75; } 65% { transform: translateY(4px); opacity: 1; } }
 @keyframes agy-pop { 0% { transform: scale(.5); opacity: 0; } 28%,70% { transform: scale(1); opacity: 1; } 100% { transform: scale(.9); opacity: 0; } }

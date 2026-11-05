@@ -11,6 +11,17 @@
     "templates": "plain text only; inject with textContent, not HTML",
     "clickToNextDialogue": true
   },
+  "expressionTags": {
+    "shy": [
+      "才、才不是特意陪你的！",
+      "少熬夜！才不是担心你呢。",
+      "星星归天空，本喵归……才不告诉你！",
+      "报错红了？别慌，本喵的脸可没红。",
+      "又盯着本喵看？编译器可不会害羞。",
+      "才没有等你回来，窗口刚好开着而已。",
+      "你一回来，本喵的营业状态就变好了……巧合。"
+    ]
+  },
   "lines": {
     "idle": [
       "我才不是美版豆包，哼！",

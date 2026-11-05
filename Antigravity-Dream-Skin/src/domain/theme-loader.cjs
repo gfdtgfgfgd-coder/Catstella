@@ -1,4 +1,5 @@
 const fs=require("node:fs"),path=require("node:path"),{pathToFileURL}=require("node:url");
+const {createHash}=require("node:crypto");
 const IMAGE_MIME={".png":"image/png",".jpg":"image/jpeg",".jpeg":"image/jpeg",".webp":"image/webp"};
 const DEFAULT_WALLPAPER_ID="gemini-character-sheet-v1";
 
@@ -48,11 +49,13 @@ function readPack(wallpapersDir,name){
   const images=fs.readdirSync(dir).filter(entry=>IMAGE_MIME[path.extname(entry).toLowerCase()]).sort();
   if(images.length)file=path.join(dir,images[0]);
  }
- let probe=null;
+ let probe=null,digest=null;
  if(!file)error="壁纸包缺少可用图片";
  else{
   try{
-   probe=probeImage(fs.readFileSync(file));
+   const bytes=fs.readFileSync(file);
+   probe=probeImage(bytes);
+   if(probe)digest=createHash("sha256").update(bytes).digest("hex");
    if(!probe)error="壁纸图片格式无效或已损坏";
   }catch{error="壁纸图片无法读取";}
  }
@@ -64,6 +67,7 @@ function readPack(wallpapersDir,name){
   width:probe?.width??null,
   height:probe?.height??null,
   mime:probe?.mime??"image/png",
+  digest,
   background:typeof manifest?.background==="string"?manifest.background:null,
   defaultFit:["cover","contain","adaptive"].includes(manifest?.defaultFit)?manifest.defaultFit:"adaptive",
   previewUrl:file?path.relative(path.join(__dirname,"../renderer"),file).split(path.sep).join("/"):null,
@@ -73,13 +77,13 @@ function readPack(wallpapersDir,name){
 
 // 用户目录里的散装图片：每张图就是一个壁纸包（上游数据目录壁纸的兼容形态）。
 function readFlatPack(file){
- let probe=null;
- try{probe=probeImage(fs.readFileSync(file));}catch{}
+ let probe=null,digest=null;
+ try{const bytes=fs.readFileSync(file);probe=probeImage(bytes);if(probe)digest=createHash("sha256").update(bytes).digest("hex");}catch{}
  const id=path.basename(file).replace(/\.[^.]+$/,"");
  return{
   id,name:id,
   file:probe?file:null,
-  width:probe?.width??null,height:probe?.height??null,
+  width:probe?.width??null,height:probe?.height??null,digest,
   mime:probe?.mime??"image/png",
   background:null,defaultFit:"adaptive",
   previewUrl:probe?pathToFileURL(file).href:null,
@@ -112,12 +116,25 @@ class WallpaperManager{
  }
  // 动态扫描仓库 assets/wallpapers/ 与用户壁纸目录下的全部壁纸包；损坏的包记录 error 而不是抛出。
  // 不做结果缓存：新放入的文件夹即刻可被识别，覆盖/修复图片也立即生效。
- listPacks(force=false){return[...this.scanRoot(this.wallpapersDir),...(this.userDir?this.scanRoot(this.userDir):[])];}
+ listPacks(){
+  const bundled=this.scanRoot(this.wallpapersDir);
+  const defaultIndex=bundled.findIndex(pack=>pack.id===this.defaultId);
+  if(defaultIndex>0)bundled.unshift(...bundled.splice(defaultIndex,1));
+  const byDigest=new Map(bundled.filter(pack=>pack.digest).map(pack=>[pack.digest,pack]));
+  for(const userPack of this.userDir?this.scanRoot(this.userDir):[]){
+   const duplicate=userPack.digest&&byDigest.get(userPack.digest);
+   if(duplicate){
+    (duplicate.aliases??=[]).push(userPack.id);
+    (duplicate.aliasFiles??=[]).push(userPack.file);
+   }else bundled.push(userPack);
+  }
+  return bundled;
+ }
  usablePacks(){return this.listPacks().filter(pack=>pack.file&&pack.width);}
  // 用户选择 → 默认包 → 首个可用包；单个包损坏时静默回退，绝不崩溃。
  resolve(wallpaperId){
   const packs=this.usablePacks();
-  const wanted=(typeof wallpaperId==="string"&&packs.find(pack=>pack.id===wallpaperId))||packs.find(pack=>pack.id===this.defaultId)||packs[0];
+  const wanted=(typeof wallpaperId==="string"&&packs.find(pack=>pack.id===wallpaperId||pack.aliases?.includes(wallpaperId)))||packs.find(pack=>pack.id===this.defaultId)||packs[0];
   if(!wanted){
    const broken=this.listPacks().find(pack=>pack.error);
    throw new Error(broken?`壁纸包不可用：${broken.error}`:"未找到可用壁纸包，请检查 assets/wallpapers 目录");
@@ -127,10 +144,10 @@ class WallpaperManager{
  orderedIds(){return this.usablePacks().map(pack=>pack.id);}
  // 轮转用：按扫描顺序取下一个可用壁纸包。
  nextId(currentId){
-  const ids=this.orderedIds();
-  if(ids.length<2)return ids[0]||null;
-  const index=ids.indexOf(currentId);
-  return ids[(index+1)%ids.length]||ids[0];
+  const packs=this.usablePacks();
+  if(packs.length<2)return packs[0]?.id||null;
+  const index=packs.findIndex(pack=>pack.id===currentId||pack.aliases?.includes(currentId));
+  return packs[(index+1)%packs.length].id;
  }
  // 兼容旧调用：校验当前壁纸并返回带实测尺寸的包信息（仅格式与可读性校验，无 SHA256）。
  verifyIntegrity(wallpaperId){return{...this.resolve(wallpaperId),verified:true};}

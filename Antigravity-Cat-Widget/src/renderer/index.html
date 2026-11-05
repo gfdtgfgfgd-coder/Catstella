@@ -1,19 +1,23 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'"><title>喵言喵语</title><link rel="stylesheet" href="../../assets/motions/gemini-widget.css"><link rel="stylesheet" href="widget.css"></head>
-<body><main id="widget"><div class="agy-art" id="mascot" data-state="idle"><section class="agy-bubble interactive" id="bubble" role="status" aria-live="polite">
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'"><title>Catstella · 桌宠</title><link rel="stylesheet" href="../../assets/motions/gemini-widget.css"><link rel="stylesheet" href="widget.css"></head>
+<body><main id="widget"><div class="agy-art" id="mascot" data-state="idle" data-art-ready="false"><section class="agy-bubble interactive" id="bubble" role="status" aria-live="polite">
 <div class="agy-bubble__title"><span id="title">Gemini Models</span><button id="close" aria-label="收起气泡">×</button></div>
+<div id="bubble-body" class="agy-bubble__body" tabindex="0" role="region" aria-label="气泡内容">
 <div id="quota" class="agy-quota"><div id="model-tag" class="agy-model-tag" hidden></div><div class="quota-label"><span id="label-5h">5 小时</span><strong id="percent">—</strong></div><div class="quota-reset" id="reset-5h"></div><div class="agy-quota__track" id="track" role="progressbar" aria-label="五小时剩余额度" aria-valuemin="0" aria-valuemax="100"><span class="agy-quota__fill" id="fill"></span></div><div class="quota-label"><span id="label-week">1 周</span><strong id="percent-week">—</strong></div><div class="quota-reset" id="reset-week"></div><div class="agy-quota__track" id="track-week" role="progressbar" aria-label="一周剩余额度" aria-valuemin="0" aria-valuemax="100"><span class="agy-quota__fill" id="fill-week"></span></div><div id="caption" class="agy-quota__caption"></div></div>
 <div id="web-quota-panel" class="agy-byok-panel" hidden><div class="agy-model-tag" id="web-status-tag"><span id="web-status-text">⚪ 等待同步</span><span class="thinking-badge" id="web-model-badge">Web</span></div><div class="byok-metrics"><div class="byok-metric-row"><span id="web-5h-label">当前周期 (5h)</span><strong id="web-5h-count">—</strong></div><div class="byok-metric-row"><span id="web-daily-label">每周限额 (1w)</span><strong id="web-daily-count">—</strong></div><div class="byok-metric-row"><span id="web-split-label">当前会话负载</span><strong id="web-model-split">0 轮</strong></div></div></div>
+<!-- @byok-dev-start -->
 <div id="byok-panel" class="agy-byok-panel" hidden><div class="agy-model-tag" id="byok-provider-tag"><span id="byok-status-text">⚪ 待启用</span><div class="byok-switcher-bar"><button type="button" id="byok-model-prev" class="byok-step-btn" aria-label="切换上一个模型" hidden>‹</button><span class="thinking-badge" id="byok-model-badge">—</span><button type="button" id="byok-model-next" class="byok-step-btn" aria-label="切换下一个模型" hidden>›</button></div></div><div class="byok-metrics"><div class="byok-metric-row" id="byok-balance-row" hidden><span>账户额度 / 余额</span><strong id="byok-balance-badge" class="byok-balance-pill">—</strong></div><div class="byok-metric-row"><span>网关延迟 (Ping)</span><strong id="byok-ping">—</strong></div><div class="byok-metric-row"><span>今日转发请求</span><strong id="byok-requests">0 次</strong></div></div></div>
+<!-- @byok-dev-end -->
 <div id="value" class="agy-bubble__value" hidden></div><div id="detail" hidden></div><div class="agy-bubble__meta" id="meta">本机只读 · 不估算账户余额</div>
+</div>
 <nav class="bubble-nav"><button id="prev" aria-label="上一页">‹</button><span id="page">1 / 4</span><button id="next" aria-label="下一页">›</button></nav></section>
 <div class="widget-tools interactive"><button id="toggle" aria-label="显示气泡">•••</button><button id="settings" aria-label="打开设置">☰</button></div>
-<div class="agy-motion interactive" id="motion" tabindex="0" role="button" aria-label="猫娘，点击互动或拖动移动"><div class="agy-face">
-<img class="agy-frame agy-frame--idle" src="../../assets/character-packs/gemini-star-v1/frames/idle.png" alt="Gemini 猫娘" draggable="false">
-<img class="agy-expression agy-expression--proud" src="../../assets/character-packs/gemini-star-v1/frames/proud-v3.png" alt="" draggable="false">
-<img class="agy-expression agy-expression--crying" src="../../assets/character-packs/gemini-star-v1/frames/sad-v3.png" alt="" draggable="false">
-<img class="agy-expression agy-expression--shy" src="../../assets/character-packs/gemini-star-v1/frames/shy.png" alt="" draggable="false">
-<img class="agy-expression agy-expression--angry" src="../../assets/character-packs/gemini-star-v1/frames/angry.png" alt="" draggable="false">
+<div class="agy-sleep-shell"><div class="agy-motion interactive" id="motion" tabindex="0" role="button" aria-label="猫娘，点击互动"><div class="agy-face">
+<img class="agy-frame agy-frame--idle" alt="Gemini 猫娘" draggable="false">
+<img class="agy-frame agy-frame--blink" alt="" draggable="false">
+<img class="agy-expression agy-expression--proud" alt="" draggable="false">
+<img class="agy-expression agy-expression--shy" alt="" draggable="false">
+<img class="agy-expression agy-expression--angry" alt="" draggable="false">
 <img class="agy-effect agy-effect--thinking" src="../../assets/ui/effects/thinking-dots.svg" alt="">
 <img class="agy-effect agy-effect--sparkle" src="../../assets/ui/effects/sparkle.svg" alt="">
 <img class="agy-effect agy-effect--tear" src="../../assets/ui/effects/teardrop.svg" alt="">
-<img class="agy-effect agy-effect--heart" src="../../assets/ui/effects/heart.svg" alt=""></div></div></div></main><script src="personality.js"></script><script src="renderer.cjs"></script></body></html>
+<img class="agy-effect agy-effect--heart" src="../../assets/ui/effects/heart.svg" alt=""></div></div></div></div></main><script src="personality.js"></script><script src="pet-behavior.js"></script><script src="ambient.js"></script><script src="renderer.cjs"></script></body></html>

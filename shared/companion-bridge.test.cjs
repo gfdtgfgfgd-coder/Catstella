@@ -35,16 +35,28 @@ test("CompanionBridgeServer syncs dual-end quota, serves desktop wallpaper bytes
     onWebUpdate: () => { webUpdates++; }
   });
 
-  const port = await bridge.start();
+  let port = await bridge.start();
   assert(typeof port === "number" && port > 0);
   t.after(async () => {
     await bridge.stop();
   });
 
   // 1. State endpoint works for extension origin
-  const stateRes = await fetch(`http://127.0.0.1:${port}/companion/state`, {
-    headers: { Origin: "chrome-extension://abcdefghijklmnop" }
-  });
+  let stateRes;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    try {
+      stateRes = await fetch(`http://127.0.0.1:${port}/companion/state`, {
+        headers: { Origin: "chrome-extension://abcdefghijklmnop" }
+      });
+      break;
+    } catch (error) {
+      // Port 0 can allocate a Fetch-blocked port on this Windows setup. Retry
+      // only that client-side refusal; never hide a real bridge/network failure.
+      if (error.cause?.message !== 'bad port' || attempt === 11) throw error;
+      await bridge.stop();
+      port = await bridge.start();
+    }
+  }
   assert.equal(stateRes.status, 200);
   const stateJson = await stateRes.json();
   assert.equal(stateJson.ok, true);
@@ -76,6 +88,7 @@ test("CompanionBridgeServer syncs dual-end quota, serves desktop wallpaper bytes
     },
     body: JSON.stringify({
       webActive: true,
+      webVisible: true,
       webQuota: { dailyTotal: 18, window5hTotal: 6, flashCount: 10, thinkingCount: 5, proCount: 3, lastModel: "Thinking" },
       patch: { characterPack: "lin-cat", syncWallpaper: false }
     })
@@ -84,6 +97,7 @@ test("CompanionBridgeServer syncs dual-end quota, serves desktop wallpaper bytes
   const synced = await syncRes.json();
   assert.equal(synced.web.online, true);
   assert.equal(synced.web.active, true);
+  assert.equal(synced.web.visible, true);
   assert.equal(synced.web.quota.dailyTotal, 18);
   assert.equal(synced.desktop.characterPack, "lin-cat");
   assert.equal(synced.sync.syncWallpaper, false);

@@ -5,6 +5,7 @@
   let active = null;
   let generation = 0;
 
+/* @byok-dev-start */
   // BYOK state
   let byokMounted = false;
   let selectedProviderId = "";
@@ -12,6 +13,7 @@
   let editingModelOriginalId = null;
   const pingingKeys = new Set();
 
+/* @byok-dev-end */
   // 1. 无边框窗口控制
   if ($("win-min-btn")) $("win-min-btn").onclick = () => api.command("settings-minimize");
   if ($("win-close-btn")) $("win-close-btn").onclick = () => api.command("settings-close");
@@ -28,7 +30,10 @@
     });
   }
 
+  let onlinePanel;
   function showPage(name) {
+    if (name === "audio") name = "pet";
+    if (name === "about" && !onlinePanel && api.online) onlinePanel = window.mountCatstellaOnline($("online-panel"), api.online, {themeOnly:true});
     if (!pages.some(p => p.dataset.page === name)) name = "overview";
     navItems.forEach(b => b.classList.toggle("active", b.dataset.page === name));
     pages.forEach(p => p.classList.toggle("active", p.dataset.page === name));
@@ -37,6 +42,7 @@
     try { localStorage.setItem("cat_settings_page", name); } catch {}
   }
 
+/* @byok-dev-start */
   function mountByokIfAvailable() {
     const isAvailable = data?.byok?.available === true;
     const hintEl = $("clickCatAction-hint");
@@ -62,8 +68,10 @@
     bindByokEvents();
   }
 
+/* @byok-dev-end */
+  const mountOptionalSettings = typeof mountByokIfAvailable === "function" ? mountByokIfAvailable : () => {};
   refreshNavLists();
-  mountByokIfAvailable();
+  mountOptionalSettings();
   const resolveInitialPage = () => {
     const hash = (window.location.hash || "").replace(/^#/, "").trim();
     if (hash === "byok" || hash === "models") return "models";
@@ -73,14 +81,14 @@
   showPage(resolveInitialPage());
   if (api.onNavigate) {
     api.onNavigate(target => {
-      mountByokIfAvailable();
+      mountOptionalSettings();
       showPage(target === "byok" ? "models" : target);
     });
   }
   window.addEventListener("hashchange", () => {
     const hash = (window.location.hash || "").replace(/^#/, "").trim();
     if (hash) {
-      mountByokIfAvailable();
+      mountOptionalSettings();
       showPage(hash === "byok" ? "models" : hash);
     }
   });
@@ -95,7 +103,7 @@
 
   const keys = [
     "characterPack", "hostWindowOnly", "standaloneDesktopMode", "easterEggs", "scale", "alwaysOnTop",
-    "snap", "reducedMotion", "clickThrough", "bubbleOn", "turnCostOn",
+    "reducedMotion", "clickThrough", "bubbleOn", "turnCostOn", "ambientChatter", "autoUpdateCheck",
     "turnCostDurationMs", "sound", "soundSet", "volume", "manualQuota",
     "manualPercent", "manualWeeklyPercent", "clickCatAction",
     "syncCharacter", "syncWallpaper", "syncInteraction", "petDisplayMode",
@@ -154,82 +162,90 @@
   setupViewToggle("char-view-toggle", "character-gallery", () => charViewMode, m => { charViewMode = m; localStorage.setItem("cat_char_view_mode", m); });
   setupViewToggle("wall-view-toggle", "wallpaper-gallery", () => wallViewMode, m => { wallViewMode = m; localStorage.setItem("cat_wall_view_mode", m); });
 
-  // 4. 角色画廊渲染
+  function galleryTile(gallery, {name, description, preview, active, kind, select}) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "gallery-card" + (active ? " active" : "");
+    card.setAttribute("aria-pressed", String(active));
+    card.title = "使用「" + name + "」";
+    const append = (parent, tag, css, text = "") => {
+      const element = document.createElement(tag);
+      element.className = css;
+      element.textContent = text;
+      parent.appendChild(element);
+      return element;
+    };
+    if (active) append(card, "span", "card-badge", "✓ 使用中");
+    const thumb = append(card, "span", kind === "character" ? "card-char-thumb" : "card-wall-thumb");
+    if (preview) {
+      const image = append(thumb, "img", "");
+      image.src = preview;
+      image.alt = name;
+      image.loading = "lazy";
+    } else append(thumb, "span", "card-wall-placeholder", kind === "character" ? "🐱" : "🖼️");
+    const info = append(card, "span", "card-info");
+    append(info, "span", "card-title", name);
+    append(info, "span", "card-desc", description);
+    card.onclick = select;
+    gallery.appendChild(card);
+  }
+
   function renderCharacterGallery() {
-    const gallery = $("character-gallery");
-    if (!gallery) return;
-    const packs = data.characterPacks || [];
-    if ($("character-count")) $("character-count").textContent = packs.length + " 款形态";
-
-    gallery.innerHTML = "";
+    const gallery = $("character-gallery"), packs = data.characterPacks || [];
+    $("character-count").textContent = packs.length + " 款形态";
+    gallery.replaceChildren();
     for (const pack of packs) {
-      const isCurrent = (data.settings.characterPack === pack.id);
-      const card = document.createElement("div");
-      card.className = "gallery-card" + (isCurrent ? " active" : "");
-      card.setAttribute("role", "button");
-      card.setAttribute("tabindex", "0");
-      card.title = "点击切换为「" + pack.name + "」";
-
-      let badgeHtml = isCurrent ? '<span class="card-badge">✓ 使用中</span>' : '';
-      let imgHtml = pack.preview ? `<img src="${pack.preview}" alt="${pack.name}" loading="lazy">` : '<div style="font-size:32px">🐱</div>';
-
-      card.innerHTML = `
-        ${badgeHtml}
-        <div class="card-char-thumb">${imgHtml}</div>
-        <div class="card-info">
-          <span class="card-title">${pack.name}</span>
-          <span class="card-desc">${pack.description || pack.id}</span>
-        </div>
-      `;
-
-      card.onclick = () => {
-        if (data.settings.characterPack !== pack.id) {
-          save({ characterPack: pack.id }, "已切换为「" + pack.name + "」形态");
-        }
-      };
-
-      gallery.appendChild(card);
+      const active = data.settings.characterPack === pack.id;
+      galleryTile(gallery, {
+        name: pack.name, description: pack.description || pack.id, preview: pack.preview, active, kind: "character",
+        select: () => { if (!active) save({ characterPack: pack.id }, "已切换为「" + pack.name + "」"); }
+      });
     }
   }
 
-  // 5. 壁纸画廊渲染
   function renderWallpaperGallery() {
-    const gallery = $("wallpaper-gallery");
-    if (!gallery) return;
-    const walls = data.wallpapers || [];
-    if ($("wallpaper-count")) $("wallpaper-count").textContent = walls.length + " 张";
-
-    const currentWallpaper = data.dreamSkin?.wallpaperFile || "";
-    gallery.innerHTML = "";
-
+    const gallery = $("wallpaper-gallery"), walls = data.wallpapers || [];
+    $("wallpaper-count").textContent = walls.length + " 张";
+    const normalizePath = value => (value || "").replace(/\\/g, "/").toLowerCase();
+    const current = normalizePath(data.dreamSkin?.wallpaperFile);
+    gallery.replaceChildren();
     for (const wall of walls) {
-      const normCurrent = (currentWallpaper || "").replace(/\\/g, "/").toLowerCase();
-      const normPath = (wall.filePath || "").replace(/\\/g, "/").toLowerCase();
-      const isCurrent = normCurrent.endsWith("/" + wall.fileName.toLowerCase()) || normCurrent === normPath || normCurrent === wall.fileName.toLowerCase();
-      const card = document.createElement("div");
-      card.className = "gallery-card" + (isCurrent ? " active" : "");
-      card.setAttribute("role", "button");
-      card.setAttribute("tabindex", "0");
-      card.title = "点击应用「" + wall.title + "」";
-
-      let badgeHtml = isCurrent ? '<span class="card-badge">✓ 当前壁纸</span>' : '';
-      let imgHtml = wall.preview ? `<img src="${wall.preview}" alt="${wall.title}" loading="lazy">` : '<div style="font-size:24px;color:#aaa;display:flex;align-items:center;justify-content:center;height:100%">🖼️</div>';
-
-      card.innerHTML = `
-        ${badgeHtml}
-        <div class="card-wall-thumb">${imgHtml}</div>
-        <div class="card-info">
-          <span class="card-title">${wall.title}</span>
-          <span class="card-desc">${wall.fileName}</span>
-        </div>
-      `;
-
-      card.onclick = () => {
-        save({ dreamSkin: { wallpaperFile: wall.filePath } }, "已切换至壁纸「" + wall.title + "」");
-      };
-
-      gallery.appendChild(card);
+      const active = current ? current === normalizePath(wall.filePath) : data.dreamSkin?.wallpaperId === wall.id;
+      galleryTile(gallery, {
+        name: wall.title, description: wall.fileName, preview: wall.preview, active, kind: "wallpaper",
+        select: () => save({ dreamSkin: { wallpaperFile: wall.filePath } }, "已切换至「" + wall.title + "」")
+      });
     }
+  }
+
+  const onlineCounts = { character: 0, wallpaper: 0 };
+  let onlineNoticeDismissed = false;
+  function updateOnlineNotice(kind, count) {
+    onlineCounts[kind] = count;
+    $("online-notice").hidden = onlineNoticeDismissed || !Object.values(onlineCounts).some(Boolean);
+    $("notice-characters").hidden = !onlineCounts.character;
+    $("notice-wallpapers").hidden = !onlineCounts.wallpaper;
+    const parts = [onlineCounts.character && onlineCounts.character + " 款桌宠", onlineCounts.wallpaper && onlineCounts.wallpaper + " 张壁纸"];
+    $("online-notice-text").textContent = "发现可安装的在线素材 · " + parts.filter(Boolean).join("、");
+  }
+  function openOnlineGallery(page, id) {
+    showPage(page);
+    $(id).scrollIntoView({block:"start"});
+  }
+  $("notice-characters").onclick = () => openOnlineGallery("pet", "online-characters");
+  $("notice-wallpapers").onclick = () => openOnlineGallery("wallpaper", "online-wallpapers");
+  $("dismiss-online-notice").onclick = () => { onlineNoticeDismissed = true; $("online-notice").hidden = true; };
+  if (api.online) for (const [kind, id, key] of [
+    ["character", "online-characters", "characterPacks"],
+    ["wallpaper", "online-wallpapers", "wallpapers"]
+  ]) {
+    const gallery = window.mountCatstellaGallery($(id), {
+      call: api.online,
+      kind,
+      installed: item => (data[key] || []).some(pack => pack.id === item.id || pack.id === "online-" + item.id),
+      onCount: count => updateOnlineNotice(kind, count)
+    });
+    void gallery.load();
   }
 
   // 5.5 双端联动看板与状态胶囊渲染
@@ -288,6 +304,7 @@
   }
 
   // =========================================================================
+/* @byok-dev-start */
   // 6. BYOK 双栏视图渲染与交互控制器
   // =========================================================================
   const STATUS_LAMP = {
@@ -1070,6 +1087,7 @@
     }
   }
 
+/* @byok-dev-end */
   // 1 小时 (1..60m) 真实比例磁吸阻尼曲线：靠近刻度点平滑产生吸附阻力，松手精准归位整数分钟
   const MAJOR_STOPS = [1, 5, 10, 15, 30, 45, 60];
   const MINOR_STOPS = [3, 20, 25, 35, 40, 50, 55];
@@ -1113,7 +1131,7 @@
   }
 
   function render() {
-    mountByokIfAvailable();
+    mountOptionalSettings();
 
     // 渲染常规表单控件
     for (const key of keys) {
@@ -1165,7 +1183,7 @@
     renderDualCompanionStatus();
     renderCharacterGallery();
     renderWallpaperGallery();
-    renderByokPanel();
+    if (typeof renderByokPanel === "function") renderByokPanel();
   }
 
   function stop() {
@@ -1184,7 +1202,8 @@
           $("customHonorific").style.display = isCustom ? "inline-block" : "none";
           if (isCustom) $("customHonorific").focus();
         }
-        save({ [key]: key === "volume" ? v / 100 : v });
+        const saved = save({ [key]: key === "volume" ? v / 100 : v });
+        if (key === "autoUpdateCheck") void saved.then(() => onlinePanel?.refresh(false));
       });
     }
   }
@@ -1209,6 +1228,9 @@
 
   // 资源目录入口
   if ($("open-character-dir")) $("open-character-dir").onclick = () => api.command("open-character-dir");
+  for (const [id, command] of [["project-repo", "open-project-repo"], ["upstream-repo", "open-upstream-repo"]]) {
+    $(id).onclick = event => { event.preventDefault(); api.command(command); };
+  }
   if ($("open-wallpaper-dir")) $("open-wallpaper-dir").onclick = () => api.command("open-wallpaper-dir");
   if ($("next-wallpaper")) $("next-wallpaper").onclick = async () => { await api.command("next-wallpaper"); $("saved").textContent = "已切换至下一张壁纸～"; };
 
@@ -1266,11 +1288,14 @@
     save({ dreamSkin: { uiLanguage: $("uiLanguage").value } }, "已切换界面语言");
   };
 
-  // 彩蛋与测试按钮
-  if ($("preview-proud")) $("preview-proud").onclick = () => { api.command("preview-reaction:proud"); $("saved").textContent = "已触发「得意」表情展示~"; };
-  if ($("preview-crying")) $("preview-crying").onclick = () => { api.command("preview-reaction:crying"); $("saved").textContent = "已触发「委屈」表情展示~"; };
-  if ($("preview-shy")) $("preview-shy").onclick = () => { api.command("preview-reaction:shy"); $("saved").textContent = "已触发「害羞」表情展示~"; };
-  if ($("preview-angry")) $("preview-angry").onclick = () => { api.command("preview-reaction:angry"); $("saved").textContent = "已触发「气恼」表情展示~"; };
+  // 表情预览使用独立的显示时限。
+  for (const [id, name] of [["proud", "得意"], ["shy", "害羞"], ["angry", "气恼"], ["nap", "打盹"]]) {
+    const button = $("preview-" + id);
+    if (button) button.onclick = () => {
+      api.command("preview-reaction:" + id);
+      $("saved").textContent = "正在预览「" + name + "」";
+    };
+  }
   if ($("preview-reaction")) $("preview-reaction").onclick = () => api.command("preview-reaction");
 
   if ($("dream-enabled")) $("dream-enabled").onchange = () => save({ dreamSkin: { enabled: $("dream-enabled").checked } }, $("dream-enabled").checked ? "已应用到 Antigravity" : "已从 Antigravity 还原");

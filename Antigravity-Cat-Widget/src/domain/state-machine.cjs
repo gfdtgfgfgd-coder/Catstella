@@ -2,7 +2,7 @@
 // Strictly decoupled from visual rendering; purely functional and deterministic.
 
 const VALID_PERSISTENT_STATES = new Set(["idle", "thinking", "warning", "error", "offline"]);
-const VALID_TRANSIENT_STATES = new Set(["pressed", "dragged", "release", "petting", "success"]);
+const VALID_TRANSIENT_STATES = new Set(["pressed", "release", "petting", "success"]);
 
 class WidgetStateMachine {
   constructor(initialState = "idle") {
@@ -56,7 +56,7 @@ class WidgetStateMachine {
     }
   }
 
-  // Trigger transient reaction (e.g. click press, drag, release, turn complete, petting)
+  // Trigger transient reaction (e.g. press, release, turn complete, petting)
   triggerTransient(state, durationMs = 0) {
     if (!VALID_TRANSIENT_STATES.has(state)) {
       console.warn(`[StateMachine] Invalid transient state: ${state}`);
@@ -94,10 +94,6 @@ class WidgetStateMachine {
     this.triggerTransient("pressed");
   }
 
-  handleDragStart() {
-    this.triggerTransient("dragged");
-  }
-
   handlePointerUp() {
     // Release spring animation: 560ms duration, then smoothly back to persistent state
     this.triggerTransient("release", 560);
@@ -115,7 +111,7 @@ class WidgetStateMachine {
   }
 
   handleTurnSuccess() {
-    if (this.persistentState === "thinking" || this.transientState === "pressed" || this.transientState === "dragged") return;
+    if (this.persistentState === "thinking" || this.transientState === "pressed") return;
     // Single bounce: 720ms
     this.triggerTransient("success", 720);
   }

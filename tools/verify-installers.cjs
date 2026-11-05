@@ -13,6 +13,12 @@ const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
   assert(fs.existsSync(path.join(dir,'LICENSES.chromium.html')));assert(fs.existsSync(path.join(dir,'resources/app/NOTICE.md')));
   assert(fs.existsSync(path.join(dir,'resources/app/Antigravity-Cat-Widget/src/main/index.cjs')));
   assert(fs.existsSync(path.join(dir,'resources/app/Antigravity-Dream-Skin/src/domain/host-controller.cjs')));
+  assert(fs.existsSync(path.join(dir,'resources/app/Antigravity-Dream-Skin/src/host/theme.cjs')));
+  assert(!fs.existsSync(path.join(dir,'resources/app/Antigravity-Dream-Skin/src/main')),'Legacy Dream Skin main process must not ship');
+  assert(!fs.existsSync(path.join(dir,'resources/app/Antigravity-Dream-Skin/src/renderer')),'Legacy Dream Skin control window must not ship');
+  assert(!fs.existsSync(path.join(dir,'locales')),'Chromium locale packs must not ship');
+  assert(!fs.existsSync(path.join(dir,'GeneratedVersion.cs')),'Build-only version source must not ship');
+  assert(!fs.existsSync(path.join(dir,'IconSwap.exe')),'Build-only icon helper must not ship');
   assert(fs.existsSync(path.join(dir,'icons/launch.ico')));assert(fs.existsSync(path.join(dir,'icons/settings.ico')));assert(fs.existsSync(path.join(dir,'icons/uninstall.ico')));
   assert(fs.existsSync(path.join(dir,'web-extension/web-plugin-guide.html')));
   const web=detectWebCompanion();
@@ -24,18 +30,20 @@ const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
    assert(xpiSeen);
   }
   assert(!fs.existsSync(path.join(dir,'resources/app/Gemini-Web-Companion')));
+  const appDir=path.join(dir,'resources/app');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(appDir,'package.json'),'utf8')).byokDevelopment,false);
+  assert(!fs.existsSync(path.join(appDir,'shared/gateway')),'The release must exclude the experimental gateway');
+  assert(!fs.existsSync(path.join(appDir,'Antigravity-Dream-Skin/src/host/byok-portal.cjs')));
+  assert(!fs.readdirSync(path.join(dir,'resources/app/Antigravity-Cat-Widget/src/native')).some(file=>/^ForegroundHost\.[0-9a-f]{12}\.exe$/i.test(file)), 'Development helper caches must not ship');
   assert(!fs.existsSync(path.join(dir,'node_modules')));checks.push(kind+': Inno silent install in non-ASCII directory; licenses, both suite projects, expression icons and webext component');
-  // 新解压的 EXE 偶发被杀软短暂扫描锁定：自检重试直至可用。
-  let selfTestOk=false,selfTestErr=null;
-  for(let attempt=0;attempt<5&&!selfTestOk;attempt++){
-   try{execFileSync(path.join(dir,'StartupSettings.exe'),['--self-test'],{env,timeout:15000});selfTestOk=true;}
-   catch(error){selfTestErr=error;await new Promise(r=>setTimeout(r,2500));}
-  }
-  assert(selfTestOk,'StartupSettings --self-test retry exhausted: '+(selfTestErr&&selfTestErr.code));checks.push(kind+': autostart/link flags, host transition decision, isolated HKCU Run cleanup');
+  execFileSync(path.join(dir,'StartupSettings.exe'),['--self-test'],{env,timeout:15000,windowsHide:true,encoding:'utf8'});
+  checks.push(kind+': autostart/link flags, host transition decision, and temporary registry cleanup');
   const app=await _electron.launch({executablePath:path.join(dir,exe),args:['--data-dir='+path.join(testRoot,kind+'-profile')],env,timeout:30000});
   try{
    const page=await app.firstWindow();await page.waitForFunction(()=>window.widgetApi,{},{timeout:20000});
    const state=await page.evaluate(async()=>await window.widgetApi.get());assert(state.settings);assert(state.dreamSkin);assert(Array.isArray(state.wallpapers));
+   assert.equal(state.byok.available,false);
+   assert.equal(await page.evaluate(()=>typeof window.widgetApi.byok),'undefined');
    await page.screenshot({path:path.join(root,'evidence','installer-'+kind+'.png')});checks.push(kind+': installed EXE opens unified renderer without Node or source workspace');
   }finally{
    await app.close();

@@ -1,6 +1,8 @@
+> 2026-11-05 补充：桌面旧内嵌 Web 副本已移除；下文旧目录描述仅供历史参考。安装器与素材同步共用 tools/web-companion-path.cjs，活动源为 D:\Catstella-web\Gemini-Web-Companion。
+
 # 🐱 Catstella · 桌面端交接文档（Branch: `feat/desktop-suite`）
 > **项目定位**：独立于反重力宿主的常驻桌面猫娘套件（桌宠 + 毛玻璃主题 + 壁纸管理 + 界面汉化），单实例单托盘。
-> **文档版本**：v0.5.0-handoff | 更新时间：2026-11-03
+> **文档版本**：v0.6.0-handoff | 更新时间：2026-11-05
 > **适用受众**：接手桌面端开发的会话 / Agent / 开发者
 
 ---
@@ -9,12 +11,12 @@
 
 | 项 | 现状 |
 |---|---|
-| 版本 | **0.5.0**（已出包 `StarSuite-Setup-0.5.0-x64.exe`，Inno Setup，152M） |
-| 桌面分支 | `feat/desktop-suite`（提交 `9bf956c` → `5a467a3`），工作区 `D:\Catstella` |
+| 版本 | **0.6.0**（已出包 `Catstella-Setup-0.6.0-x64.exe`，Inno Setup，164.75 MiB） |
+| 桌面分支 | `feat/desktop-suite`（工作区 `D:\Catstella`，工作区含大量未提交改动，勿清理） |
 | web 分支 | `feat/browser-extension` **已分房**到 worktree `D:\Catstella-web`（隔壁会话地盘，勿越界） |
-| 测试 | `npm.cmd test` = **48 项全绿** |
-| 安装包验收 | `npm run verify:installers` = **4/4 全绿**（Inno 静默沙箱装 → 真启渲染层 → unins000 卸载） |
-| 已装机 | v0.5.0 待用户点装；用户已验收 0.4.2 的额度监控链路 |
+| 测试 | `npm.cmd test` = **65 项全绿** |
+| 安装包验收 | `npm run verify:installers` = **4/4 全绿**（Inno 静默装 → 无 locales 真启渲染层 → unins000 卸载目录消失） |
+| 已装机 | v0.6.0 已出包待用户点装；v0.5.0 安装与 0.4.2 额度链路此前已验收 |
 
 ---
 
@@ -44,8 +46,14 @@ StarSuite.exe（Electron 45）
 - `Antigravity-Dream-Skin/src/host/theme.cjs` / `localize.cjs` — **serialized 注入宿主页面的脚本（必须完全自包含！）**
 - `Antigravity-Cat-Widget/src/adapters/host-quota.cjs` — 额度双通道 + 模型/思考强度识别
 - `Antigravity-Cat-Widget/src/renderer/` — 桌宠（renderer.cjs/personality.js/widget.css）+ 统一设置中心（settings.*）
+- `Antigravity-Cat-Widget/src/renderer/pet-behavior.js` — 点击语义/表情/眨眼/打盹状态机（短按 ≤700ms 且位移 ≤10px 才算点击）
+- `Antigravity-Cat-Widget/src/main/online.cjs` + `src/renderer/online-panel.js` + `shared/online.js` — 在线图库、更新检测、在线配色
+- `Antigravity-Cat-Widget/src/domain/companion-visibility.cjs` — 桌面端/网页端焦点互斥
+- `online-assets/` — 在线图库清单 `catalog.json`、角色/主题 JSON 与壁纸包
 - `tools/` — 启动/安全重启/构建/验收/Inno vendor/帧图同步
 - `tools/installer/star-suite.iss` — Inno 安装脚本（core/webext 组件、Tasks、优雅进退）
+- `archive/legacy-dream-skin/` — 已退役的独立 Dream Skin Electron 壳层，只作历史参考，不进入构建
+- `archive/legacy-byok/` — 已封存的 BYOK 网关与宿主入口，不进入默认测试和发行构建
 
 ---
 
@@ -85,15 +93,17 @@ StarSuite.exe（Electron 45）
 ## 3. 安装包（Inno Setup 7.1.1）
 
 - 一次性 vendor：`npm run setup:inno`（官方 GitHub Release + 官方简中语言包 → `tools/vendor/InnoSetup/`，已 gitignore）
-- 构建：`npm run build:installers` → `dist/installers/StarSuite-Setup-<ver>-x64.exe`
-  - 双项目统一负载（`Antigravity-Cat-Widget` + `Antigravity-Dream-Skin` 的 src/assets + shared + 许可）
+- 构建：`npm run build:installers` → `dist/installers/Catstella-Setup-<ver>-x64.exe`
+  - 统一负载只复制桌宠运行代码、Dream Skin 的 `domain/`、`host/`、壁纸和汉化资源，以及 shared 与许可；旧 Dream Skin 壳层和归档 BYOK 都不会进包
+  - **Chromium `locales/` 整个删除**；Electron 45.1.0 无 locales 仍能启动，只在 exe 旁写一条 `locale_file_path.empty()` 警告到 `debug.log`
+  - `[Files]` 用 `Excludes` 拦掉构建机文件 `StartupSettings.exe`、`GeneratedVersion.cs`、`IconSwap.exe`；`verify-installers.cjs` 有对应断言
   - `IconSwap.cs`（BeginUpdateResource 零依赖）替换 exe 的 Electron 默认图标
   - 表情图标：idle/proud-v3/sad-v3 → `icons/launch|settings|uninstall.ico`（sharp 运行时生成）
   - **web 插件组件从 `D:\Catstella-web` 现场构建**（`tools/web-companion-path.cjs` 探测，`WEB_COMPANION_PATH` 可覆盖）
-- `star-suite.iss` 要点：`core`(fixed) / `webext`(可选，档位 1 = 复制 xpi+zip + 图文指引)；[Tasks] 自启动/联动经 [Code] 写 SetFlags 语义注册表+Run 项；`PrepareToInstall` 优雅退出旧实例并清标志放行守护；卸载前 quit+等待、卸载后清注册表（**个人数据目录保留**）
+- `star-suite.iss` 要点：`core`(fixed) / `webext`(可选，档位 1 = 复制 xpi+zip + 图文指引)；`[Tasks]` 自启动/联动经 `[Code]` 写 SetFlags 语义注册表+Run 项；`PrepareToInstall` 优雅退出旧实例并清标志放行守护；卸载前 quit+等待，卸载后清注册表并 `[UninstallDelete]` 清空 `{app}`（**个人数据目录保留**）
 - **Inno 7 破坏性变更**：无 `iscustom` / 无 `skipifdoesntexist` 旗标 → webext 产物用 `#ifdef WebExtFiles` 预处理条件包含
 
-**验收链**（`tools/verify-installers.cjs`）：Inno 静默沙箱安装（非中文目录）→ 双项目/图标/webext 断言（**轮询容忍杀软扫描**）→ 真实渲染层启动（playwright）→ unins000 卸载 → 目录消失。已知环境幽灵：playwright `app.close()` 可能留孤儿进程 → 按测试 data-dir 精准 `Stop-Process`（**勿触碰真实用户实例**）。
+**验收链**（`tools/verify-installers.cjs`）：Inno 静默安装到中文路径目录 → 双项目/图标/webext/无 locales/无构建机文件断言（**轮询容忍杀软扫描**）→ `StartupSettings.exe --self-test` → 真实渲染层启动（playwright，无 locales）→ unins000 卸载 → 目录消失 → 写 `evidence/installer-report.json`。已知环境幽灵：playwright `app.close()` 可能留孤儿进程 → 按测试 data-dir 精准 `Stop-Process`（**勿触碰真实用户实例**）。
 
 ---
 
@@ -104,7 +114,7 @@ D:\Catstella       @ feat/desktop-suite    ← 桌面端；本会话工作区
 D:\Catstella-web   @ feat/browser-extension ← web 插件；隔壁会话工作区
 ```
 - 同一仓库、历史共享；合并走 git，**CHANGELOG.md 是唯一共享文件**（两边各自追加，合并两边都保留）
-- 桌面会话**不要**碰 `D:\Catstella` 里的 `Gemini-Web-Companion/`（web 地盘）；跨房素材同步走 `node tools/sync-character-frames.cjs [--check]`
+- 桌面目录内的 `Gemini-Web-Companion/` 副本已删除，**不要从历史恢复**；跨房素材同步走 `node tools/sync-character-frames.cjs [--check]`
 - 角色帧图权威源 = web 端 `Gemini-Web-Companion/assets/characters/`
 - 桌面构建自动探测 web 工作树：`../Catstella-web/Gemini-Web-Companion` 或 env `WEB_COMPANION_PATH`
 
@@ -122,6 +132,8 @@ D:\Catstella-web   @ feat/browser-extension ← web 插件；隔壁会话工作�
 8. **缓存击穿**：跨版本同 URL 的 file:// 图片会被 Chromium 缓存回放；帧图 URL 必须带 `artVersion`
 9. **stash 会回退别人工作树**：stash 前确认双分支工作树都已提交
 10. **跨项目 require 层级**：`src/main/` → 套件根 = `../../../`（两层会静默炸掉主进程 → 无窗口）
+11. **无 locales 会写 `debug.log`**：Electron 缺 locales 时在 exe 旁追加 `locale_file_path.empty()` 非致命告警；Inno 只删自己装的文件，卸载会留下该文件导致 `{app}` 删不掉 → 用 `[UninstallDelete] filesandordirs` 清空
+12. **`Source:"{#StageDir}\*"` 会带进构建机文件**：`GeneratedVersion.cs`、`IconSwap.exe` 曾装进 `{app}`；一律在 `[Files]` 加 `Excludes`，并在 `verify-installers.cjs` 加断言防回归
 
 ---
 
@@ -129,12 +141,12 @@ D:\Catstella-web   @ feat/browser-extension ← web 插件；隔壁会话工作�
 
 | 优先级 | 事项 | 说明 |
 |---|---|---|
-| P2 | **立绘"返祖"未根治** | 缓存击穿已上，但用户仍偶见旧红眼立绘；用户决定**以后全部重制角色帧图**（web 端权威源 → sync 脚本同步）。重制后如仍返祖再排查渲染层状态机 |
+| P2 | **立绘"返祖"未根治** | 缓存击穿 + `artVersion` 已上；0.6.0 已用项目提供的五张透明帧重制星语/霓音并同步两端；若仍偶发旧图，再排查渲染层状态机 |
 | P2 | 汉化字典扩充 | 已扩充至 820+ 条（含设置中心各选项全句说明、通用/权限/浏览器/排队/分支等）；支持 Version/时间等动态模式；修复注入层热更新 dict 闭包 bug；严格保留 Antigravity 与模型/公司原名 |
 | P2 | claudeGpt 数据完整性 | 依赖宿主额度服务返回的组结构；宿主改版需同步适配提取器 |
 | P3 | 商店上架（Firefox/Chromium） | 需开发者账号 + 签名；安装器当前档位 1（复制包 + 图文指引） |
-| P3 | locales 瘦身 | 55 个语言 .pak 约 50MB/份，可裁到 zh-CN+en-US |
 | P3 | 主题：用户回复可读性 | 已加 user-query 毛玻璃；如反馈不足可继续调 |
+| — | ~~locales 瘦身~~ | 0.6.0 已删除全部 `locales/*.pak`，实测可正常启动 |
 
 ---
 
@@ -145,14 +157,14 @@ D:\Catstella-web   @ feat/browser-extension ← web 插件；隔壁会话工作�
 3. 🚫 严禁未检测到宿主时让挂件闪退/崩溃/强行销毁（必须优雅退守 Standalone）
 4. 🚫 严禁修改宿主安装目录（`D:\Program Files\Antigravity` 与 `%LOCALAPPDATA%` 安装目录仅供调试对照，改动必须落源码仓库）
 5. 🚫 严禁 `taskkill /f` 强杀重启（用单实例 IPC + 锁探测；atomic write 不可中断）
-6. 🚫 严禁破坏既有单元测试（当前门槛：**48 项全绿**）
+6. 🚫 严禁破坏既有单元测试（当前门槛：**65 项全绿**）
 
 ---
 
 ## 8. 常用命令
 
 ```powershell
-npm.cmd test                 # 48 项单测
+npm.cmd test                 # 65 项单测
 npm run start:widget         # 源码启动（热调试）
 npm run restart:widget       # 安全平滑重启（单实例 IPC + 锁探测）
 npm run setup:inno           # 一次性 vendor Inno Setup 7.1.1
@@ -169,6 +181,6 @@ node tools/sync-character-frames.cjs --check   # 帧图跨房差异检查
 |---|---|
 | `~/.antigravity-cat-widget/` | 挂件设置 settings.json、用量 ledger、startup/recovery 日志 |
 | `~/.antigravity-dream-skin/` | 皮肤设置（含 uiLanguage/slideshow）、`wallpapers/` 用户壁纸 |
-| `%LOCALAPPDATA%\Programs\AntigravityStarSuite\Suite\` | 安装目录（Inno 管理，卸载删此目录） |
+| `%LOCALAPPDATA%\Programs\Catstella\Suite\` | 安装目录（Inno 管理，卸载清空此目录） |
 | HKCU `Software\AntigravityStarSuite\Suite` | 自启动/联动标志、InstallPath |
 | `D:\Program Files\Antigravity\` | **宿主安装，只读参考**（CDP 端口在 `~/.antigravity/DevToolsActivePort`） |

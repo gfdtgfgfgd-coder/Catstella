@@ -6,17 +6,18 @@ Catstella is an open-source desktop enhancement and dual-end companion suite des
 
 > **Disclaimer & Security Notice**  
 > This project is a non-commercial, community-driven tool maintained by open-source enthusiasts. It is **NOT an official Google product** and is not affiliated with, endorsed by, or sponsored by Google or any of its subsidiaries.  
-> Catstella communicates solely via local loopback CDP debugging and browser extension channels to map quota summaries and apply styling. It **never modifies host installation binaries or `app.asar` packages**, and strictly never intercepts, collects, logs, or uploads any user API keys, auth tokens, session cookies, or conversation contents.
+> Catstella reads quota data and applies styles through the host’s local debugging interface and the browser extension. It leaves host installation files and `app.asar` intact. Its usage ledger and companion sync store numeric totals and status rather than conversation text.
 
 ---
 
 ## 🎨 Gallery & Artworks
 
-<!-- [CHARACTER_ART_PLACEHOLDER] -->
-> *(Character Artwork Placeholder: Reserved for newly remastered artwork assets upon export)*
+| Default Character (Stella) | Default Stock Wallpaper (Stella Sheet) |
+| :---: | :---: |
+| <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" /> | <img src="art_assets/stock_wallpaper/stella_1.png" alt="Stella Wallpaper" width="500" /> |
 
-<!-- [WALLPAPER_GALLERY_PLACEHOLDER] -->
-> *(Wallpaper Gallery Placeholder: Reserved for newly remastered wallpapers and theme previews upon export)*
+> [!TIP]
+> Includes full expression frame sets (proud, shy, sad, nap, etc.) for both **Stella** and **Aica**, alongside 4 bundled panoramic wallpapers. See [ASSETS.md](ASSETS.md) and the [online catalog](online-assets/README.md).
 
 ---
 
@@ -25,16 +26,18 @@ Catstella is an open-source desktop enhancement and dual-end companion suite des
 ### 🐱 Desktop Companion Widget (Cat Widget)
 - **Multi-Model Quota Monitoring**:
   - Read-only telemetry extraction from the host background service for **Gemini 5-hour / Weekly limits** and refresh countdowns;
-  - **Gemini 4 Argon Metering Support**: When switching to Gemini 4 Argon, automatically binds to its dedicated `gemini-argon-wtu-weekly` high-intelligence WTU limit (identifying exact remaining quotas such as a 9% critical threshold); triggers low-quota (< 20%) warnings and expressive reactions while keeping standard weekly limits visible in the caption;
-  - Supports **Claude & GPT 3rd-party channels** in the same dashboard;
+  - Displays the dedicated Argon weekly WTU quota when the host provides it, alongside the standard weekly quota. Low quota triggers a warning and a character reaction.
+  - The experimental BYOK gateway has been removed from runtime source and release packages. Its implementation is archived under `archive/legacy-byok/`.
   - Customizable honorifics and forms of address in settings (None, Zayu, or custom text).
 - **Interactive Feedback**:
   - 50+ localized dialogue quips, subtle breathing animation, and ambient edge luminescence;
-  - Responds to mouse clicks, dragging, and elastic release; supports bottom-corner magnetic docking and adaptive orientation;
+  - Click the mascot’s head for expressions, or use the menu to dock it in either bottom corner;
   - Includes emotional reaction states (proud, crying, shy, angry) and four selectable sound sets (muted by default).
 - **Anti-Flicker & Desktop Persistence**:
-  - Leverages native C# `ForegroundHost` bitwise filtering to eliminate taskbar refresh jitter on Windows;
+  - Tracks foreground windows and supports display priorities. A duplicate pet can still appear with the floating Windows taskbar. See the [roadmap](docs/ROADMAP.md).
   - **Standalone Desktop Mode**: Persists reliably on the desktop even when Antigravity is closed or minimized, seamlessly reattaching upon host relaunch.
+
+The desktop Pet and Wallpaper pages show the online catalog and notify you about assets you can install. The About page offers update checks and online palettes. The catalog becomes available when published to GitHub. Idle chatter is optional. See the [catalog](online-assets/README.md).
 
 ### 🔮 Frosted Glass Theme & Wallpaper Engine (Dream Skin)
 - **Translucent Architecture**:
@@ -55,12 +58,10 @@ Extending beyond the local Antigravity IDE, Catstella provides full-featured int
   - Injects a panoramic frosted glass theme (Liquid Glass) consistent with the desktop aesthetic;
   - Mounts an interactive catgirl companion in the bottom-right corner of the official chat interface with multiple expressions and animations;
 - **Dedicated Web Telemetry & Consumption Tracking**:
-  - Deep observation of web streaming packets and session state;
-  - **Session Load Tracking**: Monitors turns per conversation and estimates token consumption scale;
-  - **Frequency & Budget Analytics**: Tracks calls within the last 5 hours, daily cumulative conversations, and daily budget progress (default 150 turns/day);
-  - **Model Architecture Breakdown**: Automatically classifies and tallies usage across Flash, Pro, and Thinking (extended reasoning);
-- **Dual-End Cross-Client Neural Bridge (Companion Bridge)**:
-  - Local auto-handshake via loopback `127.0.0.1:3921`;
+  - Displays the five-hour and weekly usage and reset times when Gemini provides them, with the source labeled.
+  - Counts turns in the current conversation and estimates its token load.
+- **Desktop and Web Sync (Companion Bridge)**:
+  - Local auto-handshake via loopback `127.0.0.1:3921–3923`;
   - **Cross-Display Telemetry**: View Gemini Web metrics directly on Page 2 of the desktop pet bubble, and inspect Antigravity IDE quotas inside the web extension popup;
   - **Asset & Preference Sync**: One-click toggling between synchronized character packs and wallpaper galleries, or independent customization;
   - **Flexible Multi-Screen Display Modes**: Choose between "Simultaneous Display", "Desktop Priority", or "Focus Mutual-Exclusion" (desktop pet sleeps when browsing the web).
@@ -78,9 +79,25 @@ Extending beyond the local Antigravity IDE, Catstella provides full-featured int
 Packaged with standard **Inno Setup**:
 1. Download the latest `Catstella-Setup-*-x64.exe` from [Releases](https://github.com/lynnfei/Catstella/releases);
 2. Run the installer and select your desired components (Desktop Suite / Web Extension package) and startup options;
-3. Installs cleanly in the current user space without requiring administrative privileges.
+3. The installer runs per user. The optional web component includes extension files and a setup guide. Load the unpacked folder in Edge or Chrome. In Firefox, load the unsigned test build temporarily through `about:debugging` and reload it after restarting the browser.
 
-### Option B: Run from Source
+### Option B: macOS / Linux Experimental Packages
+> [!WARNING]
+> **Untested on bare-metal hardware**: macOS (`.dmg` / `.zip`) and Linux (`.AppImage` / `.tar.gz`) binaries are produced automatically by GitHub Actions cross-platform CI and have not undergone comprehensive hardware validation. Community feedback is warmly welcomed!
+
+- **macOS Installation**:
+  1. Download the `.dmg` for your architecture and drag `Catstella.app` to `/Applications`;
+  2. Because the application is not signed with an Apple Developer ID, if Gatekeeper flags the app as damaged, execute the well-known unquarantine terminal command:
+     ```bash
+     sudo xattr -r -d com.apple.quarantine /Applications/Catstella.app
+     ```
+  3. On launch, Catstella falls back to Electron's native `screen-saver` topmost z-order and automatically scans `/Applications` and user Library paths for host endpoints.
+
+- **Linux Installation**:
+  1. Download the `.AppImage` package and grant executable permissions: `chmod +x Catstella-*.AppImage`;
+  2. Run to launch the standalone desktop widget; scans `/opt`, `/usr/share`, and `~/.config` standard directories for host communication ports.
+
+### Option C: Run from Source
 Prerequisites: Windows 10/11 x64, Node.js 22+, .NET Framework 4.x.
 
 ```powershell
@@ -99,7 +116,7 @@ npm run start:widget
 npm test
 ```
 
-Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables click-through. Right-click the character or tray icon to open Settings.
+Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables click-through. Open Settings from the widget button or the tray menu.
 
 ---
 
@@ -108,11 +125,11 @@ Shortcuts: `Ctrl+Alt+G` brings the widget forward; `Ctrl+Alt+Shift+G` disables c
 | Data Type | Local Storage Location | Description |
 | :--- | :--- | :--- |
 | Settings & Ledger | `%USERPROFILE%/.antigravity-cat-widget/`<br>`%USERPROFILE%/.antigravity-dream-skin/` | Stores local UI preferences, scale factors, and numeric usage ledgers. |
-| Host Telemetry | `%USERPROFILE%/.gemini/antigravity/brain/` | Read-only extraction of step count and token metrics. Never reads conversation prose. |
-| Local Loopback | `127.0.0.1:3921` (Loopback only) | Listens strictly on localhost; rejects unauthorized external origins. |
+| Host Telemetry | `%USERPROFILE%/.gemini/antigravity/brain/` | Reads local logs for step counts and token metrics. The ledger stores usage statistics. |
+| Local Loopback | `127.0.0.1:3921–3923` (Loopback only) | Listens strictly on localhost; rejects unauthorized external origins. |
 
-- **100% Local Execution**: Catstella contains no cloud proxy or telemetry relay servers; all operations remain local.
-- **Clean Uninstallation**: Selecting "Exit and restore" cleanly removes injected DOM nodes and restores the host to its default state.
+- Settings, usage ledgers, and companion sync stay on the device. Update checks and the online gallery request release information or assets from the project’s GitHub repository.
+- Turn Dream Skin off in settings to remove the applied styles from the current host window.
 
 ---
 

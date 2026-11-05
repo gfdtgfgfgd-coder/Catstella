@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "lin-cat",
+  "name": "Lin · 居家水母冲锋衣",
+  "kind": "character-pack",
+  "frames": { "idle": { "src": "frames/idle.png" } },
+  "expressions": ["proud", "crying", "shy", "angry"],
+  "provenance": "kimino-gemini-companion 共享素材，attribution 由用户提供"
+}

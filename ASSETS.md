@@ -6,9 +6,8 @@
 
 - 角色原设概念设计者按提供者记录署名 [ZipZipPipe (B站空间)](https://space.bilibili.com/4168597)；角色与设定集图片由 AI 辅助生成，保留生成提示词，不宣称 Google 官方授权或原设的再许可权。公开版未包含原作者参考图、私人截图或未确认再分发许可的 DSH 鸭叫音频。
 - 粉毛 Gemini 形象所有权归本仓库管理者所有，使用及二创须遵循 CC BY-NC-SA 4.0 协议。
-- 默认半身图：`Antigravity-Cat-Widget/assets/characters/gemini-bust-idle-v3.png`，运行副本为角色包内 `frames/idle.png`；AI 辅助生成，生成提示词随文件保留；
-- 表情：`proud-v3.png` / `sad-v3.png` 为默认图的局部衍生，生成脚本在 `tools/derive-expressions.cjs`。其他帧为历史候选，不表示全部默认启用；
-- 壁纸：`Antigravity-Dream-Skin/assets/wallpapers/gemini-character-sheet-v1/wallpaper.png`，AI 辅助生成；提示词与 SHA-256 随包保留；
+- 当前角色为星语（`stella`）和霓音（`aica`）。两端从项目提供的五张透明帧适配，沿用原有角色包 ID。旧立绘在本地 `art_assets/archive/pre-0.6-art/` 备份。
+- 内置壁纸使用 `art_assets/stock_wallpaper/` 的四张新图。每张的尺寸和 SHA-256 记录在壁纸包清单中。
 - 角色图、壁纸及其图标不授予独立的 MIT、CC0、CC BY 或商用素材再许可。仓库提供这些文件用于本项目展示和运行；原设及第三方权利仍归各权利人。需要独立使用或重新分发时，请自行核实相应权利；
 - 原作者设定参考图、截图和未使用的设计资料未随公开版发布。
 

@@ -1,3 +1,13 @@
+# 0.6.0 安装版验证 / 2026-11-05
+
+本轮通过 65 项单元测试，并在本机完成“构建 → Inno 静默安装 → 无 Node/无源码启动 → 读取设置 → 卸载”全链验证，结果 `pass`（`evidence/installer-report.json`，`secondComputerVerified:false`）。安装验证覆盖中文路径安装、许可证与两个项目文件、表情图标、Web 扩展组件、自启动/快捷方式判定与临时 Run 项清理、安装后 EXE 打开统一渲染层、`unins000.exe` 只删安装目录。
+
+本轮删除发行包内全部 Chromium `locales/*.pak`。实测 Electron 45.1.0 在没有 locales 时仍能启动并创建窗口，功能、设置读取与截图均正常；唯一副作用是 exe 旁生成 `debug.log`，写入 `locale_file_path.empty() for locale` 非致命告警。该文件曾让卸载后目录残留，已用 Inno `[UninstallDelete]` 清空 `{app}` 修复，并新增构建机文件（`GeneratedVersion.cs`、`IconSwap.exe`）不得进包的断言。
+
+冷启动隔离测试通过：保存「霓音」时首帧直接使用该形象，短按可交互，长按、滑动、拖动均不触发气泡。
+
+发行包 `Catstella-Setup-0.6.0-x64.exe`：172,753,159 字节（164.75 MiB），SHA-256 `94b63ab880d62dec055c6abaf1cdc2cb6d697bd016261a88644e256ffc79e16d`，`dist/installers` 无 `*-slim.exe`。安装包未做代码签名，未执行第二台电脑或真实重新登录验收；以上为本机证据。
+
 # 0.2.12 安装版验证 / 2026-11-02
 
 已执行40项单元测试。安装构建及隔离验证覆盖两个独立EXE的中文目录提取、许可保留、自启动和联动判断及临时Run项清理、真实Electron界面启动、带安装标记目录卸载。最终更新加入Windows x64限制及快捷方式自检；没有执行真实重新登录或第二台电脑验收。

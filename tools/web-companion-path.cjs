@@ -1,11 +1,15 @@
-// 探测 web 端插件工程位置（分房后优先 worktree；可用 WEB_COMPANION_PATH 环境变量覆盖）。
-const fs=require("node:fs"),path=require("node:path");
-const root=path.resolve(__dirname,"..");
-function detectWebCompanion(){
- const candidates=[process.env.WEB_COMPANION_PATH,path.resolve(root,"../Gemini-Web-Companion"),path.resolve(root,"../Catstella-web/Gemini-Web-Companion")].filter(Boolean);
- for(const base of candidates){
-  if(fs.existsSync(path.join(base,"scripts","build.js")))return{base,dist:path.join(base,"dist")};
- }
- return null;
+// One source for installer packaging and character synchronization. Never consume
+// the retired embedded copy or an unrelated D:\Gemini-Web-Companion directory.
+const fs = require('node:fs');
+const path = require('node:path');
+function detectWebCompanion({ root = path.resolve(__dirname, '..'), override = process.env.WEB_COMPANION_PATH } = {}) {
+  const base = path.resolve(override || path.join(root, '../Catstella-web/Gemini-Web-Companion'));
+  const embedded = path.resolve(root, 'Gemini-Web-Companion');
+  const valid = base !== embedded && ['scripts/build.js', 'manifest.json'].every(file => fs.existsSync(path.join(base, file)));
+  if (!valid) {
+    if (override) throw Error('WEB_COMPANION_PATH must identify the active Web extension source, not the retired embedded copy: ' + base);
+    return null;
+  }
+  return { base, dist: path.join(base, 'dist') };
 }
-module.exports={detectWebCompanion};
+module.exports = { detectWebCompanion };
