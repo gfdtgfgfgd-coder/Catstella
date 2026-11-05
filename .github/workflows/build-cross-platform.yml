@@ -150,7 +150,7 @@ jobs:
           for arch in arm64 x64; do
             files+=("Catstella-$version-mac-$arch.dmg" "Catstella-$version-mac-$arch.zip")
           done
-          files+=("Catstella-$version-linux-x64.AppImage" "Catstella-$version-linux-x64.tar.gz")
+          files+=("Catstella-$version-linux-x86_64.AppImage" "Catstella-$version-linux-x64.tar.gz")
           for file in "${files[@]}"; do test -s "$file"; done
           sha256sum --check "${files[0]}.sha256"
           sha256sum "${files[@]}" > SHA256SUMS.txt

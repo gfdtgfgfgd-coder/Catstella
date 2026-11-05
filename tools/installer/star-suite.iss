@@ -78,8 +78,8 @@ Name:"{autoprograms}\Catstella\{#AppName}\设置"; Filename:"{app}\{#AppExe}"; P
 Name:"{autoprograms}\Catstella\{#AppName}\卸载"; Filename:"{uninstallexe}"; IconFilename:"{app}\icons\uninstall.ico"; Components: core
 
 [Run]
-Filename:"{app}\{#AppExe}"; Description:"立即启动 Catstella"; Flags: postinstall nowait skipifdoesntexist; Check: CoreSelected
-Filename:"{app}\web-extension\web-plugin-guide.html"; Description:"查看 Web 插件安装指引"; Flags: postinstall shellexec skipifdoesntexist unchecked; Check: WebExtSelected
+Filename:"{app}\{#AppExe}"; Description:"立即启动 Catstella"; Flags: postinstall nowait skipifsilent skipifdoesntexist; Check: CoreSelected
+Filename:"{app}\web-extension\web-plugin-guide.html"; Description:"查看 Web 插件安装指引"; Flags: postinstall shellexec skipifsilent skipifdoesntexist unchecked; Check: WebExtSelected
 
 [Code]
 var
