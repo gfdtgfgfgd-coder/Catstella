@@ -17,7 +17,7 @@ Catstella 是面向 Google Antigravity 和 Gemini 网页版的开源桌面增强
 | <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" /> | <img src="art_assets/stock_wallpaper/stella_1.png" alt="Stella Wallpaper" width="500" /> |
 
 > [!TIP]
-> 包含两种 Gemini 拟人形象变体的高清单帧表情（得意、委屈、害羞、打瞌睡等），以及 4 套预装星空全景壁纸。详见[美术资产说明](ASSETS.md)和[在线图库目录](online-assets/README.md)。
+> 内置星语和霓音两款角色，支持得意、气恼、害羞和打盹等表情，附带 4 张壁纸。详见[美术资产说明](ASSETS.md)和[在线图库目录](online-assets/README.md)。
 
 ---
 
@@ -27,17 +27,16 @@ Catstella 是面向 Google Antigravity 和 Gemini 网页版的开源桌面增强
 - **多模型额度与配额监控**：
   - 通过宿主后台接口只读提取 **Gemini 基础 5 小时 / 1 周** 配额与刷新倒计时；
   - 宿主提供 Argon 独立周额度时，显示其 WTU 余量，并保留通用周额度供对照。低额度会触发提醒和表情变化。
-  - 实验性 BYOK 网关已从运行源码和发行包移除，完整实现封存于 `archive/legacy-byok/`。
   - 提供用户自定义称呼设置（默认不指定、杂鱼君、或自定义文本）。
 - **交互与状态反馈**：
   - 50+ 句精校中文台词、自然呼吸动效与星轨边缘光晕；
   - 点击桌宠头部触发表情，可通过菜单停靠到屏幕左下角或右下角；
-  - 具备多套独立表情帧（得意、委屈、害羞、生气等）与四套音效方案（默认静音）。
+  - 支持表情预览、空闲打盹和点击唤醒；提供四套音效方案（默认静音）。
 - **桌面穿透与防抖优化**：
   - 支持前台窗口识别和显示优先级。Windows 浮动任务栏下的双端重影仍可复现，已列入[长期规划](docs/ROADMAP.md)；
   - **独立桌面常驻模式（Standalone）**：脱离 Antigravity 宿主运行时亦可退守桌面常驻，宿主启动后自动恢复吸附。
 
-桌面设置「桌宠」和「壁纸」各有在线图库。检测到本地缺少的素材时会提示，安装后可在本地图库选择。设置「关于」提供更新检测和在线配色。「显示气泡」旁可以开启自动碎碎念。参见[素材目录](online-assets/README.md)和[路线图](docs/ROADMAP.md)。
+桌面设置「桌宠」和「壁纸」各有在线图库。检测到本地缺少的素材时会提示，安装后可在本地图库选择。连接 GitHub 失败时会提示检查网络或代理，已安装的素材仍可使用。设置「关于」提供更新检测和在线配色。「显示气泡」旁可以开启自动碎碎念。在线图库依赖发布到 GitHub `main` 分支的[素材目录](online-assets/README.md)。实验性 BYOK 不随 Windows 安装包发行，见[路线图](docs/ROADMAP.md)。
 
 ### 🔮 毛玻璃皮肤与壁纸引擎 (Dream Skin)
 - **透光界面架构**：
@@ -76,29 +75,17 @@ Catstella 是面向 Google Antigravity 和 Gemini 网页版的开源桌面增强
 ## 🛠️ 安装与运行 (Installation & Usage)
 
 ### 方案 A：Windows 安装包（推荐）
-套件使用 **Inno Setup** 制作标准化安装包：
+Windows x64 发行版使用一个安装包，内含桌面套件及可选的 Web 扩展组件：
 1. 前往 [Releases 发布页](https://github.com/lynnfei/Catstella/releases) 下载最新的 `Catstella-Setup-*-x64.exe`；
-2. 运行安装程序，按需勾选组件（核心桌面套件 / Web 浏览器扩展包）以及开机自启或宿主联动选项；
-3. 安装程序安装到当前用户目录。可选 Web 组件会附带扩展文件，按安装指引在浏览器中加载。Edge / Chrome 使用解压后的扩展目录。Firefox 未签名测试包通过 `about:debugging` 临时加载，重启浏览器后需要重新加载。
+2. 运行安装程序。需要双端联动时选择「完整安装」，可按需开启开机自启或宿主联动。默认安装到当前用户目录，通常无需管理员权限；
+3. 在安装目录下打开 `web-extension/web-plugin-guide.html`，按指引加载扩展。Edge / Chrome 先解压 ZIP，再在扩展管理页开启开发人员模式，选择包含 `manifest.json` 的目录。Firefox 随包附带的是未签名 XPI，可通过 `about:debugging` 临时加载，重启浏览器后需重新加载。
 
-### 方案 B：macOS / Linux 跨平台安装包（实验性支持）
-> [!WARNING]
-> **未实机充分测试（Untested on bare-metal hardware）**：macOS (`.dmg` / `.zip`) 与 Linux (`.AppImage` / `.tar.gz`) 安装包由 GitHub Actions 跨平台流水线自动化构建生成，尚未在物理裸机环境完成全面回归，欢迎跨平台开发者和体验官提交 Issue 反馈兼容性！
+### 方案 B：macOS / Linux 实验构建
 
-- **macOS 安装指引**：
-  1. 下载对应架构的 `.dmg` 并将 `Catstella.app` 拖入 `/Applications`；
-  2. 因未签署 Apple Developer 商业证书，初次打开若出现“App 已损坏，无法打开”或被 Gatekeeper 拦截提示，请打开终端执行著名的破除封印指令：
-     ```bash
-     sudo xattr -r -d com.apple.quarantine /Applications/Catstella.app
-     ```
-  3. 启动后，桌宠挂件将回退至 Electron 原生 `screen-saver` 级别悬浮置顶方案，并自动在 `/Applications` 与系统标准目录下探测 Antigravity 宿主。
-
-- **Linux 安装指引**：
-  1. 下载 `.AppImage` 文件并赋予执行权限：`chmod +x Catstella-*.AppImage`；
-  2. 直接运行启动常驻桌面挂件，支持在 `/opt`、`/usr/share` 及 `~/.config` 标准目录自动扫描宿主通信端口。
+[Releases 发布页](https://github.com/lynnfei/Catstella/releases) 提供 macOS（Apple Silicon / Intel，`.dmg` / `.zip`）和 Linux x64（`.AppImage` / `.tar.gz`）实验构建。这些构建尚未完成实机回归，也不包含 Web 扩展。各平台的下载文件都可用同页的 `SHA256SUMS.txt` 校验。
 
 ### 方案 C：源码运行与开发
-环境要求：Windows 10/11 x64、Node.js 22+、.NET Framework 4.x。
+环境要求：Windows 10/11 x64、Node.js 22.12 或更新版本、.NET Framework 4.x。
 
 ```powershell
 # 1. 克隆代码仓库
@@ -126,7 +113,7 @@ npm test
 | :--- | :--- | :--- |
 | 挂件与皮肤配置 | `%USERPROFILE%/.antigravity-cat-widget/`<br>`%USERPROFILE%/.antigravity-dream-skin/` | 存储壁纸偏好、滑块阻尼、缩放比例与本地配额数值账本。 |
 | 本地日志数据 | `%USERPROFILE%/.gemini/antigravity/brain/` | 读取本地日志并提取步骤与 Token 数值，账本只保存统计数据。 |
-| 本地通信端口 | `127.0.0.1:3921–3923`（环回地址） | 仅响应受信任的本地桌面与扩展请求，阻止公网跨域访问。 |
+| 本地通信端口 | `127.0.0.1:3921–3923`（环回地址） | 仅监听本机，并对浏览器请求的来源做检查。 |
 
 - 设置、用量账本和桌面/Web 同步均保存在本机。更新检测和在线图库会向项目的 GitHub 地址请求发行信息或素材。
 - 在设置中心关闭皮肤可撤回对当前宿主界面的样式注入。
@@ -152,6 +139,7 @@ npm test
 
 本项目在开发过程中参考并衍生自以下开源项目与原创设计：
 
-- **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**：本项目基础工程衍生自 Monokumakuki 的开源项目，感谢原作者在初期架构、CDP 探针机制与双端雏形上的贡献；
+- **[lynnfei / Catstella](https://github.com/lynnfei/Catstella)**：本项目及维护者；
+- **[Monokumakuki / Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite)**：上游项目，提供了初期架构、CDP 探针和双端联动雏形；
 - **[ZipZipPipe (B站空间)](https://space.bilibili.com/4168597)**：Gemini 星语猫娘原设概念设计者；
 - **[Feeesack / codex-maid-widget](https://github.com/Feeesack/codex-maid-widget)** 与 **[MeteorNOX / DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)**：感谢两大家居式桌宠项目在交互反馈、气泡状态机及额度观察逻辑上的开源启发。

@@ -1,9 +1,13 @@
 // Build the unified Star Suite installer (pet + dream skin in ONE Electron instance) from this sanitized checkout.
-const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),{execFileSync}=require('node:child_process');
+const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
 const {detectWebCompanion}=require('./web-companion-path.cjs');
+const {writeChecksums}=require('./release-checksums.cjs');
+const {stripByokUi}=require('./release-payload.cjs');
 const root=path.resolve(__dirname,'..'),version=require('../package.json').version;
 const out=path.join(root,'dist/installers'),stage=path.join(root,'dist/installer-stage-'+Date.now());
 const runtime=path.dirname(require('electron')),csc=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
+const web=detectWebCompanion();
+if(!web)throw Error('未找到 Web 扩展源码：请配置 WEB_COMPANION_PATH 或检出相邻的 Catstella-web 工作区。');
 fs.mkdirSync(out,{recursive:true});fs.mkdirSync(stage,{recursive:true});
 // 版本号随 package.json 注入编译单元，安装器注册表不再写死旧版本。
 const versionSource=path.join(stage,'GeneratedVersion.cs');
@@ -30,16 +34,7 @@ for(const name of ['localization','wallpapers'])fs.cpSync(path.join(root,'Antigr
 if(fs.existsSync(path.join(app,'Antigravity-Cat-Widget/assets/references')))throw Error('Reference images must not enter installer');
 fs.writeFileSync(path.join(app,'package.json'),JSON.stringify({name:'catstella',productName:'Catstella',version,main:'Antigravity-Cat-Widget/src/main/index.cjs',byokDevelopment:false}));
 
-// The unfinished BYOK UI remains in source builds. The release stage omits its marked blocks.
-for(const relative of ['main/preload.cjs','renderer/index.html','renderer/renderer.cjs','renderer/settings.html','renderer/settings.cjs','renderer/settings.css']){
- const file=path.join(app,'Antigravity-Cat-Widget/src',relative);
- const original=fs.readFileSync(file,'utf8');
- const block=/^(?:\/\*|<!--) @byok-dev-start (?:\*\/|-->)\r?\n[\s\S]*?^(?:\/\*|<!--) @byok-dev-end (?:\*\/|-->)\r?\n/gm;
- const staged=original.replace(block,'');
- if(staged===original||staged.includes('@byok-dev-'))throw new Error('Invalid BYOK release boundary in '+relative);
- if(relative.endsWith('.cjs'))new vm.Script(staged,{filename:relative});
- fs.writeFileSync(file,staged);
-}
+stripByokUi(app);
 
 const common=['/nologo','/target:winexe','/optimize+','/r:System.Windows.Forms.dll','/r:System.Drawing.dll','/r:Microsoft.CSharp.dll','/define:SUITE;RELEASE_CORE'];
 const sources=path.join(__dirname,'installer'),icon=path.join(app,'Antigravity-Cat-Widget/assets/app-icon.ico');
@@ -74,19 +69,17 @@ execFileSync(csc,['/nologo','/target:exe','/optimize+','/out:'+path.join(app,'An
  const iscc=path.join(__dirname,'vendor/InnoSetup/ISCC.exe');
  if(!fs.existsSync(iscc))throw Error('未找到 Inno Setup 编译器（tools/vendor/InnoSetup/ISCC.exe）——请先运行 tools/ensure-inno.cjs 一次性下载。');
  // web 端组件：分房后优先从 web worktree 现场构建最新插件，再随 webext 组件进包。
- const web=detectWebCompanion();
- let webExtReady=false;
- if(web){
-  try{
-   execFileSync(process.execPath,[path.join(web.base,'scripts','build.js')],{stdio:'inherit',cwd:web.base,timeout:300000});
-   webExtReady=fs.existsSync(path.join(web.dist,'kimino-gemini-companion.xpi'))&&fs.existsSync(path.join(web.dist,'kimino-gemini-companion-edge-chrome.zip'));
-  }
-  catch(error){console.warn('web 插件构建失败，webext 组件将只含安装指引：',error.message);}
- }else console.warn('未找到 web 端工作目录（../Catstella-web 或 WEB_COMPANION_PATH），webext 组件将只含安装指引');
- const target=path.join(out,'Catstella-Setup-'+version+'-x64.exe');
- fs.rmSync(target,{force:true});
- const isccArgs=['/DAppVersion='+version,'/DStageDir='+stage,'/DOutputDir='+out];
- if(webExtReady)isccArgs.push('/DWebExtFiles='+web.dist);
+ execFileSync(process.execPath,[path.join(web.base,'scripts','build.js')],{stdio:'inherit',cwd:web.base,timeout:300000});
+ const fileName='Catstella-Setup-'+version+'-x64.exe';
+ const target=path.join(out,fileName);
+ // Keep the previous completed installer intact if compilation fails.
+ const pending=fs.mkdtempSync(path.join(out,'.pending-'));
+ const staged=path.join(pending,fileName);
+ const isccArgs=['/DAppVersion='+version,'/DStageDir='+stage,'/DOutputDir='+pending,'/DWebExtFiles='+web.dist];
  execFileSync(iscc,isccArgs.concat(path.join(sources,'star-suite.iss')),{stdio:'inherit'});
+ await writeChecksums(staged+'.sha256',[staged]);
+ fs.renameSync(staged,target);
+ fs.renameSync(staged+'.sha256',target+'.sha256');
+ fs.rmdirSync(pending);
  console.log(target);
 })().catch(error=>{console.error(error);process.exitCode=1;});

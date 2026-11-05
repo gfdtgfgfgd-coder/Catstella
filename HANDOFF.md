@@ -1,9 +1,14 @@
 # Catstella 桌面工作区 · DeepSeek Harness 交接
 
 > 更新时间：2026-11-05  
-> 状态：0.6.0 已重新出包并完成本机四道验收（构建 / 安装启动卸载 / 冷启动 / 65 项单测），可发布  
+> 状态：下文保留的是 20:41 那次构建的验收记录。安装包之后已重建，请先处理下面的发布复核事项。<br>
 > 工作区：`D:\Catstella`，分支 `feat/desktop-suite`  
 > Web 工作区：`D:\Catstella-web`，分支 `feat/browser-extension`
+
+## 发布前复核
+
+- 当前 Windows 安装包为 21:56 写入的构建，大小为 173,010,390 字节。`evidence/installer-report.json` 记录了随后一次本机安装、启动及卸载通过，但同目录 `.sha256` 仍对应 20:41 的旧包。Web `dist/SHA256SUMS.txt` 也与当前 ZIP、XPI 不符。应在最后一次构建和验收之后，针对实际要上传的文件重新生成校验和。
+- `tools/installer/star-suite.iss` 的 `[UninstallDelete]` 递归删除整个 `{app}`。当前安装器允许指定安装目录，若目录原先已有用户文件，卸载时也会被删。将递归删除改为仅清理已知残留（例如 `debug.log`），再验证卸载能清除 Catstella，同时保留安装目录中测试用的其他文件。
 
 ## 用户最新决定
 

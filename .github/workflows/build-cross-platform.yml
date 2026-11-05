@@ -1,85 +1,152 @@
-name: Build macOS & Linux Packages (Experimental)
+name: Catstella desktop release
 
 on:
-  workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Release Tag (optional)'
-        required: false
-        default: 'v0.6.0'
   push:
-    tags:
-      - 'v*'
+    tags: ['desktop-v*']
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: catstella-desktop-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-macos:
-    name: Package macOS (DMG & ZIP - Untested)
-    runs-on: macos-latest
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: desktop
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          path: desktop
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/web-source-v1.5.0
+          path: web
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Package macOS Applications
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node --test test/turn-watcher.test.cjs test/runtime.test.cjs
+        working-directory: web/Gemini-Web-Companion
+      - run: npm run setup:inno
+      - name: Build and verify the installer and bundled Web extension
         run: |
-          echo "Building macOS DMG and ZIP distributions..."
-          echo "Notice: Untested on bare-metal hardware (未实机测试)"
-          npx --yes electron-builder --mac dmg zip --publish never
-
-      - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v4
+          $env:WEB_COMPANION_PATH = Join-Path $env:GITHUB_WORKSPACE 'web/Gemini-Web-Companion'
+          node tools/build-installers.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/verify-installers.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node tools/verify-installers.cjs --verify-legacy-log
+        shell: pwsh
+      - run: npm run verify:cold-start
+      - uses: actions/upload-artifact@v4
         with:
-          name: Catstella-macOS-Experimental-Untested
-          path: |
-            dist/installers/*.dmg
-            dist/installers/*.zip
+          name: catstella-windows-x64
+          compression-level: 0
           if-no-files-found: error
+          path: |
+            desktop/dist/installers/Catstella-Setup-*-x64.exe
+            desktop/dist/installers/Catstella-Setup-*-x64.exe.sha256
 
-  build-linux:
-    name: Package Linux (AppImage & tar.gz - Untested)
-    runs-on: ubuntu-latest
+  unix:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }} (experimental)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: mac, runner: macos-15, arch: arm64 }
+          - { platform: mac, runner: macos-15-intel, arch: x64 }
+          - { platform: linux, runner: ubuntu-24.04, arch: x64 }
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-
-      - name: Install Linux build dependencies
+          cache: npm
+      - run: npm ci
+      - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libarchive-tools
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Package Linux Applications
+          sudo apt-get install -y libarchive-tools xvfb
+          npx playwright install-deps chromium
+      - name: Package experimental desktop builds
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        run: npx --yes electron-builder@26.18.1 "--$PLATFORM" "--$ARCH" --publish never
+      - name: Launch the packaged desktop app
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
-          echo "Building Linux AppImage and tar.gz distributions..."
-          echo "Notice: Untested on bare-metal hardware (未实机测试)"
-          npx --yes electron-builder --linux AppImage tar.gz --publish never
-
-      - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            xvfb-run -a node tools/verify-packaged-desktop.cjs dist/installers/linux-unpacked/catstella
+          else
+            executable=$(find dist/installers -path '*/Catstella.app/Contents/MacOS/Catstella' -type f -print -quit)
+            test -n "$executable"
+            node tools/verify-packaged-desktop.cjs "$executable"
+          fi
+      - uses: actions/upload-artifact@v4
         with:
-          name: Catstella-Linux-Experimental-Untested
-          path: |
-            dist/installers/*.AppImage
-            dist/installers/*.tar.gz
+          name: catstella-${{ matrix.platform }}-${{ matrix.arch }}
+          compression-level: 0
           if-no-files-found: error
+          path: |
+            dist/installers/Catstella-*.dmg
+            dist/installers/Catstella-*.zip
+            dist/installers/Catstella-*.AppImage
+            dist/installers/Catstella-*.tar.gz
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: [windows, unix]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: catstella-*
+          path: release-assets
+          merge-multiple: true
+      - name: Check all seven packages and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          test "$GITHUB_REF_NAME" = "desktop-v$version"
+          cd release-assets
+          files=("Catstella-Setup-$version-x64.exe")
+          for arch in arm64 x64; do
+            files+=("Catstella-$version-mac-$arch.dmg" "Catstella-$version-mac-$arch.zip")
+          done
+          files+=("Catstella-$version-linux-x64.AppImage" "Catstella-$version-linux-x64.tar.gz")
+          for file in "${files[@]}"; do test -s "$file"; done
+          sha256sum --check "${files[0]}.sha256"
+          sha256sum "${files[@]}" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+          cat > notes.md <<'EOF'
+          - Windows x64: Catstella 桌宠、Dream Skin 和可选的 Gemini 网页扩展使用同一个安装包。选择「完整安装」即可取得 Firefox XPI 和 Edge/Chrome ZIP。Firefox XPI 未签名，只支持临时加载。
+          - macOS（Apple Silicon / Intel）和 Linux x64：实验性桌面构建，不含网页扩展，尚未完成实机回归。macOS 未经 Apple 公证。
+          - 使用 `SHA256SUMS.txt` 校验下载文件。
+          EOF
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Catstella $version" --notes-file notes.md --latest "${files[@]}" SHA256SUMS.txt

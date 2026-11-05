@@ -24,6 +24,8 @@ CloseApplicationsFilter=*.exe,*.dll,*.pak,*.dat,*.node
 RestartApplications=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExe}
+; Replace logs from prerelease installers that recorded recursive deletion of {app}.
+UninstallLogMode=overwrite
 
 [Languages]
 Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
@@ -55,6 +57,10 @@ Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\README.md"; Check
 Type: files; Name: "{app}\resources\app\Antigravity-Dream-Skin\assets\app-icon.ico"; Check: ExistingSuite
 Type: dirifempty; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\main"; Check: ExistingSuite
 Type: dirifempty; Name: "{app}\resources\app\Antigravity-Dream-Skin\src\renderer"; Check: ExistingSuite
+Type: files; Name: "{app}\web-extension\kimino-gemini-companion.xpi"; Check: RemoveOldWebExt
+Type: files; Name: "{app}\web-extension\kimino-gemini-companion-edge-chrome.zip"; Check: RemoveOldWebExt
+Type: files; Name: "{app}\web-extension\web-plugin-guide.html"; Check: RemoveOldWebExt
+Type: dirifempty; Name: "{app}\web-extension"; Check: RemoveOldWebExt
 
 [Files]
 Source:"{#StageDir}\StartupSettings.exe"; DestDir:"{app}"; Flags: ignoreversion; Components: core
@@ -62,15 +68,8 @@ Source:"{#StageDir}\StartupSettings.exe"; DestDir:"{app}"; Flags: ignoreversion;
 Source:"{#StageDir}\*"; DestDir:"{app}"; Excludes:"StartupSettings.exe,GeneratedVersion.cs,IconSwap.exe"; Flags: recursesubdirs createallsubdirs ignoreversion; Components: core
 Source:"{#StageDir}\.starsuite-install"; DestDir:"{app}"; Components: core; Flags: ignoreversion
 Source:"{#StageDir}\web-plugin-guide.html"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
-#ifdef WebExtFiles
 Source:"{#WebExtFiles}\kimino-gemini-companion.xpi"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
 Source:"{#WebExtFiles}\kimino-gemini-companion-edge-chrome.zip"; DestDir:"{app}\web-extension"; Components: webext; Flags: ignoreversion
-#endif
-
-[UninstallDelete]
-; Electron 在无 locales 时会把 locale_file_path.empty() 警告追加写进 {app}\debug.log；
-; Inno 默认只删安装清单里的文件，这类运行时残留会让安装目录删不掉，故整体清空 {app}。
-Type: filesandordirs; Name: "{app}"
 
 [Icons]
 Name:"{autodesktop}\{#AppName}"; Filename:"{app}\{#AppExe}"; IconFilename:"{app}\icons\launch.ico"; Components: core
@@ -102,6 +101,11 @@ var Marker: AnsiString;
 begin
   Result := LoadStringFromFile(ExpandConstant('{app}\.starsuite-install'), Marker)
     and (Trim(String(Marker)) = 'Suite');
+end;
+
+function RemoveOldWebExt(): Boolean;
+begin
+  Result := ExistingSuite() and not WebExtSelected();
 end;
 
 // Disable the old watcher first. The packaged helper waits for the target installation's processes.
@@ -173,6 +177,22 @@ begin
   end;
 end;
 
+// Delete only the Chromium locale warning log. Preserve an existing debug.log
+// if it contains any other text, and let Inno remove its own installed files.
+procedure RemoveChromiumLocaleLog();
+var FileName, Line: String; Lines: TArrayOfString; I, Delimiter: Integer;
+begin
+  FileName := ExpandConstant('{app}\debug.log');
+  if not LoadStringsFromFile(FileName, Lines) or (GetArrayLength(Lines) = 0) then Exit;
+  for I := 0 to GetArrayLength(Lines) - 1 do begin
+    Line := Trim(Lines[I]);
+    Delimiter := Pos(':WARNING:ui\base\resource\resource_bundle.cc:', Line);
+    if (Copy(Line, 1, 1) <> '[') or (Delimiter = 0) or
+       (Pos('] locale_file_path.empty() for locale', Line) <= Delimiter) then Exit;
+  end;
+  DeleteFile(FileName);
+end;
+
 // 卸载前：优雅退出运行中的套件（单实例 IPC --quit）并等待进程树退出，绝不 taskkill。
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var ResultCode: Integer; appExe: String; i: Integer;
@@ -183,6 +203,7 @@ begin
       Exec(appExe, '--quit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
       for i := 1 to 12 do Sleep(1000);
     end;
+    RemoveChromiumLocaleLog();
   end;
   if CurUninstallStep = usPostUninstall then begin
     RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\AntigravityStarSuite\Suite');
