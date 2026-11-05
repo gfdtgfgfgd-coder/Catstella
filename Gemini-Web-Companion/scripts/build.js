@@ -1,4 +1,4 @@
-// 星语喵伴 · 多平台扩展打包脚本 (Firefox .xpi & Edge/Chrome .zip)
+// Catstella · 多平台扩展打包脚本 (Firefox .xpi & Edge/Chrome .zip)
 // v1.2.1 变更：弃用 PowerShell Compress-Archive —— 其在 Windows 上会把 zip 条目
 // 名写成反斜杠分隔 (assets\foo.png)，违反 ZIP 规范，导致 Firefox (libjar)
 // 无法解析 xpi 内部路径、content script 静默加载失败。现改用 Node 内置 zlib
@@ -12,7 +12,7 @@ const distDir = path.join(rootDir, 'dist');
 const firefoxDir = path.join(distDir, 'firefox');
 const chromiumDir = path.join(distDir, 'chromium');
 
-console.log('🚀 开始打包 Gemini Web Companion (星语喵伴)...');
+console.log('🚀 开始打包 Gemini Web Companion (Catstella)...');
 
 if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
 
@@ -119,6 +119,7 @@ function buildZip(sourceDir, outPath) {
 const itemsToCopy = [
   'manifest.json',
   'background.js',
+  'online',
   'content',
   'popup',
   'assets'
@@ -126,13 +127,15 @@ const itemsToCopy = [
 
 // 画廊清单：构建时扫描 assets 生成（壁纸/形象两族），供设置面板画廊使用
 function generateGalleryManifest(targetDir) {
+  const gallery = JSON.parse(fs.readFileSync(path.join(rootDir, 'assets/gallery.json'), 'utf8'));
   const wallpapers = [];
   const wpDir = path.join(rootDir, 'assets', 'wallpapers');
   if (fs.existsSync(wpDir)) {
     for (const f of fs.readdirSync(wpDir)) {
       if (/\.(png|jpe?g|webp)$/i.test(f)) {
         const id = f.replace(/\.[^.]+$/, '');
-        wallpapers.push({ id, name: id.replace(/[-_]+/g, ' '), src: 'assets/wallpapers/' + f });
+        const src = 'assets/wallpapers/' + f;
+        wallpapers.push(gallery.wallpapers.find(wall => wall.src === src) || { id, name: id.replace(/[-_]+/g, ' '), src });
       }
     }
   }
@@ -146,7 +149,9 @@ function generateGalleryManifest(targetDir) {
       }
     }
   }
-  const manifest = { wallpapers, characters };
+  const wallOrder = new Map(gallery.wallpapers.map((wall, index) => [wall.id, index]));
+  wallpapers.sort((a, b) => (wallOrder.get(a.id) ?? Infinity) - (wallOrder.get(b.id) ?? Infinity));
+  const manifest = { wallpapers, characters: characters.map(pack => ({ ...pack, ...gallery.characters.find(item => item.id === pack.id) })) };
   fs.writeFileSync(path.join(targetDir, 'assets', 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
   return manifest;
 }
@@ -182,7 +187,7 @@ const ffManifestPath = path.join(firefoxDir, 'manifest.json');
 const ffManifest = JSON.parse(fs.readFileSync(ffManifestPath, 'utf8'));
 // Gecko MV3: 仅保留 event page 形式的 background.scripts (不支持 service_worker)
 ffManifest.background = {
-  scripts: ["background.js"]
+  scripts: ["online/client.js", "background.js"]
 };
 ffManifest.browser_specific_settings = {
   gecko: {
@@ -232,17 +237,18 @@ console.log('✅ Edge/Chrome .zip 生成成功:', zipDest);
 console.log('🎨 正在生成 Stylus 专版 UserCSS (kimino-dream.user.css)...');
 const rawSkinCss = fs.readFileSync(path.join(rootDir, 'content', 'skin.css'), 'utf8');
 
-// 转换：解绑 html.kimino-dream-active 门禁为直接生效
+// Keep html as a real selector: deleting the whole prefix creates an invalid
+// leading comma in the html/body rule and can join unrelated selectors.
 let userCssBody = rawSkinCss
-  .replace(/html\.kimino-dream-active\s*/g, '')
-  .replace(/#kimino-glass-band\s*\{[^}]*\}/g, '')
-  .replace(/#kimino-companion-root[^}]*\{[^}]*\}/g, '');
+  .replace(/(?:html\.kimino-dream-active\s+)?#kimino-companion-root[^}]*\{[^}]*\}/g, '')
+  .replace(/html\.kimino-dream-active/g, 'html')
+;
 
 const userCssHeader = `/* ==UserStyle==
 @name           Kimino Dream Skin · Google Gemini 暗夜星云磨砂
 @namespace      github.com/Catstella/kimino-dream
-@version        1.3.7
-@description    基米乃暗夜星云磨砂主题 · 纯 CSS 安全无注入版（适配 Stylus / xStyle / Cascadea）
+@version        ${crManifest.version}
+@description    Catstella 暗夜星云磨砂主题 · 纯 CSS 安全无注入版（适配 Stylus / xStyle / Cascadea）
 @author         Catstella & Kimino
 @preprocessor   default
 @var text       customWallpaper "自定义壁纸图片直链 (可填图片URL，留空则为纯深色暗夜磨砂)" ""

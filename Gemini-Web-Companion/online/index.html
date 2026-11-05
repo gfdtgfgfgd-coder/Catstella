@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>更新与在线图库 · Catstella</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <main>
+    <h1>更新与在线图库</h1>
+    <p class="hint">Catstella · Gemini 网页伴侣</p>
+    <label><input type="checkbox" id="auto-update"> 自动检查更新</label>
+    <div id="online-panel"></div>
+    <p><button type="button" class="btn" id="restore-palette">恢复默认星轨紫配色</button></p>
+    <p id="new-online-content" class="notice" role="status" hidden></p>
+    <section id="online-characters" class="catalog-card"></section>
+    <section id="online-wallpapers" class="catalog-card"></section>
+    <p class="hint">安装后可在挂件设置中切换。在线桌宠在两端都安装后即可联动。</p>
+  </main>
+  <script src="../content/shim.js"></script>
+  <script src="panel.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>

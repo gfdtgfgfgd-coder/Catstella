@@ -1,4 +1,4 @@
-// 星语喵伴 · Cat Pet Widget (Shadow DOM + 真实 Google 额度条展示 + AGY 双端联动面板)
+// Catstella · Cat Pet Widget (Shadow DOM + 真实 Google 额度条展示 + AGY 双端联动面板)
 (() => {
   if (window.__KIMINO_WIDGET_READY__) return;
   window.__KIMINO_WIDGET_READY__ = true;
@@ -34,7 +34,7 @@
         while (doc.body.firstChild) el.appendChild(doc.body.firstChild);
         return true;
       } catch (e2) {
-        console.warn('[星语喵伴] Trusted Types 兜底渲染失败:', e2);
+        console.warn('[Catstella] Trusted Types 兜底渲染失败:', e2);
         return false;
       }
     }
@@ -78,18 +78,17 @@
       "口牙！我就说 Argon 这个电老虎撑不住吧！额度见底了喵！(大哭)",
       "呜哇……当前周期用光了，都怪杂鱼君问个没完没了！",
       "彻底被限流了喵！快看倒计时，老老实实等它恢复吧！"
-    ],
-    petting: [
-      "呜喵？！突、突然摸本喵干什么啦！",
-      "耳、耳朵很敏感的……笨蛋杂鱼君！",
-      "哼，看在你今天还算听话的份上，准你摸三秒钟。"
     ]
   };
 
   const CHAR_LABELS = {
-    'gemini-star-v1': { name: '星语魔猫', desc: '星空礼装 · 原版形态' },
-    'lin-cat': { name: '居家林猫', desc: '全息冲锋衣 · 水母头' }
+    'gemini-star-v1': { name: '星语', desc: '星空魔女 · 紫发异色瞳' },
+    'lin-cat': { name: '霓音', desc: '粉色猫耳 · 全息航行服' }
   };
+  const shyLines = new Set([
+    '才、才不是特意陪你的！', '少熬夜！才不是担心你呢。',
+    '星星归天空，本喵归……才不告诉你！', '报错红了？别慌，本喵的脸可没红。'
+  ]);
 
   const EMBEDDED_WIDGET_CSS = `
     :host {
@@ -111,11 +110,6 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
       user-select: none;
       transition: transform 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
-    }
-
-    .kimino-wrapper.dragging {
-      cursor: grabbing !important;
-      transition: none !important;
     }
 
     @keyframes kimino-breathe {
@@ -140,14 +134,42 @@
 
     .kimino-character-box {
       position: relative;
-      cursor: grab;
+      cursor: pointer;
+      touch-action: none;
       animation: kimino-breathe 4.2s ease-in-out infinite;
       transform-origin: bottom center;
     }
 
-    .kimino-character-box:active {
-      cursor: grabbing;
-      transform: scale(0.94);
+    .kimino-sleep-shell {
+      transform: translateY(0);
+      transform-origin: bottom center;
+      transition: transform 460ms cubic-bezier(.2,.65,.3,1);
+    }
+    .kimino-wrapper:is([data-rest="sleeping"],[data-rest="waking"]) .kimino-sleep-clip {
+      clip-path: inset(-26px -32px 0);
+    }
+    .kimino-wrapper:is([data-rest="sleeping"],[data-rest="waking"]) .kimino-character-box { animation: none; }
+    .kimino-wrapper[data-rest="sleeping"] .kimino-sleep-shell { transform: translateY(14%); }
+    .kimino-wrapper[data-rest="waking"] .kimino-sleep-shell {
+      --agy-nuzzle-lift: -3%;
+      --agy-nuzzle-settle: 1%;
+      animation: agy-nuzzle var(--agy-wake-duration) ease-out both;
+      transition: none;
+    }
+    .kimino-wrapper[data-rest="sleeping"] :is(.kimino-ear-glow,.kimino-sprite) { animation: none; }
+    .kimino-wrapper[data-rest="sleeping"] .kimino-ear-glow { visibility: hidden; }
+    .kimino-wrapper[data-nuzzling="true"] .kimino-character-box { animation: agy-nuzzle 1.6s ease-in-out both; }
+    @keyframes agy-nuzzle {
+      0% { transform: translateY(var(--agy-nuzzle-start, 0px)) rotate(0); }
+      25% { transform: translateY(var(--agy-nuzzle-lift, 0px)) rotate(-1.1deg); }
+      70% { transform: translateY(var(--agy-nuzzle-settle, 0px)) rotate(1.1deg); }
+      100% { transform: translateY(0) rotate(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .kimino-wrapper .kimino-sleep-shell, .kimino-wrapper .kimino-character-box {
+        animation: none !important;
+        transition: none !important;
+      }
     }
 
     .kimino-ear-glow {
@@ -912,6 +934,7 @@
   let widgetEnabled = true;
   let currentCharacter = 'gemini-star-v1';
   let customCharacterSrc = null;
+  let onlineCharacterPacks = {};
   let soundEnabled = false;
   let bubbleVisible = true;
   let widgetScale = 200;
@@ -920,8 +943,6 @@
   let petDisplayMode = 'both';
   let bridgeState = null;
   let baseFrame = 'idle';
-  let currentFrame = 'idle';
-  let blinkTimer = null;
   let latestTrackerSnapshot = null;
 
   function getDialogue(category = 'idle') {
@@ -943,6 +964,8 @@
   function getFrameUrl(pack, frame) {
     if (customCharacterSrc && !syncCharacter) return customCharacterSrc;
     if (customCharacterSrc && (!bridgeState || !bridgeState.online)) return customCharacterSrc;
+    const frames = onlineCharacterPacks[pack]?.frames;
+    if (frames?.idle) return frames[frame] || frames.idle;
     const normalizedPack = pack === 'lin-cat' ? 'lin-cat' : 'gemini-star-v1';
     return api.getURL(`assets/characters/${normalizedPack}/${frame}.png`);
   }
@@ -993,8 +1016,8 @@
     try {
       const stored = await api.storageGet([
         'enabled', 'character', 'soundEnabled', 'widgetScale', 'widgetPos',
-        'bubbleVisible', 'customCharacter', 'syncCharacter', 'syncWallpaper',
-        'petDisplayMode', 'agyBridgeState'
+        'bubbleVisible', 'customCharacter', 'onlineCharacterPacks', 'syncCharacter', 'syncWallpaper',
+        'petDisplayMode', 'agyBridgeState', 'ambientChatter'
       ]);
       config = { ...config, ...stored };
     } catch (e) {}
@@ -1002,6 +1025,7 @@
     widgetEnabled = config.enabled !== false;
     currentCharacter = config.character || 'gemini-star-v1';
     customCharacterSrc = config.customCharacter || null;
+    onlineCharacterPacks = config.onlineCharacterPacks || {};
     soundEnabled = !!config.soundEnabled;
     widgetScale = config.widgetScale || 200;
     bubbleVisible = config.bubbleVisible !== false;
@@ -1034,7 +1058,7 @@
     try {
       shadow = host.attachShadow({ mode: 'open' });
     } catch (e) {
-      console.warn('[星语喵伴] Shadow DOM 挂载失败:', e);
+      console.warn('[Catstella] Shadow DOM 挂载失败:', e);
       return;
     }
 
@@ -1044,6 +1068,7 @@
 
     const wrapper = document.createElement('div');
     wrapper.className = 'kimino-wrapper';
+    wrapper.dataset.ready = 'false';
 
     if (config.widgetPos && typeof config.widgetPos.x === 'number') {
       wrapper.style.left = `${config.widgetPos.x}px`;
@@ -1062,7 +1087,7 @@
         <div class="kimino-bubble-header">
           <div class="kimino-header-title">
             <span>✨</span>
-            <span class="kimino-title-text">基米乃 · 额度审计喵</span>
+            <span class="kimino-title-text">Stella · 额度审计</span>
           </div>
           <div class="kimino-header-actions">
             <button class="kimino-btn-icon btn-sync-quota" title="静默同步官方额度 (零弹窗)">🔄同步</button>
@@ -1127,15 +1152,15 @@
         </div>
       </div>
 
-      <div class="kimino-character-box">
+      <div class="kimino-sleep-clip"><div class="kimino-sleep-shell"><div class="kimino-character-box" role="button" tabindex="0" aria-label="猫娘，点击互动">
         <div class="kimino-ear-glow glow-idle"></div>
-        <img class="kimino-sprite" src="${getFrameUrl(currentCharacter, 'idle')}" alt="Kimino Cat Pet" style="width: ${widgetScale}px;">
-      </div>
+        <img class="kimino-sprite" src="${getFrameUrl(currentCharacter, 'idle')}" alt="Kimino Cat Pet" draggable="false" style="width: ${widgetScale}px;">
+      </div></div></div>
 
-      <div class="kimino-settings" style="display: none;" role="dialog" aria-label="星语喵伴设置">
+      <div class="kimino-settings" style="display: none;" role="dialog" aria-label="Catstella设置">
         <div class="kg-set-header">
           <div class="kg-set-brand">
-            <span class="kg-set-title">🐾 星语喵伴 · 设置</span>
+            <span class="kg-set-title">🐾 Catstella · 设置</span>
             <span class="kg-bridge-pill">⚪ 独立模式</span>
           </div>
           <button type="button" class="kg-btn-close" title="关闭设置 (Esc)" aria-label="关闭设置">✕</button>
@@ -1158,7 +1183,7 @@
               <div class="kg-row">
                 <div class="kg-row-label">
                   <span>同步角色形态</span>
-                  <small>跟随桌面端切换星语魔猫 / 居家林猫</small>
+                  <small>跟随桌面端切换角色（Stella / Aica）</small>
                 </div>
                 <label class="kg-switch">
                   <input type="checkbox" class="kg-sync-chk" data-sync="syncCharacter">
@@ -1202,6 +1227,10 @@
                 <label class="kg-switch"><input type="checkbox" class="kg-cfg" data-key="bubbleVisible"><span class="kg-switch-track"></span></label>
               </div>
               <div class="kg-row">
+                <div class="kg-row-label"><span>自动碎碎念</span></div>
+                <label class="kg-switch"><input type="checkbox" class="kg-cfg" data-key="ambientChatter" aria-label="自动碎碎念"><span class="kg-switch-track"></span></label>
+              </div>
+              <div class="kg-row">
                 <div class="kg-row-label"><span>点击互动音效</span></div>
                 <label class="kg-switch"><input type="checkbox" class="kg-cfg" data-key="soundEnabled"><span class="kg-switch-track"></span></label>
               </div>
@@ -1213,6 +1242,7 @@
                 <input type="range" class="kg-range" data-key="widgetScale" min="120" max="320" step="10">
               </div>
               <button type="button" class="kg-btn-wide kg-reset-pos">📍 复位桌宠至右下角</button>
+              <button type="button" class="kg-btn-wide kg-preview-nap">💤 预览打盹</button>
             </div>
           </div>
 
@@ -1224,6 +1254,7 @@
             </div>
             <div class="kg-character-grid"></div>
             <div class="kg-card">
+              <button type="button" class="kg-btn-wide kg-open-online">🌐 浏览在线桌宠</button>
               <div class="kg-card-head"><span>🎨 网页自定义单图形象</span></div>
               <div class="kg-card-hint">上传透明底 PNG 立绘（独立模式下覆盖网页桌宠外观）。</div>
               <div class="kg-action-row">
@@ -1257,6 +1288,7 @@
             </div>
 
             <div class="kg-wallpaper-grid"></div>
+            <div class="kg-action-row"><button type="button" class="kg-btn-wide kg-open-online">🌐 更新与在线图库</button></div>
 
             <div class="kg-local-wall-controls">
               <div class="kg-action-row">
@@ -1266,6 +1298,7 @@
           </div>
         </div>
 
+        <button type="button" class="kg-btn-wide kg-open-online kg-online-notice" role="status" hidden></button>
         <input type="file" accept="image/*" class="kg-file-input kg-file-wallpaper" style="display:none">
         <input type="file" accept="image/*" class="kg-file-input kg-file-character" style="display:none">
       </div>
@@ -1274,6 +1307,7 @@
     shadow.appendChild(wrapper);
 
     const charBox = wrapper.querySelector('.kimino-character-box');
+    const sleepShell = charBox.parentElement;
     const spriteImg = wrapper.querySelector('.kimino-sprite');
     const earGlow = wrapper.querySelector('.kimino-ear-glow');
     const bubble = wrapper.querySelector('.kimino-bubble');
@@ -1301,9 +1335,37 @@
     const kgValOpacity = wrapper.querySelector('.kg-val-opacity');
 
     let settingsOpen = false;
+    let pointer = null;
+    let trackerStatus = window.__KIMINO_TRACKER__?.sessionData?.status ?? 'idle';
+    let dialogueCategory = 'idle';
+    let petVisual = {};
+    const PetBehavior = window.CatstellaPetBehavior;
+    sleepShell.style.setProperty('--agy-wake-duration', `${PetBehavior.wakeTime}ms`);
+    const pet = new PetBehavior(visual => {
+      if (visual.rest === 'waking' && wrapper.dataset.rest !== 'waking') {
+        const offset = new DOMMatrixReadOnly(getComputedStyle(sleepShell).transform).m42;
+        sleepShell.style.setProperty('--agy-nuzzle-start', `${offset}px`);
+      }
+      petVisual = visual;
+      wrapper.dataset.rest = visual.rest;
+      wrapper.dataset.nuzzling = String(visual.expression === 'proud');
+      paintFrame();
+    });
 
     function isHiddenByDesktopPriority() {
       return Boolean(bridgeState?.online && petDisplayMode === 'prefer-desktop');
+    }
+
+    function syncPet() {
+      const visible = widgetEnabled && (!isHiddenByDesktopPriority() || settingsOpen) && !document.hidden;
+      const resting = visible && trackerStatus !== 'thinking';
+      const desktop = bridgeState?.online && bridgeState.sync?.syncInteraction !== false ? bridgeState.desktop : null;
+      pet.sync({
+        visible,
+        idle: resting && !pointer,
+        rest: resting && (!pointer || pet.rest === 'sleeping') && !bubbleVisible && !settingsOpen,
+        expressions: desktop?.easterEggs !== false
+      });
     }
 
     function updateVisibilityAndBridgeUI() {
@@ -1317,6 +1379,7 @@
       } else {
         bubble.style.display = bubbleVisible ? 'block' : 'none';
       }
+      syncPet();
 
       // 更新气泡内 AGY 额度行
       if (agyCompRow && agyCompVal) {
@@ -1357,11 +1420,29 @@
       updateVisibilityAndBridgeUI();
       adjustSettingsPlacement();
       syncSettingsUI();
+      void checkOnlineNotice();
     }
 
-    function setFrame(frameName) {
-      currentFrame = frameName;
-      spriteImg.src = getFrameUrl(currentCharacter, frameName);
+    let onlineNoticePending = false;
+    async function checkOnlineNotice() {
+      if (onlineNoticePending) return;
+      onlineNoticePending = true;
+      const result = await api.sendMessage({ type: 'KG_ONLINE_AVAILABILITY' });
+      onlineNoticePending = false;
+      if (!settingsOpen) return;
+      const notice = settingsPanel.querySelector('.kg-online-notice');
+      const available = result?.ok && (result.character || result.wallpaper);
+      notice.hidden = !available && result?.reason !== 'connection';
+      if (available) notice.textContent = '发现可安装的在线素材 · ' +
+        [result.character && result.character + ' 款桌宠', result.wallpaper && result.wallpaper + ' 张壁纸'].filter(Boolean).join('、');
+      else if (result?.reason === 'connection') notice.textContent = '无法连接 GitHub，请检查网络或代理后重试。';
+    }
+
+    function paintFrame() {
+      const { blink, expression } = petVisual;
+      const frame = blink ? 'blink' : expression === 'angry' ? 'sad' : expression || baseFrame;
+      const src = getFrameUrl(currentCharacter, frame);
+      if (spriteImg.getAttribute('src') !== src) spriteImg.src = src;
     }
 
     spriteImg.addEventListener('error', () => {
@@ -1369,95 +1450,96 @@
       if (spriteImg.src !== fallback) spriteImg.src = fallback;
     });
 
-    function startBlinkLoop() {
-      if (blinkTimer) clearTimeout(blinkTimer);
-      const nextDelay = 3000 + Math.random() * 4000;
-      blinkTimer = setTimeout(() => {
-        if (baseFrame === 'idle' || baseFrame === 'proud') {
-          setFrame('blink');
-          setTimeout(() => {
-            setFrame(baseFrame);
-            startBlinkLoop();
-          }, 160);
-        } else {
-          startBlinkLoop();
-        }
-      }, nextDelay);
-    }
-    startBlinkLoop();
-
-    // 拖拽与点击
-    let isDragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
-    let initialLeft = 0;
-    let initialTop = 0;
-    let hasMoved = false;
-
-    charBox.addEventListener('pointerdown', (e) => {
-      isDragging = true;
-      hasMoved = false;
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
-
-      const rect = wrapper.getBoundingClientRect();
-      initialLeft = rect.left;
-      initialTop = rect.top;
-
-      wrapper.style.left = `${initialLeft}px`;
-      wrapper.style.top = `${initialTop}px`;
-      wrapper.style.right = 'auto';
-      wrapper.style.bottom = 'auto';
-
-      wrapper.classList.add('dragging');
-      charBox.setPointerCapture(e.pointerId);
-      playSound('press');
-    });
-
-    charBox.addEventListener('pointermove', (e) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStartX;
-      const dy = e.clientY - dragStartY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
-
-      const newX = Math.max(10, Math.min(window.innerWidth - widgetScale - 10, initialLeft + dx));
-      const newY = Math.max(10, Math.min(window.innerHeight - 150, initialTop + dy));
-
-      wrapper.style.left = `${newX}px`;
-      wrapper.style.top = `${newY}px`;
-      if (settingsOpen) adjustSettingsPlacement();
-    });
-
-    charBox.addEventListener('pointerup', () => {
-      if (!isDragging) return;
-      isDragging = false;
-      wrapper.classList.remove('dragging');
-      playSound('release');
-
-      if (hasMoved) {
-        const rect = wrapper.getBoundingClientRect();
-        api.storageSet({ widgetPos: { x: rect.left, y: rect.top } });
-      } else if (settingsOpen) {
-        closeSettings();
-      } else {
-        bubbleVisible = !bubbleVisible;
-        updateVisibilityAndBridgeUI();
-        api.storageSet({ bubbleVisible });
-
-        if (bubbleVisible) {
-          dialogueEl.textContent = getDialogue('petting');
-          setFrame('shy');
-          setTimeout(() => setFrame(baseFrame), 1500);
-        }
+    let ambientEnabled = config.ambientChatter === true;
+    let ambientTimer, previousAmbient, ambientLine = '', previousLine = '';
+    const quietAmbient = () => {
+      clearTimeout(ambientTimer);
+      if (ambientLine && dialogueEl.textContent === ambientLine) dialogueEl.textContent = previousLine;
+      ambientLine = '';
+    };
+    const Chatter = window.CatstellaChatter;
+    const chatter = Chatter && new Chatter({
+      allowed: () => widgetEnabled && bubbleVisible && !settingsOpen && !pointer &&
+        !isHiddenByDesktopPriority() && !document.hidden && document.hasFocus() &&
+        trackerStatus === 'idle',
+      speak: () => {
+        previousAmbient = Chatter.pickLine(previousAmbient);
+        previousLine = dialogueEl.textContent;
+        ambientLine = previousAmbient;
+        dialogueEl.textContent = ambientLine;
+        ambientTimer = setTimeout(quietAmbient, 4500);
       }
     });
+    const resetChatter = () => { quietAmbient(); chatter?.reset(); };
+    if (chatter) {
+      document.addEventListener('pointerdown', resetChatter, { capture: true, passive: true });
+      document.addEventListener('keydown', resetChatter, { capture: true, passive: true });
+      document.addEventListener('visibilitychange', resetChatter);
+      window.addEventListener('blur', resetChatter);
+      window.addEventListener('focus', resetChatter);
+      chatter.configure(ambientEnabled);
+    }
+
+    function nextDialogue() {
+      const line = getDialogue(dialogueCategory);
+      dialogueEl.textContent = line;
+      if (shyLines.has(line)) pet.show('shy', 'dialogue');
+    }
+
+    function activate(head) {
+      if (settingsOpen) closeSettings();
+      else if (!bubbleVisible) {
+        bubbleVisible = true;
+        updateVisibilityAndBridgeUI();
+        api.storageSet({ bubbleVisible });
+      } else nextDialogue();
+      if (head) pet.tap();
+    }
+
+    const pointerDistance = event => Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y);
+    charBox.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !event.isPrimary || pointer) return;
+      const area = sleepShell.getBoundingClientRect();
+      const x = (event.clientX - area.left) / area.width;
+      const y = (event.clientY - area.top) / area.height;
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, distance: 0,
+        startedAt: performance.now(),
+        sleeping: pet.rest === 'sleeping', head: x >= .07 && x <= .93 && y >= .035 && y <= .80 };
+      charBox.setPointerCapture(event.pointerId);
+      pet.activity();
+      syncPet();
+      if (!pointer.sleeping) playSound('press');
+    });
+    charBox.addEventListener('pointermove', event => {
+      if (pointer?.id === event.pointerId) {
+        pointer.distance = Math.max(pointer.distance, pointerDistance(event));
+      }
+    });
+    charBox.addEventListener('pointerenter', () => pet.activity());
+    function release(cancel, event) {
+      if (!pointer || (event && event.pointerId !== pointer.id)) return;
+      const { sleeping, head, startedAt } = pointer;
+      const distance = event ? Math.max(pointer.distance, pointerDistance(event)) : pointer.distance;
+      const isTap = !cancel && PetBehavior.isTap(performance.now() - startedAt, distance);
+      pointer = null;
+      if (isTap) playSound('release');
+      syncPet();
+      if (isTap && !pet.activity(true) && !sleeping) activate(head);
+    }
+    charBox.addEventListener('pointerup', event => release(false, event));
+    charBox.addEventListener('pointercancel', event => release(true, event));
+    charBox.addEventListener('lostpointercapture', event => release(true, event));
+    window.addEventListener('blur', () => release(true));
+    document.addEventListener('visibilitychange', syncPet);
+    charBox.addEventListener('keydown', event => {
+      if (event.key !== ' ' && event.key !== 'Enter') return;
+      event.preventDefault();
+      if (!event.repeat && !pet.activity(true)) activate(false);
+    });
+    settingsPanel.querySelector('.kg-preview-nap').addEventListener('click', () => pet.previewNap());
 
     dialogueEl.addEventListener('click', () => {
-      let cat = 'idle';
-      if (baseFrame === 'sad') cat = 'crying';
-      else if (baseFrame === 'angry') cat = 'warning';
-      else if (baseFrame === 'shy') cat = 'petting';
-      dialogueEl.textContent = getDialogue(cat);
+      nextDialogue();
       playSound('press');
     });
 
@@ -1475,7 +1557,7 @@
       try {
         if (window.__KIMINO_TRACKER__) {
           window.__KIMINO_TRACKER__.refreshUsageLedger('widget', true);
-          window.__KIMINO_TRACKER__.requestQuotaRpcRefresh('widget', true);
+          window.__KIMINO_TRACKER__.refreshUsageLedger('widget', true);
           window.__KIMINO_TRACKER__.sniffResetHintBar();
           window.__KIMINO_TRACKER__.scrapeRealQuotaFromDom();
         }
@@ -1523,10 +1605,10 @@
         kgManifestCache = await res.json();
       } catch (e) {
         kgManifestCache = {
-          wallpapers: [{ id: 'gemini-sheet', name: '星语设定集', src: 'assets/wallpapers/gemini-sheet.png' }],
+          wallpapers: [{ id: 'gemini-character-sheet-v1', name: '星语 · 星幕夜话', src: 'assets/wallpapers/gemini-sheet.png' }],
           characters: [
-            { id: 'gemini-star-v1', name: '星语魔猫', preview: 'assets/characters/gemini-star-v1/idle.png' },
-            { id: 'lin-cat', name: '居家林猫', preview: 'assets/characters/lin-cat/idle.png' }
+            { id: 'gemini-star-v1', name: '星语', preview: 'assets/characters/gemini-star-v1/idle.png' },
+            { id: 'lin-cat', name: '霓音', preview: 'assets/characters/lin-cat/idle.png' }
           ]
         };
       }
@@ -1541,14 +1623,17 @@
       return res;
     };
 
+    let settingsRevision = 0;
     const syncSettingsUI = async () => {
+      const revision = ++settingsRevision;
       try {
         const st = await api.storageGet([
-          'enabled', 'skinEnabled', 'bubbleVisible', 'soundEnabled', 'widgetScale',
+          'enabled', 'skinEnabled', 'bubbleVisible', 'ambientChatter', 'soundEnabled', 'widgetScale',
           'wallpaperOpacity', 'character', 'wallpaperId', 'customWallpapers', 'customCharacter',
           'syncCharacter', 'syncWallpaper', 'petDisplayMode', 'agyBridgeState', 'agySyncedWallpaper'
         ]);
 
+        if (revision !== settingsRevision) return;
         bridgeState = st.agyBridgeState || bridgeState;
         const isOnline = !!bridgeState?.online;
         const curSyncChar = st.syncCharacter !== false;
@@ -1599,22 +1684,30 @@
           charBannerText.textContent = curSyncChar
             ? (isOnline ? '🔗 已与桌面端双向同步形象' : '🔗 同步已开启（连接桌面端后自动对齐）')
             : '🔓 网页端独立形象模式（不影响桌面端）';
+          if (curSyncChar && isOnline && bridgeState.desktop?.characterPack?.startsWith('online-') &&
+              !onlineCharacterPacks[bridgeState.desktop.characterPack]) {
+            charBannerText.textContent = '请先在网页端安装同一款在线桌宠以同步形态';
+          }
           charToggleBtn.textContent = curSyncChar ? '改用独立' : '开启同步';
         }
 
         const man = await loadGalleryManifest();
+        if (revision !== settingsRevision) return;
         const chGrid = settingsPanel.querySelector('.kg-character-grid');
         const effectiveChar = (curSyncChar && isOnline && bridgeState?.desktop?.characterPack)
           ? bridgeState.desktop.characterPack
           : (st.character || 'gemini-star-v1');
         if (chGrid) {
           chGrid.textContent = '';
-          const chars = man.characters && man.characters.length ? man.characters : [
-            { id: 'gemini-star-v1', name: '星语魔猫', preview: 'assets/characters/gemini-star-v1/idle.png' },
-            { id: 'lin-cat', name: '居家林猫', preview: 'assets/characters/lin-cat/idle.png' }
+          const builtIn = man.characters && man.characters.length ? man.characters : [
+            { id: 'gemini-star-v1', name: '星语', preview: 'assets/characters/gemini-star-v1/idle.png' },
+            { id: 'lin-cat', name: '霓音', preview: 'assets/characters/lin-cat/idle.png' }
           ];
+          const chars = [...builtIn, ...Object.entries(onlineCharacterPacks).map(([id, pack]) => ({
+            id, name: pack.name, description: pack.description, preview: pack.frames.idle, downloaded: true
+          }))];
           chars.forEach((c) => {
-            const meta = CHAR_LABELS[c.id] || { name: c.name, desc: '预设角色包' };
+            const meta = CHAR_LABELS[c.id] || { name: c.name, desc: c.description || '在线角色包' };
             const isActive = effectiveChar === c.id && (!st.customCharacter || (curSyncChar && isOnline));
             const cell = document.createElement('div');
             cell.className = 'kg-char-card' + (isActive ? ' kg-active' : '');
@@ -1625,7 +1718,7 @@
               cell.appendChild(badge);
             }
             const img = document.createElement('img');
-            img.src = api.getURL(c.preview);
+            img.src = c.downloaded ? c.preview : api.getURL(c.preview);
             img.alt = meta.name;
             cell.appendChild(img);
             const name = document.createElement('div');
@@ -1639,10 +1732,12 @@
 
             cell.addEventListener('click', async () => {
               playSound('press');
-              if (curSyncChar) {
+              const desktopHasPack = !c.downloaded || bridgeState?.desktop?.characterPackIds?.includes(c.id);
+              if (curSyncChar && desktopHasPack) {
                 await pushBridgePatch({ characterPack: c.id });
               } else {
-                api.storageSet({ character: c.id, customCharacter: null });
+                if (curSyncChar) await pushBridgePatch({ syncCharacter: false });
+                await api.storageSet({ character: c.id, customCharacter: null });
               }
               syncSettingsUI();
             });
@@ -1701,6 +1796,7 @@
           if (curSyncWall && isOnline) {
             // 实时展示桌面端壁纸画廊，点击即可双端同步切换！
             const res = await api.sendMessage({ type: 'KG_GET_DESKTOP_WALLPAPERS' });
+            if (revision !== settingsRevision) return;
             const dWalls = (res && res.wallpapers) || [];
             const activeId = bridgeState?.desktop?.wallpaperId || '';
             dWalls.forEach((dw) => {
@@ -1708,9 +1804,13 @@
               thumb.className = 'kg-thumb' + (dw.id === activeId ? ' kg-active' : '');
               thumb.title = dw.title;
               const img = document.createElement('img');
-              img.src = `http://127.0.0.1:${res.port || bridgeState.port || 3921}/companion/wallpaper-image?id=${encodeURIComponent(dw.id)}`;
               img.alt = dw.title;
               img.loading = 'lazy';
+              api.sendMessage({ type: 'KG_GET_WALLPAPER_PREVIEW', id: dw.id, revision: dw.revision || '' }).then(preview => {
+                if (revision !== settingsRevision || !img.isConnected) return;
+                if (preview?.dataUrl) img.src = preview.dataUrl;
+                else { img.alt = '预览暂不可用'; thumb.title = dw.title + ' · 预览暂不可用'; }
+              });
               thumb.appendChild(img);
               const cap = document.createElement('div');
               cap.className = 'kg-thumb-caption';
@@ -1727,9 +1827,9 @@
             const customs = st.customWallpapers || [];
             const items = [
               ...(man.wallpapers || []).map((w) => ({ id: w.id, title: w.name || w.id, src: api.getURL(w.src), custom: false })),
-              ...customs.map((c, idx) => ({ id: c.id, title: `自定义 #${idx + 1}`, src: c.dataUrl, custom: true }))
+              ...customs.map((c, idx) => ({ id: c.id, title: c.title || `自定义 #${idx + 1}`, src: c.dataUrl, custom: true }))
             ];
-            const activeLocalId = st.wallpaperId || (items[0] && items[0].id) || '';
+            const activeLocalId = (st.wallpaperId === 'gemini-sheet' ? 'gemini-character-sheet-v1' : st.wallpaperId) || (items[0] && items[0].id) || '';
             items.forEach((item) => {
               const thumb = document.createElement('div');
               thumb.className = 'kg-thumb' + (activeLocalId === item.id ? ' kg-active' : '');
@@ -1803,6 +1903,12 @@
 
     if (settingsPanel) {
       settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+      settingsPanel.querySelectorAll('.kg-open-online').forEach(button => {
+        button.addEventListener('click', async () => {
+          const result = await api.sendMessage({ type: 'KG_OPEN_ONLINE' });
+          if (!result?.ok) button.textContent = '暂时无法打开在线图库，点击重试';
+        });
+      });
 
       // Tab 切换
       settingsPanel.querySelectorAll('.kg-tab-btn').forEach((tabBtn) => {
@@ -1948,11 +2054,14 @@
     }
 
     // ---- 与 Background / AGY Bridge 实时心跳 ----
+    let blurHeartbeatTimer = null;
     const sendHeartbeat = () => {
+      if (blurHeartbeatTimer !== null && !document.hidden && !document.hasFocus()) return;
       const isFocused = !document.hidden && document.hasFocus();
       api.sendMessage({
         type: 'KG_TAB_HEARTBEAT',
         active: isFocused,
+        visible: !document.hidden,
         webQuota: buildWebQuotaPayload(latestTrackerSnapshot)
       }).then((res) => {
         if (res && res.state) {
@@ -1962,15 +2071,23 @@
       });
     };
 
-    window.addEventListener('focus', sendHeartbeat);
-    window.addEventListener('blur', sendHeartbeat);
-    document.addEventListener('visibilitychange', sendHeartbeat);
+    const sendFocusHeartbeat = () => {
+      if (blurHeartbeatTimer !== null) clearTimeout(blurHeartbeatTimer);
+      blurHeartbeatTimer = null;
+      if (!document.hidden && !document.hasFocus()) {
+        blurHeartbeatTimer = setTimeout(() => { blurHeartbeatTimer = null; sendHeartbeat(); }, 300);
+      } else sendHeartbeat();
+    };
+    window.addEventListener('focus', sendFocusHeartbeat);
+    window.addEventListener('blur', sendFocusHeartbeat);
+    document.addEventListener('visibilitychange', sendFocusHeartbeat);
     setInterval(sendHeartbeat, 4500);
     setTimeout(sendHeartbeat, 400);
 
     // 订阅追踪器数据
     if (window.__KIMINO_TRACKER__) {
       window.__KIMINO_TRACKER__.subscribe((data) => {
+        if (trackerStatus !== data.status) { trackerStatus = data.status; resetChatter(); }
         latestTrackerSnapshot = data;
         metaTurns.textContent = `当前会话: 第 ${data.turns} 轮`;
         const totalK = (data.totalTokensEst / 1000).toFixed(1);
@@ -2012,7 +2129,7 @@
           earGlow.classList.add('glow-rate_limited');
           charBox.classList.add('rate-limited');
           baseFrame = 'sad';
-          setFrame('sad');
+          dialogueCategory = 'crying';
           rateAlert.style.display = 'flex';
           alertClock.textContent = data.resetCountdownText || data.realQuota.currentResetTime || '恢复中...';
           const alertWeek = wrapper.querySelector('.kimino-alert-week');
@@ -2022,26 +2139,28 @@
           dialogueEl.textContent = "口牙！我就说 Argon 这个电老虎撑不住吧！被你玩爆了喵！(哭)";
         } else if (curPct >= 80) {
           earGlow.classList.add('glow-exhausted');
-          baseFrame = 'angry';
-          setFrame('angry');
+          baseFrame = 'sad';
+          dialogueCategory = 'warning';
           rateAlert.style.display = 'none';
           dialogueEl.textContent = "杂鱼君停手！当前用量已经飙到 80%+ 了，快见底了喵！";
         } else if (curPct >= 60) {
           earGlow.classList.add('glow-warning');
-          baseFrame = 'shy';
-          setFrame('shy');
+          baseFrame = 'idle';
+          dialogueCategory = 'warning';
           rateAlert.style.display = 'none';
         } else if (data.status === 'thinking') {
           earGlow.classList.add('glow-thinking');
           baseFrame = 'idle';
-          setFrame('idle');
+          dialogueCategory = 'thinking';
           rateAlert.style.display = 'none';
         } else {
           earGlow.classList.add('glow-idle');
           baseFrame = 'idle';
-          setFrame('idle');
+          dialogueCategory = 'idle';
           rateAlert.style.display = 'none';
         }
+        syncPet();
+        paintFrame();
       });
     }
 
@@ -2049,15 +2168,19 @@
       if (area === 'local') {
         if (changes.character) {
           currentCharacter = changes.character.newValue || 'gemini-star-v1';
-          setFrame(baseFrame);
+          paintFrame();
+        }
+        if (changes.onlineCharacterPacks) {
+          onlineCharacterPacks = changes.onlineCharacterPacks.newValue || {};
+          paintFrame();
         }
         if (changes.customCharacter !== undefined) {
           customCharacterSrc = changes.customCharacter.newValue || null;
-          setFrame(baseFrame);
+          paintFrame();
         }
         if (changes.syncCharacter !== undefined) {
           syncCharacter = changes.syncCharacter.newValue !== false;
-          setFrame(baseFrame);
+          paintFrame();
         }
         if (changes.syncWallpaper !== undefined) {
           syncWallpaper = changes.syncWallpaper.newValue !== false;
@@ -2069,8 +2192,8 @@
           bridgeState = changes.agyBridgeState.newValue || null;
           if (syncCharacter && bridgeState?.online && bridgeState?.desktop?.characterPack) {
             currentCharacter = bridgeState.desktop.characterPack;
-            setFrame(baseFrame);
           }
+          paintFrame();
         }
         if (changes.soundEnabled !== undefined) {
           soundEnabled = !!changes.soundEnabled.newValue;
@@ -2079,6 +2202,12 @@
           widgetScale = changes.widgetScale.newValue;
           spriteImg.style.width = `${widgetScale}px`;
         }
+        if (changes.ambientChatter) {
+          ambientEnabled = changes.ambientChatter.newValue === true;
+          chatter?.configure(ambientEnabled);
+          if (!ambientEnabled) quietAmbient();
+        }
+        if (changes.bubbleVisible || changes.enabled || changes.petDisplayMode || isHiddenByDesktopPriority()) quietAmbient();
         if (changes.bubbleVisible !== undefined) {
           bubbleVisible = !!changes.bubbleVisible.newValue;
         }
@@ -2097,14 +2226,15 @@
     });
 
     updateVisibilityAndBridgeUI();
-    console.log('[星语喵伴] 桌宠挂件注入完毕，基米乃已就位喵～🐾');
+    wrapper.dataset.ready = 'true';
+    console.log('[Catstella] 桌宠挂件注入完毕，Stella 已就位🐾');
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      initWidget().catch((e) => console.error('[星语喵伴] 桌宠挂件初始化失败:', e));
+      initWidget().catch((e) => console.error('[Catstella] 桌宠挂件初始化失败:', e));
     });
   } else {
-    initWidget().catch((e) => console.error('[星语喵伴] 桌宠挂件初始化失败:', e));
+    initWidget().catch((e) => console.error('[Catstella] 桌宠挂件初始化失败:', e));
   }
 })();

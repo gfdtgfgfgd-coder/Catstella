@@ -1,3 +1,5 @@
+> 2026-11-05 补充：桌面旧内嵌 Web 副本已移除；下文旧目录描述仅供历史参考。安装器与素材同步共用 tools/web-companion-path.cjs，活动源为 D:\Catstella-web\Gemini-Web-Companion。
+
 # 🐱 Catstella · 桌面端主分支交接与独立化改造方案 (Branch: `main`)
 > **项目定位**：具备独立运行能力、脱离反重力宿主依赖、支持双端适配与壁纸轮换的桌面猫娘套件  
 > **适用受众**：接手桌面端开发的马仔 / 协同 Agent / 开发者  

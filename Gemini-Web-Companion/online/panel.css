@@ -1,0 +1,23 @@
+:root { color-scheme: dark; font: 15px/1.6 system-ui, sans-serif; color: #eee6ff; background: #1a1526; }
+body { margin: 0; padding: 24px; }
+main { max-width: 660px; margin: 24px auto; background: #251d35; border: 1px solid #5f4d7d; border-radius: 18px; padding: 24px; }
+h1 { margin: 0; font-size: 1.6rem; }
+.hint { color: #c6b8da; }
+.btn-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { color: inherit; background: #473163; border: 1px solid #705497; border-radius: 8px; padding: 7px 12px; font: inherit; cursor: pointer; }
+.btn:hover { background: #5b407c; }
+.btn:disabled { opacity: .6; cursor: wait; }
+.online-items { display: grid; gap: 8px; }
+.online-items section { background: #1d172b; padding: 12px; border-radius: 10px; }
+.online-items p { margin: 4px 0 8px; }
+.catalog-card { margin-top: 16px; padding: 12px; background: #1d172b; border-radius: 12px; }
+.gallery-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.online-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.gallery-card { border: 1px solid #5f4d7d; border-radius: 10px; overflow: hidden; min-width: 0; }
+.card-wall-thumb, .card-char-thumb { background: #312640; display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; }
+.card-wall-thumb img, .card-char-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.card-char-thumb img { object-fit: contain; }
+.card-info { display: grid; gap: 4px; padding: 8px; }
+.card-info .btn { justify-self: start; }
+.card-desc { color: #c6b8da; font-size: .85rem; }
+.notice:not([hidden]) { padding: 8px 10px; border-radius: 8px; background: #473163; }

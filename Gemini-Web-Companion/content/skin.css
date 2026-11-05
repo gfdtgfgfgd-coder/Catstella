@@ -1,12 +1,39 @@
-/* 星语喵伴 · Gemini Web Dream Skin v2.1 —— "Gemini 本体换肤"（去 var 硬编码版）
-   ─────────────────────────────────────────────────────────────
-   v2.1 变更：全部 token 内联为字面量。实测部分环境（用户 Firefox/Edge）中
-   var(--kg-*) 解析失败 → 所有玻璃面退化成全透明（透明化规则不含 var 所以照常生效）。
-   字面量 + 提高不透明度后，不再存在 var 失败面。token 对照表：
-   surface #211e2d | selected #443754 | reading rgba(33,30,45,.96)→纯 #211e2d
-   card rgba(38,33,50,.92) | hover rgba(165,138,222,.11) | border rgba(174,142,218,.22)
-   glass linear-gradient(165deg, rgba(75,62,84,.55), rgba(23,18,31,.72))
-   （token 唯一真源：Antigravity-Dream-Skin/src/host/theme.cjs dark 分支） */
+/* Catstella · Gemini Web Dream Skin —— 常驻样式、明确表面选择器
+   2026-11-05: 禁止 class 子串猜测与全消息伪元素清洗；动画不切换样式表。
+   在线配色仅覆盖局部颜色；默认字面量作为后备值，动效和几何保持同一套规则。 */
+
+html[data-kimino-palette="pink"] {
+  --kg-palette-base: #281c27;
+  --kg-palette-selected: #4d3048;
+  --kg-palette-accent: #f59cc6;
+  --kg-palette-rgb: 40, 28, 39;
+  --kg-palette-accent-rgb: 245, 156, 198;
+  --kg-palette-card-rgb: 55, 30, 49;
+  --kg-palette-glass-rgb: 94, 57, 83;
+  --kg-palette-shade-rgb: 35, 18, 31;
+}
+
+html[data-kimino-palette="ocean"] {
+  --kg-palette-base: #141d2b;
+  --kg-palette-selected: #213654;
+  --kg-palette-accent: #7cc0ff;
+  --kg-palette-rgb: 20, 29, 43;
+  --kg-palette-accent-rgb: 124, 192, 255;
+  --kg-palette-card-rgb: 25, 38, 59;
+  --kg-palette-glass-rgb: 45, 72, 108;
+  --kg-palette-shade-rgb: 12, 21, 38;
+}
+
+html[data-kimino-palette="onyx"] {
+  --kg-palette-base: #17181d;
+  --kg-palette-selected: #2a2c35;
+  --kg-palette-accent: #c8cedf;
+  --kg-palette-rgb: 23, 24, 29;
+  --kg-palette-accent-rgb: 200, 206, 223;
+  --kg-palette-card-rgb: 29, 31, 38;
+  --kg-palette-glass-rgb: 57, 59, 73;
+  --kg-palette-shade-rgb: 15, 16, 21;
+}
 
 /* ================================================================
    1. 壁纸层 = 内容区挖空圆角基底（几何由 skin.js 实测侧栏右缘后写入）
@@ -16,11 +43,22 @@
   position: fixed !important;
   z-index: -99999 !important;
   pointer-events: none !important;
-  background-color: #211e2d !important;
+  background-color: var(--kg-palette-base, #211e2d) !important;
   background-size: cover !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   transition: opacity 0.6s ease !important;
+}
+
+.kimino-wallpaper-incoming {
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  pointer-events: none !important;
+  background-color: var(--kg-palette-base, #211e2d) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
 }
 
 /* 基底层：全窗基底色（z -100000，垫在壁纸 -99999 之下）
@@ -35,7 +73,7 @@ html.kimino-dream-active body {
   inset: 0 !important;
   z-index: -100000 !important;
   pointer-events: none !important;
-  background-color: #211e2d !important;
+  background-color: var(--kg-palette-base, #211e2d) !important;
 }
 
 /* 主骨架容器保持透明（壁纸在底层基底之上显示） */
@@ -57,7 +95,7 @@ html.kimino-dream-active :is(
    裸 [role="navigation"] 会把微网格装饰刷到每组列表上（渐变阴影Bug根因）
    ================================================================ */
 html.kimino-dream-active bard-sidenav {
-  background-color: rgba(33, 30, 45, 0.68) !important;
+  background-color: rgba(var(--kg-palette-rgb, 33, 30, 45), 0.68) !important;
   background-image: radial-gradient(ellipse at 0 0, rgba(168, 142, 229, 0.12), transparent 65%),
                     repeating-linear-gradient(135deg, transparent 0 38px, rgba(185, 148, 238, 0.03) 38px 39px) !important;
   border-right: 1px solid rgba(174, 142, 218, 0.22) !important;
@@ -71,19 +109,20 @@ html.kimino-dream-active :is(
   .chat-history-gradient,
   .scroll-gradient,
   .gradient,
-  [class*="gradient"],
-  [class*="fade-out"],
-  [class*="fade_out"],
-  .input-area-container::before,
-  .input-area-container::after,
-  .conversation-container::after,
-  .conversation-container::before,
-  infinite-scroller::after,
-  infinite-scroller::before,
-  .bottom-container::before,
-  .bottom-container::after,
+  .gradient-strip,
+  .fade-out,
+  .text-fade-out,
+  .fade_out,
   .bottom-container
-) {
+),
+html.kimino-dream-active .input-area-container::before,
+html.kimino-dream-active .input-area-container::after,
+html.kimino-dream-active .conversation-container::after,
+html.kimino-dream-active .conversation-container::before,
+html.kimino-dream-active infinite-scroller::after,
+html.kimino-dream-active infinite-scroller::before,
+html.kimino-dream-active .bottom-container::before,
+html.kimino-dream-active .bottom-container::after  {
   background: none !important;
   background-color: transparent !important;
   background-image: none !important;
@@ -99,7 +138,7 @@ html.kimino-dream-active bard-sidenav :is(
   sidenav-mavatar-footer,
   .mavatar-footer-row,
   .mavatar-user-info,
-  [class*="footer"],
+  .side-nav-footer,
   [data-test-id="user-profile"]
 ) :is(div, span, button, a, img, p, ul, li) {
   background-color: transparent !important;
@@ -109,34 +148,25 @@ html.kimino-dream-active bard-sidenav :is(
 
 /* 选中会话：#443754 + 星光颗粒 (桌面同款装饰) */
 html.kimino-dream-active bard-sidenav :is([aria-selected="true"], [aria-current="true"], .selected, .active) {
-  background-color: #443754 !important;
+  background-color: var(--kg-palette-selected, #443754) !important;
   background-image: radial-gradient(circle at 92% 22%, rgba(240, 197, 255, 0.33) 0 2px, transparent 3px),
                     repeating-linear-gradient(125deg, transparent 0 18px, rgba(185, 162, 245, 0.10) 18px 19px),
                     linear-gradient(110deg, rgba(158, 140, 229, 0.14), rgba(229, 181, 244, 0.08)) !important;
-  box-shadow: inset 3px 0 #bda2f2, inset 0 0 0 1px rgba(189, 162, 242, 0.22) !important;
+  box-shadow: inset 3px 0 var(--kg-palette-accent, #bda2f2), inset 0 0 0 1px rgba(var(--kg-palette-accent-rgb, 189, 162, 242), 0.22) !important;
   border-radius: 9px !important;
 }
 
-html.kimino-dream-active bard-sidenav :is(button, a, [role="button"]):hover:not(:disabled) {
+html.kimino-dream-active bard-sidenav :is(button, a, [role="button"]):hover:not(:disabled):not([aria-selected="true"]):not([aria-current="true"]):not(.selected):not(.active) {
   background-color: rgba(165, 138, 222, 0.11) !important;
 }
 
 /* ================================================================
    3. 对话区：消息阅读面（毛玻璃 0.74 + blur18，壁纸柔光透出）
    ================================================================ */
-/* 用户气泡真身（实机：span.user-query-bubble-with-background） */
-html.kimino-dream-active .user-query-bubble-with-background {
-  background-color: rgba(24, 18, 36, 0.76) !important;
-  backdrop-filter: blur(25px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
-  border: 1px solid rgba(174, 142, 218, 0.28) !important;
-  border-radius: 22px !important;
-  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
-}
-
 /* 用户外层容器：100% 纯透明无边框无阴影（彻底消灭外层套娃双层大遮罩） */
 html.kimino-dream-active :is(
   user-query,
+  [data-kg="query-root"],
   .user-query-container,
   user-query-content,
   .user-query-content,
@@ -170,9 +200,7 @@ html.kimino-dream-active user-query :is(button, [role="button"]):is(
   [aria-label*="copy" i],
   [aria-label*="edit" i],
   [data-test-id*="copy"],
-  [data-test-id*="edit"],
-  [class*="action-button"],
-  [class*="icon-button"]
+  [data-test-id*="edit"]
 ):not([data-kg-expand-btn="true"]) {
   width: 28px !important;
   height: 28px !important;
@@ -200,9 +228,7 @@ html.kimino-dream-active user-query :is(button, [role="button"]):is(
   [aria-label*="copy" i],
   [aria-label*="edit" i],
   [data-test-id*="copy"],
-  [data-test-id*="edit"],
-  [class*="action-button"],
-  [class*="icon-button"]
+  [data-test-id*="edit"]
 ):not([data-kg-expand-btn="true"]):hover {
   background-color: rgba(65, 48, 92, 0.90) !important;
   border-color: rgba(220, 195, 255, 0.70) !important;
@@ -216,9 +242,7 @@ html.kimino-dream-active user-query :is(button, [role="button"]):is(
   [aria-label*="copy" i],
   [aria-label*="edit" i],
   [data-test-id*="copy"],
-  [data-test-id*="edit"],
-  [class*="action-button"],
-  [class*="icon-button"]
+  [data-test-id*="edit"]
 ) :is(mat-icon, svg, span, i) {
   color: #ede6fc !important;
   fill: #ede6fc !important;
@@ -251,7 +275,8 @@ html.kimino-dream-active model-response :is(
   -webkit-backdrop-filter: none !important;
 }
 
-html.kimino-dream-active model-response {
+html.kimino-dream-active model-response,
+html.kimino-dream-active [data-kg="card"] {
   display: block !important;
   background-color: rgba(24, 18, 36, 0.76) !important;
   backdrop-filter: blur(25px) saturate(140%) !important;
@@ -266,22 +291,14 @@ html.kimino-dream-active model-response {
   max-width: min(768px, 100%) !important;
 }
 
-/* 思维链折叠卡：单层水晶胶囊（仅最外层根容器，绝不递归匹配子元素，杜绝三明治多层胶囊）
-   实机 2026-11-05 探针铁证：思考药丸嵌在 [data-kg="card"]（0.76+blur25）内部，
-   胶囊自身再叠 0.66+blur16 → 双层玻璃叠加变暗 = 黑块。
-   处理：胶囊改为卡片上的微透幽灵芯片（轻着色、无二次 blur）。 */
-html.kimino-dream-active :is(
-  details:not([open]):not(details *):not([data-kg="thinking"] *),
-  [data-kg="thinking"]:not([open]):not([data-kg="thinking"] *),
-  .thought-container:not([open]):not(.thought-container *):not([data-kg="thinking"] *),
-  .thought-box:not([open]):not(.thought-box *):not([data-kg="thinking"] *)
-) {
+/* One thought surface definition for both native and annotated roots. */
+html.kimino-dream-active model-response :is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]):not(:is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]) *) {
   width: fit-content !important;
   max-width: 100% !important;
   display: inline-flex !important;
   align-items: center !important;
   border-radius: 20px !important;
-  background-color: rgba(38, 33, 50, 0.30) !important;
+  background-color: rgba(var(--kg-palette-card-rgb, 38, 33, 50), 0.30) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(174, 142, 218, 0.25) !important;
@@ -289,41 +306,25 @@ html.kimino-dream-active :is(
   margin: 8px 0 !important;
   box-sizing: border-box !important;
 }
-
-/* 坚决消灭思维链内部子节点的一切内联背景、边框与独立气泡（彻底消除图 1 的三明治与左侧小斜杠独立药丸） */
-html.kimino-dream-active :is([data-kg="thinking"], details, .thought-container, .thought-box) :is(
-  div,
-  span,
-  summary,
-  p,
-  mat-icon,
-  svg,
-  button,
-  [role="button"],
-  [class*="header" i],
-  [class*="title" i],
-  [class*="icon" i],
-  [class*="label" i],
-  [class*="status" i]
-):not([class*="content" i]):not([class*="body" i]):not([class*="markdown" i]):not([class*="text" i]) {
+html.kimino-dream-active model-response :is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]):not(:is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]) *)[open] {
+  width: 100% !important;
+  display: block !important;
+  border-radius: 16px !important;
+  padding: 10px 14px !important;
+}
+html.kimino-dream-active model-response :is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]):not(:is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]) *) :is(.thought-header, .thought-title, .thought-status, summary),
+html.kimino-dream-active model-response :is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]):not(:is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]) *) :is(details, .thought-container, .thought-box, .thinking-container, model-thoughts, [data-kg="thinking"]) {
   background: transparent !important;
-  background-color: transparent !important;
-  background-image: none !important;
   border: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
 }
 
 /* 坚决杜绝 response-footer 及操作按钮栏被任何胶囊选择器误伤（消除蜜汁腰圆形） */
 html.kimino-dream-active :is(
   response-footer,
   .response-footer,
-  [class*="response-footer"],
   .has-thoughts,
   .has-thought
 ) {
@@ -340,20 +341,6 @@ html.kimino-dream-active :is(
   width: auto !important;
 }
 
-html.kimino-dream-active :is(details[open], [data-kg="thinking"][open]) {
-  width: 100% !important;
-  max-width: 100% !important;
-  display: block !important;
-  border-radius: 16px !important;
-  background-color: rgba(38, 33, 50, 0.30) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(174, 142, 218, 0.25) !important;
-  padding: 10px 14px !important;
-  margin: 8px 0 !important;
-  box-sizing: border-box !important;
-}
-
 /* ================================================================
    3.5 [data-kg] 表面标注渲染（skin.js v3 结构标注引擎）
    ─────────────────────────────────────────────────────────────
@@ -363,68 +350,17 @@ html.kimino-dream-active :is(details[open], [data-kg="thinking"][open]) {
    背景的容器后打 data-kg 标记；本节按标记渲染，与上方类名规则
    （字面量相同）双保险并存：标注失败 → 原生暗色兜底（永远可读）。
    ================================================================ */
-/* 用户提问外层：全透明 */
-html.kimino-dream-active [data-kg="query-root"] {
-  background-color: transparent !important;
-  background-image: none !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* 用户气泡：阅读面药丸 */
-html.kimino-dream-active [data-kg="bubble"] {
-  background-color: rgba(24, 18, 36, 0.76) !important;
-  backdrop-filter: blur(25px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
-  border: 1px solid rgba(174, 142, 218, 0.28) !important;
-  border-radius: 22px !important;
-  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
-}
-
-/* 模型回答：阅读面卡片（标注版，同上） */
-html.kimino-dream-active [data-kg="card"] {
-  display: block !important;
-  background-color: rgba(24, 18, 36, 0.76) !important;
-  backdrop-filter: blur(25px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(140%) !important;
-  border: 1px solid rgba(174, 142, 218, 0.16) !important;
-  border-radius: 22px !important;
-  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
-  padding: 16px 22px !important;
-  margin: 14px auto !important;
-  box-sizing: border-box !important;
-  width: 100% !important;
-}
-
-/* 思维链折叠卡（标注版：微透幽灵芯片，杜绝卡片内双层玻璃变暗黑块） */
-html.kimino-dream-active [data-kg="thinking"] {
-  background-color: rgba(38, 33, 50, 0.30) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid rgba(174, 142, 218, 0.25) !important;
-  border-radius: 12px !important;
-  padding: 10px 14px !important;
-  margin: 8px 0 !important;
-}
-
-/* Composer：水晶药丸（标注容器 = 爬升到的真实绘制层） */
-html.kimino-dream-active [data-kg="composer"] {
-  border-radius: 22px !important;
-  background-color: rgba(33, 30, 45, 0.72) !important;
-  background-image: linear-gradient(165deg, rgba(75, 62, 84, 0.55), rgba(23, 18, 31, 0.72)) !important;
-  backdrop-filter: blur(22px) saturate(125%) !important;
-  box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.16), inset 0 0 0 1px rgba(200, 175, 230, 0.18), 0 10px 30px rgba(16, 12, 27, 0.15) !important;
-}
-
 /* /usage 配额卡与升级横幅（按内容锚定） */
+html.kimino-dream-active li.x9f619.x1gbzdpk,
 html.kimino-dream-active [data-kg="usage-card"] {
-  background-color: rgba(38, 33, 50, 0.66) !important;
+  background-color: rgba(var(--kg-palette-card-rgb, 38, 33, 50), 0.66) !important;
   backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(174, 142, 218, 0.22) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
 }
 
+html.kimino-dream-active section.x9f619.x1blh4n1,
 html.kimino-dream-active [data-kg="usage-banner"] {
   background-color: rgba(56, 46, 80, 0.75) !important;
   border: 1px solid rgba(174, 142, 218, 0.22) !important;
@@ -432,13 +368,36 @@ html.kimino-dream-active [data-kg="usage-banner"] {
 }
 
 /* 幽灵色块（skin.js 左下角侦探标记）：斩尽杀绝 */
-html.kimino-dream-active [data-kg="ghost"],
-[data-kg="ghost"] {
+html.kimino-dream-active [data-kg="ghost"] {
   background: transparent !important;
   background-color: transparent !important;
   background-image: none !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* Fixed fade paints the exact wallpaper above messages, beneath the composer.
+   Its mask belongs to a sibling layer, never to the chat scroller or glass cards. */
+html.kimino-dream-active [data-kg-fade-host] {
+  isolation: isolate !important;
+}
+#kimino-static-fade {
+  position: fixed !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  background-color: var(--kg-palette-base, #211e2d) !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+}
+#kimino-static-fade > .kimino-fade-wallpaper {
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  background-color: var(--kg-palette-base, #211e2d) !important;
+  background-size: cover !important;
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  transition: opacity 0.6s ease !important;
 }
 
 /* ================================================================
@@ -457,20 +416,17 @@ html.kimino-dream-active :is(input-container, input-area-container, input-area-v
   box-shadow: none !important;
 }
 
-/* Liquid Glass 渐变模糊带：彻底回退清除独立大玻璃板，恢复纯净滚动视口（杜绝大玻璃板遮挡与底部浓雾） */
-#kimino-glass-band { display: none !important; }
-
-html.kimino-dream-active input-area-v2 {
+html.kimino-dream-active input-area-v2,
+html.kimino-dream-active [data-kg="composer"] {
   border-radius: 22px !important;
-  background-color: rgba(33, 30, 45, 0.72) !important;
-  background-image: linear-gradient(165deg, rgba(75, 62, 84, 0.55), rgba(23, 18, 31, 0.72)) !important;
+  background-color: rgba(var(--kg-palette-rgb, 33, 30, 45), 0.72) !important;
+  background-image: linear-gradient(165deg, rgba(var(--kg-palette-glass-rgb, 75, 62, 84), 0.55), rgba(var(--kg-palette-shade-rgb, 23, 18, 31), 0.72)) !important;
   backdrop-filter: blur(22px) saturate(125%) !important;
   box-shadow: inset 0 1px 0 rgba(227, 212, 255, 0.16), inset 0 0 0 1px rgba(200, 175, 230, 0.18), 0 10px 30px rgba(16, 12, 27, 0.15) !important;
 }
 
 /* 核心：输入框除按钮与模型胶囊外的所有内部嵌套容器全部透明化，彻底挖空 #282a2c 实体暗底（严格排除引用卡片） */
 html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  div:not([role="button"]):not(button):not([class*="pill"]):not([class*="chip"]):not([class*="model"]):not([class*="quote" i]):not([class*="citation" i]):not([class*="reply" i]):not([class*="snippet" i]):not([class*="attachment" i]):not([class*="reference" i]),
   fieldset,
   form,
   rich-textarea,
@@ -491,17 +447,8 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
 /* ================================================================
    4.5 引用选中文本与输入框关闭按钮 (X 号)：常态高亮显示，杜绝隐形与仅 hover 可见
    ================================================================ */
-/* 输入框内的引用选中文本卡片：微光毛玻璃卡片 */
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  [class*="quote" i],
-  [class*="quoted" i],
-  [class*="citation" i],
-  [class*="reply" i],
-  [class*="snippet" i],
-  [class*="selection" i],
-  [class*="attachment" i],
-  mat-chip
-) {
+/* One outer quote/attachment surface; nested labels do not become more cards. */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(.quote, .quote-container, .quoted-text, .quoted-text-container, .citation, .citation-container, .reply, .reply-container, .snippet, .snippet-container, .selection, .selection-container, .attachment, .attachment-container, .gem-attachment, mat-chip):not(:is(.quote, .quote-container, .quoted-text, .quoted-text-container, .citation, .citation-container, .reply, .reply-container, .snippet, .snippet-container, .selection, .selection-container, .attachment, .attachment-container, .gem-attachment, mat-chip) *) {
   background-color: rgba(45, 35, 62, 0.78) !important;
   background-image: linear-gradient(135deg, rgba(120, 95, 175, 0.25), rgba(30, 20, 48, 0.70)) !important;
   border: 1px solid rgba(190, 160, 240, 0.35) !important;
@@ -509,6 +456,13 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
   color: #ede6fc !important;
+}
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(.quote, .quote-container, .quoted-text, .quoted-text-container, .citation, .citation-container, .reply, .reply-container, .snippet, .snippet-container, .selection, .selection-container, .attachment, .attachment-container, .gem-attachment, mat-chip) :is(.quote, .quote-container, .quoted-text, .quoted-text-container, .citation, .citation-container, .reply, .reply-container, .snippet, .snippet-container, .selection, .selection-container, .attachment, .attachment-container, .gem-attachment, mat-chip) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* ================================================================
@@ -518,7 +472,7 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
    uploader-file-preview > div.file-preview-container >
    gem-media-attachment.gem-attachment > mat-basic-chip >
    img.gem-attachment-style-img（blob 图）+ span.gem-attachment-content + 关闭钮
-   根因：上方 4.5 的 [class*="attachment" i] 玻璃卡规则命中
+   历史根因：旧版附件子串玻璃规则命中
    img.gem-attachment-style-img 本体（类名含 attachment）与内层容器，
    深底渐变 + backdrop-filter 直接叠画在缩略图上 → 黑块吞图；
    mat-basic-chip 另带原生白底（rgba(255,255,255,.12)）→ 白药丸叠加。
@@ -527,12 +481,12 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
 html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
   uploader-file-preview,
   uploader-file-preview *,
-  [class*="attachment-preview-wrapper" i],
+  .attachment-preview-wrapper,
   gem-media-attachment,
   gem-media-attachment *,
   mat-basic-chip,
   mat-basic-chip *
-):not(button):not([role="button"]):not([class*="close" i]) {
+):not(button):not([role="button"]):not(:is(.close,.close-button,.close-icon,.remove-file-button)) {
   background-color: transparent !important;
   background-image: none !important;
   backdrop-filter: none !important;
@@ -576,6 +530,7 @@ html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-co
    加宽 + 加高（用户反馈 2026-11-05）：原生编辑框仅 484px 宽、随内容收缩成
    33px 细条；拉通到对话列全宽并给足多行编辑高度。 */
 html.kimino-dream-active .edit-form.rich-edit-form {
+  border-radius: 40px !important;
   width: 100% !important;
   max-width: 100% !important;
   min-height: 148px !important;
@@ -654,10 +609,10 @@ html.kimino-dream-active .edit-button-area button.mdc-button::after {
 
 /* 编辑态内的附件缩略图（user-query-file-carousel）同样剥离一切遮罩底 */
 html.kimino-dream-active user-query .edit-mode :is(
-  [class*="file-preview" i],
-  [class*="carousel" i],
-  [class*="attachment" i],
-  [class*="thumbnail" i]
+  .file-preview-container,
+  .carousel,.user-query-file-carousel,
+  .attachment,.attachment-container,.gem-attachment,
+  .thumbnail,.thumbnail-container
 ):not(button):not([role="button"]) {
   background-color: transparent !important;
   background-image: none !important;
@@ -666,129 +621,21 @@ html.kimino-dream-active user-query .edit-mode :is(
   box-shadow: none !important;
 }
 
-/* 引用块及输入框右上角关闭/取消/删除按钮（X 号）：常态常驻高亮显示 (0.88)，hover 升至 100% 并微光放大 */
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  button,
-  [role="button"],
-  mat-icon,
-  svg,
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  [class*="delete" i],
-  [class*="clear" i]
-):is(
-  [aria-label*="close" i],
-  [aria-label*="关闭" i],
-  [aria-label*="删除" i],
-  [aria-label*="remove" i],
-  [aria-label*="dismiss" i],
-  [aria-label*="clear" i],
-  [aria-label*="取消" i],
-  [aria-label*="移除" i],
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  [class*="delete" i],
-  [data-test-id*="close" i],
-  [data-test-id*="dismiss" i],
-  [data-test-id*="remove" i]
-),
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  [class*="quote" i],
-  [class*="quoted" i],
-  [class*="citation" i],
-  [class*="reply" i],
-  [class*="snippet" i],
-  [class*="selection" i],
-  [class*="attachment" i],
-  mat-chip
-) :is(
-  button,
-  [role="button"],
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  mat-icon,
-  svg
-) {
+/* One close-control family; preserve host geometry and focus. */
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(button, [role="button"]):is([aria-label*="close" i], [aria-label*="remove" i], [aria-label*="dismiss" i], [aria-label*="clear" i], [aria-label*="关闭"], [aria-label*="删除"], [aria-label*="取消"], [aria-label*="移除"], .close-button, .remove-button, .remove-file-button, .dismiss-button, .delete-button, .clear-button) {
   opacity: 0.88 !important;
   visibility: visible !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
   color: #ede6fc !important;
-  fill: #ede6fc !important;
-  transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease !important;
 }
-
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  button,
-  [role="button"],
-  mat-icon,
-  svg,
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  [class*="delete" i],
-  [class*="clear" i]
-):is(
-  [aria-label*="close" i],
-  [aria-label*="关闭" i],
-  [aria-label*="删除" i],
-  [aria-label*="remove" i],
-  [aria-label*="dismiss" i],
-  [aria-label*="clear" i],
-  [aria-label*="取消" i],
-  [aria-label*="移除" i],
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  [class*="delete" i],
-  [data-test-id*="close" i],
-  [data-test-id*="dismiss" i],
-  [data-test-id*="remove" i]
-):hover,
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  [class*="quote" i],
-  [class*="quoted" i],
-  [class*="citation" i],
-  [class*="reply" i],
-  [class*="snippet" i],
-  [class*="selection" i],
-  [class*="attachment" i],
-  mat-chip
-) :is(
-  button,
-  [role="button"],
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i],
-  mat-icon,
-  svg
-):hover {
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(button, [role="button"]):is([aria-label*="close" i], [aria-label*="remove" i], [aria-label*="dismiss" i], [aria-label*="clear" i], [aria-label*="关闭"], [aria-label*="删除"], [aria-label*="取消"], [aria-label*="移除"], .close-button, .remove-button, .remove-file-button, .dismiss-button, .delete-button, .clear-button):hover {
   opacity: 1 !important;
   color: #ffffff !important;
-  fill: #ffffff !important;
-  transform: scale(1.12) !important;
 }
-
-/* 递归确保关闭图标所有内部元素 (mat-icon / svg / path) 保持常态高亮可见 */
-html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(
-  [aria-label*="close" i],
-  [aria-label*="关闭" i],
-  [aria-label*="删除" i],
-  [aria-label*="remove" i],
-  [aria-label*="dismiss" i],
-  [aria-label*="clear" i],
-  [class*="close" i],
-  [class*="dismiss" i],
-  [class*="remove" i]
-) :is(mat-icon, svg, path, span, i) {
+html.kimino-dream-active :is(input-area-v2, [data-kg="composer"], .input-area-container, .input-area) :is(button, [role="button"]):is([aria-label*="close" i], [aria-label*="remove" i], [aria-label*="dismiss" i], [aria-label*="clear" i], [aria-label*="关闭"], [aria-label*="删除"], [aria-label*="取消"], [aria-label*="移除"], .close-button, .remove-button, .remove-file-button, .dismiss-button, .delete-button, .clear-button) :is(mat-icon, svg, path, span, i) {
   opacity: 1 !important;
   visibility: visible !important;
-  color: #ede6fc !important;
-  fill: #ede6fc !important;
+  color: inherit !important;
+  fill: currentColor !important;
 }
 
 /* ================================================================
@@ -798,19 +645,19 @@ html.kimino-dream-active :is(
   [role="menu"],
   [role="dialog"],
   [role="listbox"],
-  .mat-menu-panel,
-  pre,
-  code,
-  .code-block,
-  table
-) {
+  .mat-menu-panel
+),
+html.kimino-dream-active :is(pre, code, .code-block, table):not(:is(pre, code, .code-block, table) *) {
   background-color: rgba(24, 20, 36, 0.90) !important;
   border-color: rgba(174, 142, 218, 0.22) !important;
   backdrop-filter: blur(10px) !important;
   box-shadow: 0 8px 28px rgba(21, 16, 31, 0.22) !important;
 }
 
-html.kimino-dream-active pre code {
+html.kimino-dream-active :is(pre, .code-block, table) :is(pre, code, .code-block, table) {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
   background-color: transparent !important;
 }
 
@@ -822,12 +669,12 @@ html.kimino-dream-active .cdk-overlay-backdrop.image-expansion-dialog-backdrop {
   backdrop-filter: blur(18px) saturate(120%) !important;
 }
 
-html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]) {
+html.kimino-dream-active .image-expansion-dialog {
   background-color: transparent !important;
   box-shadow: none !important;
 }
 
-html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]) button {
+html.kimino-dream-active .image-expansion-dialog button {
   background-color: rgba(65, 56, 88, 0.78) !important;
   border: 1px solid rgba(200, 175, 230, 0.35) !important;
   color: #f1edfa !important;
@@ -836,33 +683,19 @@ html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]
   box-shadow: 0 4px 14px rgba(16, 12, 27, 0.45) !important;
 }
 
-html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]) button mat-icon,
-html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]) button .mat-icon,
-html.kimino-dream-active :is(.image-expansion-dialog, [class*="image-expansion"]) button span {
+html.kimino-dream-active .image-expansion-dialog button mat-icon,
+html.kimino-dream-active .image-expansion-dialog button .mat-icon,
+html.kimino-dream-active .image-expansion-dialog button span {
   color: #f1edfa !important;
 }
 
 /* ================================================================
    7. /usage 路由：原子类命名空间定点换肤
    ================================================================ */
-html.kimino-dream-active section.x9f619 {
+html.kimino-dream-active section.x9f619:not([data-kg="usage-banner"]):not(.x1blh4n1) {
   background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;
-}
-
-html.kimino-dream-active li.x9f619.x1gbzdpk {
-  background-color: rgba(38, 33, 50, 0.92) !important;
-  backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(174, 142, 218, 0.22) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 16px rgba(16, 12, 27, 0.18) !important;
-}
-
-html.kimino-dream-active section.x9f619.x1blh4n1 {
-  background-color: rgba(56, 46, 80, 0.75) !important;
-  border: 1px solid rgba(174, 142, 218, 0.22) !important;
-  border-radius: 12px !important;
 }
 
 html.kimino-dream-active .gradient-strip {
@@ -882,26 +715,21 @@ html.kimino-dream-active #kimino-companion-root,
   box-shadow: none !important;
 }
 
-/* ⚠️ 防跳滚：Google 给滚动容器禁用了浏览器滚动锚定（disable-browser-scroll-anchoring），
-   任何布局写入都会造成滚动位置跳动 —— 此处恢复锚定 */
-html.kimino-dream-active infinite-scroller {
-  overflow-anchor: auto !important;
-}
 
 
 /* 彻底清除展开按钮周围原生遮罩、渐变暗底及文本截断蒙层（杜绝图 1 箭头处的黑色矩形渐变） */
 html.kimino-dream-active :is(user-query, model-response) :is(
-  [class*="fade"],
-  [class*="gradient"],
-  [class*="mask"],
-  [class*="overlay"],
-  [class*="truncat"],
-  [class*="clamp"],
-  [class*="collapse"],
-  [class*="collaps"],
-  [class*="show-more"],
-  [class*="read-more"],
-  [class*="see-more"]
+  .fade,.fade-out,.text-fade-out,
+  .top-gradient,.bottom-gradient,.chat-history-gradient,.scroll-gradient,.gradient,.gradient-strip,
+  .text-mask,.fade-mask,
+  .text-overlay,
+  .truncated-text,.text-truncation,
+  .line-clamp,
+  .collapse,.collapsed,.collapse-container,
+  .collapsed,.collapsible,.collapsible-container,
+  .show-more,.show-more-button,
+  .read-more,.read-more-button,
+  .see-more,.see-more-button
 ):not(button):not([role="button"]):not([data-kg-expand-btn="true"]) {
   background: transparent !important;
   background-color: transparent !important;
@@ -911,41 +739,17 @@ html.kimino-dream-active :is(user-query, model-response) :is(
   mask-image: none !important;
 }
 
-/* 消除所有原生渐变伪元素（防止 Blink 渲染缓存导致展开瞬间的原生渐变闪烁） */
-html.kimino-dream-active :is(user-query, model-response, .user-query-bubble-with-background) *::before,
-html.kimino-dream-active :is(user-query, model-response, .user-query-bubble-with-background) *::after {
+/* Native truncation masks only; preserve code/math pseudo-elements. */
+html.kimino-dream-active :is(.luminous-toggle-container, .text-fade-out, .fade-mask)::before,
+html.kimino-dream-active :is(.luminous-toggle-container, .text-fade-out, .fade-mask)::after {
   background: none !important;
-  background-image: none !important;
   box-shadow: none !important;
-  -webkit-mask-image: none !important;
   mask-image: none !important;
+  -webkit-mask-image: none !important;
 }
-
-html.kimino-dream-active :is(
-  [class*="collapse"],
-  [class*="collaps"],
-  [class*="show-more"],
-  [class*="read-more"],
-  [class*="see-more"]
-)::before,
-html.kimino-dream-active :is(
-  [class*="collapse"],
-  [class*="collaps"],
-  [class*="show-more"],
-  [class*="read-more"],
-  [class*="see-more"]
-)::after {
-  background: none !important;
-  background-image: none !important;
-  box-shadow: none !important;
-  display: none !important;
-}
-
 
 /* 对话滚动视口：严禁在祖先滚动容器挂全局 mask-image（Gecko/Firefox 下会创建隔离层破坏子孙气泡的 GPU backdrop-filter 毛玻璃采样；且会受限于 scrollHeight 溢出盒高度）
    平滑毛玻璃渐隐由 skin.js 的 Liquid Glass 引擎按单卡动态注入，完美规避祖先渲染隔离 */
-html.kimino-dream-active infinite-scroller.chat-history,
-html.kimino-dream-active main infinite-scroller,
 html.kimino-dream-active infinite-scroller {
   -webkit-mask-image: none !important;
   mask-image: none !important;
@@ -975,147 +779,71 @@ html.kimino-dream-active .inline-upgrade-banner-btn {
   border-radius: 14px !important;
 }
 
-/* 彻底清除回复卡片内部所有折叠遮罩伪元素与展开按钮脏阴影 */
-html.kimino-dream-active model-response :is(div, span, p, section, message-content, response-container)::after,
-html.kimino-dream-active model-response :is(div, span, p, section, message-content, response-container)::before,
-html.kimino-dream-active model-response::after,
-html.kimino-dream-active model-response::before {
-  background: none !important;
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
-/* removed dangerous expand card wipe */
-
-/* ================================================================
-   星语喵伴 · 展开/收起按钮水晶药丸（主会话区专属，绝不污染侧边栏）
-   ================================================================ */
-/* 明确排除侧边栏，仅作用于主对话区中的展开/收起按钮 */
-html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *),
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) :is(
-  button,
-  [role="button"]
-):is(
-  [class*="expand"],
-  [class*="collapse"],
-  [class*="show-more"],
-  [class*="read-more"]
-):not(bard-sidenav *):not([data-test-id="side-nav"] *) {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 6px !important;
-  border-radius: 18px !important;
+/* Expand/collapse: keep host geometry, layout, focus and motion. Theme colors only.
+   The direct selector and deferred semantic marker deliberately share ONE rule. */
+html.kimino-dream-active :is(user-query, model-response) :is(
+  button.luminous-toggle-button,
+  button.expand-button,
+  button.collapse-button,
+  button.show-more-button,
+  button.read-more-button,
+  button.see-more-button,
+  [data-kg-expand-btn="true"]
+) {
+  color: #ede6fc !important;
   background-color: rgba(55, 42, 78, 0.85) !important;
-  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(45, 32, 68, 0.82)) !important;
-  color: #ede6fc !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  padding: 5px 14px !important;
-  margin: 6px 0 !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(200, 175, 245, 0.45) !important;
-  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
-  cursor: pointer !important;
-  line-height: normal !important;
-  transform: none !important;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
-}
-
-/* 消除 Google MD3 原生按钮内部水波纹与高亮白底 */
-/* 消除 Google MD3 原生按钮内部水波纹与高亮白底、强制子元素背景透明，杜绝白块与怪异阴影 */
-html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__ripple, .mat-mdc-button-touch-target, .mat-ripple, .mat-focus-indicator, .mat-mdc-button-persistent-ripple) {
-  display: none !important;
-}
-html.kimino-dream-active [data-kg-expand-btn="true"] :is(.mdc-button__label, span, div, p) {
-  background: transparent !important;
-  background-color: transparent !important;
   background-image: none !important;
-  color: #ede6fc !important;
-  position: static !important;
-}
-
-/* 纯图标圆纽扣（如用户气泡右下角的独立小向下箭头） */
-html.kimino-dream-active [data-kg-expand-btn="true"][data-kg-icon-only="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *) {
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  max-width: 28px !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* 按钮内文字与图标颜色 */
-html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *) :is(mat-icon, .mat-icon, span, svg, i) {
-  color: #ede6fc !important;
-  fill: #ede6fc !important;
-  font-size: 18px !important;
-  width: 18px !important;
-  height: 18px !important;
-  line-height: 18px !important;
-}
-
-/* 悬停微光星晕（0 坐标位移、0 缩放，彻底杜绝悬停抽搐） */
-html.kimino-dream-active [data-kg-expand-btn="true"]:not(bard-sidenav *):not([data-test-id="side-nav"] *):hover {
-  background-color: rgba(85, 65, 122, 0.95) !important;
-  border-color: rgba(230, 210, 255, 0.80) !important;
-  box-shadow: 0 4px 20px rgba(160, 120, 240, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
-  transform: none !important;
-}
-
-/* ================================================================
-   星语喵伴 · 切换动画禁窗（2026-11-05 延迟根治，配合 skin.js kg-anim）
-   ─────────────────────────────────────────────────────────────
-   实机对照：原生切换 128 帧/最差 69ms；皮肤 77 帧/最差 215ms。
-   大头是 backdrop-filter 在高度动画期间每帧重光栅化。动画禁窗内
-   摘除对话面 blur（0.76 色调保留，肉眼在运动中无感），动画结束恢复。
-   ================================================================ */
-html.kimino-dream-active.kg-anim :is(model-response, .user-query-bubble-with-background, [data-kg="card"], [data-kg="bubble"], response-container, .response-container) {
+  border-color: rgba(200, 175, 245, 0.45) !important;
+  box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  box-shadow: none !important;
-  background-image: none !important;
 }
 
-/* ================================================================
-   星语喵伴 · luminous 长提问折叠钮 CSS 直配（2026-11-05 闪烁根治）
-   ─────────────────────────────────────────────────────────────
-   实机铁证：Gemini 切换收起/展开瞬间会销毁并重建按钮与气泡节点，
-   重建的新节点要等下一轮 annotate 才拿到 data-kg 标注 → ~130ms
-   原生样式裸奔窗口（rAF 采样 t≈285 无标注 / t≈411 恢复）。
-   此规则按类名直配，重建第一帧即为水晶药丸；JS 标注只补内联清理。
-   ================================================================ */
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) button.luminous-toggle-button:not(bard-sidenav *):not([data-test-id="side-nav"] *) {
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  max-width: 28px !important;
-  padding: 0 !important;
-  border-radius: 50% !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background-color: rgba(55, 42, 78, 0.85) !important;
-  background-image: linear-gradient(135deg, rgba(135, 105, 185, 0.40), rgba(45, 32, 68, 0.82)) !important;
-  border: 1px solid rgba(200, 175, 245, 0.45) !important;
-  backdrop-filter: blur(14px) !important;
-  -webkit-backdrop-filter: blur(14px) !important;
-  box-shadow: 0 4px 14px rgba(18, 12, 32, 0.35), inset 0 1px 0 rgba(240, 225, 255, 0.25) !important;
-  color: #ede6fc !important;
-  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
-}
-
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) button.luminous-toggle-button:not(bard-sidenav *):not([data-test-id="side-nav"] *) :is(mat-icon, .mat-icon, svg, span, i) {
-  color: #ede6fc !important;
-  fill: #ede6fc !important;
-}
-
-html.kimino-dream-active :is(model-response, user-query, infinite-scroller) button.luminous-toggle-button:not(bard-sidenav *):not([data-test-id="side-nav"] *):hover {
+html.kimino-dream-active :is(user-query, model-response) :is(
+  button.luminous-toggle-button,
+  button.expand-button,
+  button.collapse-button,
+  button.show-more-button,
+  button.read-more-button,
+  button.see-more-button,
+  [data-kg-expand-btn="true"]
+):hover {
   background-color: rgba(85, 65, 122, 0.95) !important;
   border-color: rgba(230, 210, 255, 0.80) !important;
-  box-shadow: 0 4px 20px rgba(160, 120, 240, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+}
+
+html.kimino-dream-active :is(user-query, model-response) :is(
+  .luminous-toggle-button, [data-kg-expand-btn="true"]
+) :is(mat-icon, .mat-icon, svg) {
+  color: inherit !important;
+  fill: currentColor !important;
+}
+
+/* Native luminous side glow belongs to the control, not the message.
+   Strip it from this small subtree, including left/right gradient pseudo-elements;
+   do not sweep response/query descendants or change the ripple/focus geometry. */
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container,
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container :is(div, span),
+html.kimino-dream-active :is(user-query, model-response) :is(
+  .luminous-toggle-button, [data-kg-expand-btn="true"]
+) :is(div, span) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container::before,
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container::after,
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container *::before,
+html.kimino-dream-active :is(user-query, model-response) .luminous-toggle-container *::after,
+html.kimino-dream-active :is(user-query, model-response) [data-kg-expand-btn="true"]::before,
+html.kimino-dream-active :is(user-query, model-response) [data-kg-expand-btn="true"]::after {
+  background: none !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+/* Native composer shells only: preserve chips, attachments and quote content. */
+html.kimino-dream-active input-area-v2 :is(.input-area-container, .input-area, .text-input-field_textarea-inner, .ql-container) {
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
 }

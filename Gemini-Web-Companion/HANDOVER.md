@@ -1,3 +1,5 @@
+> 历史版本交接记录：当前 1.4.3 的唯一源码、固定渐隐、已退役 RPC 和测试说明以项目根 HANDOFF.md 为准。下方旧 RPC/副本同步/逐卡渐隐描述不再作为当前实现指引。
+
 # 🐾 Gemini Web Companion · 网页端扩展分支交接文档 (Branch: `feat/browser-extension`)
 > **项目定位**：Google Gemini 官方网页端专属桌宠挂件（基米乃）与毛玻璃 Dream Skin 扩展（Firefox / Edge / Chrome）  
 > **适用受众**：接手 `feat/browser-extension` 分支的马仔 / 协同 Agent / 开发者  

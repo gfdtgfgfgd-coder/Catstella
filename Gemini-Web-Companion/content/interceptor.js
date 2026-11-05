@@ -1,224 +1,74 @@
-// 星语喵伴 · Page Context Network Interceptor (MAIN world + document_start 版)
-// 注册方式见 manifest.json content_scripts[0]：world=MAIN, run_at=document_start。
-// 关键设计：本脚本先于页面所有脚本执行，因此在 Angular 等框架捕获 window.fetch
-// 引用【之前】就完成了 monkey-patch —— 页面后续发出的所有 batchexecute（包括
-// 承载官方双周期额度数据的 MaZiqc RPC）都会被完整捕获请求体与响应体。
-//
-// 若引擎不支持 MAIN world（旧版 Firefox），本脚本会降级为 isolated world 补丁
-// （对页面无效但无害），此时 inject-bridge.js 仍会尝试脚本注入兜底。
+// Passive stream lifecycle only. Quotas come from /usage; no RPC replay, request
+// body cache, response snippets, chat-list parsing, or cross-world content payloads.
 (() => {
-  if (window.__KIMINO_INTERCEPTOR_INSTALLED__) return;
-  window.__KIMINO_INTERCEPTOR_INSTALLED__ = true;
-
   const notify = (type, data = {}) => {
-    try {
-      window.postMessage({
-        source: 'KIMINO_INTERCEPTOR',
-        type,
-        data,
-        timestamp: Date.now()
-      }, '*');
-    } catch (e) { /* 页面策略异常时静默 */ }
+    try { window.postMessage({ source: 'KIMINO_INTERCEPTOR', type, data, timestamp: Date.now() }, '*'); } catch {}
   };
-
-  // ===== 0. 保留原始引用（重放专用，Angular 抢不走）=====
-  let originalFetch = null;
-  try { originalFetch = window.fetch; } catch (e) {}
-
-  // MaZiqc 额度 RPC 的会话级缓存（f.req 请求体 + URL 参数模板）
-  const quotaRpc = {
-    reqBody: null,     // f.req=...&at=... 原始 POST 表单体
-    urlTemplate: null, // path + 固定 query（bl / f.sid / hl 等）
-    capturedAt: 0
-  };
-
-  const ESC_QUOTA_MARKERS = ['\\u5df2\\u4f7f\\u7528', '\\u91cd\\u7f6e\\u65f6\\u95f4', '\\u6bcf\\u5468\\u9650\\u989d'];
-
-  const rpcNameOf = (url) => {
-    const m = String(url).match(/rpcids=([A-Za-z0-9_%]+)/);
-    return m ? m[1] : '';
-  };
-
-  // ===== 1. 劫持 window.fetch（document_start 时机 = 必然先于 Angular）=====
+  const ready = () => notify('INTERCEPTOR_READY', { world: 'main' });
+  if (window.__KIMINO_INTERCEPTOR_INSTALLED__) { ready(); return; }
+  window.__KIMINO_INTERCEPTOR_INSTALLED__ = true;
+  const isStream = url => /StreamGenerate|assistant\.lamda\.BardFrontendService/.test(String(url)) && !String(url).includes('batchexecute');
   try {
+    const originalFetch = window.fetch;
     window.fetch = async function (...args) {
-      const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-      const isGeminiRpc = url.includes('/_/BardChatUi/') ||
-                          url.includes('batchexecute') ||
-                          url.includes('assistant.lamda.BardFrontendService') ||
-                          url.includes('StreamGenerate');
-
-      if (!isGeminiRpc) {
-        return originalFetch.apply(this, args);
-      }
-
-      let promptLength = 0;
-      try {
-        if (args[1] && args[1].body) {
-          const bodyStr = typeof args[1].body === 'string' ? args[1].body : '';
-          promptLength = bodyStr.length;
-        }
-      } catch (e) {}
-
-      notify('STREAM_START', { url, promptLength });
-      const startTime = Date.now();
-
+      const input = args[0];
+      const url = typeof input === 'string' ? input : (input?.url || input?.href || '');
+      if (!isStream(url)) return originalFetch.apply(this, args);
+      notify('STREAM_START');
+      const start = Date.now();
       try {
         const response = await originalFetch.apply(this, args);
-
-        if (response.status === 429) {
-          notify('RATE_LIMIT_HIT', { status: 429, message: 'Too Many Requests (429)' });
-        } else if (response.status >= 400 && response.status < 500) {
-          notify('CLIENT_ERROR', { status: response.status });
+        if (response.status === 429) notify('RATE_LIMIT_HIT', { status: 429 });
+        if (!response.ok || !response.body) {
+          notify('STREAM_COMPLETE', { totalBytes: 0, duration: Date.now() - start });
+          return response;
         }
-
-        // --- 额度 RPC 被动捕获：请求体 + 响应体 ---
-        const reqBodyCandidate = args[1] && typeof args[1].body === 'string' ? args[1].body : '';
-        const isQuotaReq = url.includes('MaZiqc') || reqBodyCandidate.includes('MaZiqc') || reqBodyCandidate.includes('%22MaZiqc%22');
-        if (response.status === 200 && isQuotaReq) {
+        // Drain a clone asynchronously, without delaying the host response.
+        void (async () => {
+          let reader, bytes = 0, tail = '', limited = false;
+          const decoder = new TextDecoder();
           try {
-            const clone = response.clone();
-            clone.text().then((text) => {
-              if (text.includes('"MaZiqc"')) {
-                if (reqBodyCandidate && !quotaRpc.reqBody) {
-                  quotaRpc.reqBody = reqBodyCandidate;
-                  quotaRpc.urlTemplate = String(url).split('?')[0] + '?' + (String(url).split('?')[1] || '')
-                    .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
-                  quotaRpc.capturedAt = Date.now();
-                }
-                notify('QUOTA_RPC_RAW', {
-                  rpc: 'MaZiqc',
-                  responseText: text.slice(0, 60000),
-                  capturedReqBody: quotaRpc.reqBody ? true : false,
-                  source: 'boot'
-                });
+            reader = response.clone().body.getReader();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              bytes += value?.byteLength || 0;
+              const chunk = tail + decoder.decode(value, { stream: true });
+              if (!limited && chunk.includes('RESOURCE_EXHAUSTED')) {
+                limited = true;
+                notify('RATE_LIMIT_HIT', { status: 429 });
               }
-            }).catch(() => {});
-          } catch (e) {}
-        } else if (response.status === 200 && response.body && !url.includes('batchexecute')) {
-          // 仅对非 batchexecute 的流式请求做 RESOURCE_EXHAUSTED 扫描，异步 pump 绝不阻塞 fetch 返回
-          try {
-            const clone = response.clone();
-            const reader = clone.body.getReader();
-            let totalBytes = 0;
-            let fullTextSample = '';
-            const pump = () => {
-              reader.read().then(({ done, value }) => {
-                if (done) {
-                  const duration = Date.now() - startTime;
-                  notify('STREAM_COMPLETE', { totalBytes, duration, sampleSnippet: fullTextSample.slice(0, 300) });
-                  return;
-                }
-                totalBytes += value ? value.length : 0;
-                if (fullTextSample.length < 500 && value) {
-                  try {
-                    const chunkStr = new TextDecoder().decode(value);
-                    fullTextSample += chunkStr;
-                    if (chunkStr.includes('RESOURCE_EXHAUSTED') ||
-                        chunkStr.includes('quota') ||
-                        chunkStr.includes('limit reached')) {
-                      notify('RATE_LIMIT_HIT', { status: 429, message: 'Resource Exhausted in stream' });
-                    }
-                  } catch (e) {}
-                }
-                pump();
-              }).catch(() => {});
-            };
-            pump();
-          } catch (e) {}
-        } else {
-          notify('STREAM_COMPLETE', { totalBytes: 0, duration: Date.now() - startTime, sampleSnippet: '' });
-        }
-
+              tail = chunk.slice(-32); // Boundary detection only; never emitted or stored.
+            }
+            notify('STREAM_COMPLETE', { totalBytes: bytes, duration: Date.now() - start });
+          } catch { notify('STREAM_ERROR'); }
+          finally { reader?.releaseLock(); }
+        })();
         return response;
-      } catch (err) {
-        notify('STREAM_ERROR', { error: err && err.message });
-        throw err;
-      }
+      } catch (error) { notify('STREAM_ERROR'); throw error; }
     };
-  } catch (e) {
-    // 劫持 fetch 失败：嗅探降级，但绝不抛出到页面
-  }
-
+  } catch { /* Optional; DOM completion detection remains available. */ }
   try {
-    // ===== 2. 劫持 XMLHttpRequest（仅监听）=====
-    const originalOpen = XMLHttpRequest.prototype.open;
-    const originalSend = XMLHttpRequest.prototype.send;
-
+    const urls = new WeakMap();
+    const originalOpen = XMLHttpRequest.prototype.open, originalSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-      try { this._kiminoUrl = url; } catch (e) {}
+      urls.set(this, String(url));
       return originalOpen.call(this, method, url, ...rest);
     };
-
-    XMLHttpRequest.prototype.send = function (body) {
-      try {
-        const u = String(this._kiminoUrl || '');
-        if (u.includes('/_/BardChatUi/') || u.includes('batchexecute')) {
-          this.addEventListener('load', () => {
-            if (this.status === 429) {
-              notify('RATE_LIMIT_HIT', { status: 429, message: 'XHR 429' });
-            }
-            const isXhrQuota = u.includes('MaZiqc') || (typeof body === 'string' && (body.includes('MaZiqc') || body.includes('%22MaZiqc%22')));
-            if (this.status === 200) {
-              try {
-                const text = this.responseType === 'json' ? JSON.stringify(this.response) : String(this.responseText || '');
-                if (text.includes('"MaZiqc"') || isXhrQuota) {
-                  if (typeof body === 'string' && !quotaRpc.reqBody) {
-                    quotaRpc.reqBody = body;
-                    quotaRpc.urlTemplate = u.split('?')[0] + '?' + (u.split('?')[1] || '')
-                      .split('&').filter((kv) => kv.startsWith('_reqid=') === false).join('&');
-                    quotaRpc.capturedAt = Date.now();
-                  }
-                  notify('QUOTA_RPC_RAW', {
-                    rpc: 'MaZiqc',
-                    responseText: text.slice(0, 60000),
-                    capturedReqBody: quotaRpc.reqBody ? true : false,
-                    source: 'boot-xhr'
-                  });
-                }
-              } catch (e) {}
-            }
-          });
-        }
-      } catch (e) {}
-      return originalSend.call(this, body);
-    };
-  } catch (e) {
-    // 劫持 XHR 失败：同样只影响嗅探
-  }
-
-  // ===== 3. 静默重放服务：tracker 随时可请求重放 MaZiqc 刷新额度（零 UI）=====
-  window.addEventListener('message', (event) => {
-    try {
-      if (event.data && event.data.source === 'KIMINO_TRACKER' && event.data.type === 'QUOTA_RPC_REPLAY') {
-        if (!quotaRpc.reqBody || !originalFetch) {
-          notify('QUOTA_RPC_RAW', { rpc: 'MaZiqc', responseText: '', error: 'no-captured-req', source: 'replay' });
-          return;
-        }
-        const freshUrl = (quotaRpc.urlTemplate || '').replace(/_reqid=\d+/, '_reqid=' + Math.floor(Math.random() * 900000 + 100000));
-        originalFetch(freshUrl, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body: quotaRpc.reqBody
-        }).then(async (res) => {
-          const text = await res.text();
-          notify('QUOTA_RPC_RAW', {
-            rpc: 'MaZiqc',
-            responseText: text.slice(0, 60000),
-            status: res.status,
-            source: 'replay'
-          });
-        }).catch((err) => {
-          notify('QUOTA_RPC_RAW', { rpc: 'MaZiqc', responseText: '', error: String(err && err.message), source: 'replay' });
-        });
+    XMLHttpRequest.prototype.send = function (...args) {
+      if (isStream(urls.get(this) || '')) {
+        notify('STREAM_START');
+        this.addEventListener('loadend', () => {
+          if (this.status === 429) notify('RATE_LIMIT_HIT', { status: 429 });
+          notify(this.status === 0 ? 'STREAM_ERROR' : 'STREAM_COMPLETE');
+        }, { once: true });
       }
-    } catch (e) {}
+      return originalSend.apply(this, args);
+    };
+  } catch { /* XHR observation is optional too. */ }
+  window.addEventListener('message', event => {
+    if (event.source === window && event.data?.source === 'KIMINO_BRIDGE' && event.data.type === 'INTERCEPTOR_PING') ready();
   });
-
-  // ===== 4. 向 Content Script 汇报安装成功（inject-bridge 握手）=====
   window.__KIMINO_INTERCEPTOR_READY_AT__ = Date.now();
-  notify('INTERCEPTOR_READY', { engine: navigator.userAgent || '', world: 'main' });
-
-  console.log('[星语喵伴] 网络嗅探器(MAIN world·document_start)初始化完毕，额度RPC捕获已就位喵～🐾');
+  ready();
 })();

@@ -1,4 +1,4 @@
-// 星语喵伴 · 跨浏览器兼容垫片 (browser.* / chrome.* 双命名空间 + Promise 安全封装)
+// Catstella · 跨浏览器兼容垫片 (browser.* / chrome.* 双命名空间 + Promise 安全封装)
 // 设计目标：任何 storage / runtime 调用都绝不抛出未捕获的 Promise rejection，
 // 保证 Gecko (Firefox / Zen) 上后续 tracker / skin / widget 的初始化永不静默中断。
 (() => {
@@ -28,27 +28,23 @@
     getURL(path) {
       try { return api.runtime.getURL(path); } catch (e) { return path; }
     },
-    // 永不 reject 的 storage.local.get —— 回调式 / Promise 式引擎通吃
     storageGet(keys) {
-      return new Promise((resolve) => {
-        if (!api || !api.storage || !api.storage.local) { resolve({}); return; }
+      if (!api?.storage?.local) return Promise.resolve({});
+      return new Promise(resolve => {
         try {
-          const outcome = api.storage.local.get(keys);
-          if (outcome && typeof outcome.then === 'function') {
-            outcome.then((res) => resolve(res || {})).catch(() => resolve({}));
-          } else {
-            resolve(outcome || {});
-          }
-        } catch (e) { resolve({}); }
+          if (isGecko) Promise.resolve(api.storage.local.get(keys)).then(value => resolve(value || {}), () => resolve({}));
+          else api.storage.local.get(keys, value => { void api.runtime.lastError; resolve(value || {}); });
+        } catch { resolve({}); }
       });
     },
-    // 永不抛错、永不产生 unhandled rejection 的 storage.local.set
-    storageSet(obj) {
-      if (!api || !api.storage || !api.storage.local) return;
-      try {
-        const outcome = api.storage.local.set(obj);
-        if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
-      } catch (e) { /* 引擎差异，静默吞掉 */ }
+    storageSet(value) {
+      if (!api?.storage?.local) return Promise.resolve(false);
+      return new Promise(resolve => {
+        try {
+          if (isGecko) Promise.resolve(api.storage.local.set(value)).then(() => resolve(true), () => resolve(false));
+          else api.storage.local.set(value, () => resolve(!api.runtime.lastError));
+        } catch { resolve(false); }
+      });
     },
     onChanged(listener) {
       if (!api || !api.storage || !api.storage.onChanged) return;
@@ -89,13 +85,5 @@
 
   window.KIMINO_API = KIMINO_API;
 
-  // 全局防御：吞掉扩展脚本产生的未处理 Promise rejection（Firefox 上会阻断初始化链），
-  // 仅记录告警不 preventDefault，页面自身错误依旧原样上报。
-  window.addEventListener('unhandledrejection', (event) => {
-    try {
-      console.warn('[星语喵伴] 已拦截未处理的 Promise rejection:', event.reason);
-    } catch (e) {}
-  });
-
-  console.log(`[星语喵伴] 兼容垫片就绪 (engine: ${KIMINO_API.isGecko ? 'Gecko' : 'Chromium'}, api: ${KIMINO_API.available ? 'ok' : 'missing'}) 喵～`);
+  console.log(`[Catstella] 兼容垫片就绪 (engine: ${KIMINO_API.isGecko ? 'Gecko' : 'Chromium'}, api: ${KIMINO_API.available ? 'ok' : 'missing'}) 喵～`);
 })();

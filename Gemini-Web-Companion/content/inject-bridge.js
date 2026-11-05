@@ -20,7 +20,7 @@
 
   let handshake = false;
   window.addEventListener('message', (event) => {
-    if (event.data && event.data.source === 'KIMINO_INTERCEPTOR' && event.data.type === 'INTERCEPTOR_READY') {
+    if (event.source === window && event.data && event.data.source === 'KIMINO_INTERCEPTOR' && event.data.type === 'INTERCEPTOR_READY') {
       handshake = true;
       state.status = 'active';
     }
@@ -75,9 +75,10 @@
     if (!handshake) degrade('handshake-timeout');
   }, HANDSHAKE_TIMEOUT_MS);
 
+  window.postMessage({ source: 'KIMINO_BRIDGE', type: 'INTERCEPTOR_PING' }, '*');
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', tryInject, { once: true });
   } else {
-    tryInject();
+    setTimeout(tryInject, 0);
   }
 })();

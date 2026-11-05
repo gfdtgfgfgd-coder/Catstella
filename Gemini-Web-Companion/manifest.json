@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "星语喵伴 · Gemini Web Companion",
-  "version": "1.4.0",
-  "description": "Gemini 网页端专属基米乃桌宠挂件与星语毛玻璃主题 (Dream Skin)。支持与 Antigravity 桌面套件双端联动、官方用量双周期同步与跨浏览器兼容。",
+  "name": "Catstella · Gemini Web Companion",
+  "version": "1.5.0",
+  "description": "Gemini 网页端专属桌宠挂件与星语毛玻璃主题 (Dream Skin)。支持与 Catstella 桌面套件双端联动、官方用量双周期同步与跨浏览器兼容。",
   "icons": {
     "16": "assets/icons/icon-16.png",
     "48": "assets/icons/icon-48.png",
@@ -13,7 +13,9 @@
   ],
   "host_permissions": [
     "*://gemini.google.com/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "https://api.github.com/*",
+    "https://raw.githubusercontent.com/*"
   ],
   "browser_specific_settings": {
     "gecko": {
@@ -25,7 +27,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "星语喵伴设置 / Companion Settings",
+    "default_title": "Catstella · 设置 / Settings",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "assets/icons/icon-16.png",
@@ -53,7 +55,11 @@
         "content/shim.js",
         "content/inject-bridge.js",
         "content/tracker.js",
+        "content/wallpaper.js",
+        "content/fade.js",
         "content/skin.js",
+        "content/ambient.js",
+        "content/pet-behavior.js",
         "content/widget.js"
       ],
       "css": [

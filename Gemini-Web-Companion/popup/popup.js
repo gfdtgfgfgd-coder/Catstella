@@ -1,4 +1,4 @@
-// 星语喵伴 · Popup Logic (支持 AGY 双端同步控制)
+// Catstella · Popup Logic (支持 AGY 双端同步控制)
 document.addEventListener('DOMContentLoaded', async () => {
   const api = (typeof browser !== 'undefined' && browser && browser.runtime && browser.runtime.id)
     ? browser

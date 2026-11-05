@@ -1,4 +1,4 @@
-// 星语喵伴 · Quota & Token Sniffer (支持 Google 原生用量限额双周期同步)
+// Catstella · Quota & Token Sniffer (支持 Google 原生用量限额双周期同步)
 // v1.2.1 变更：
 //  1. 接入 KIMINO_API 兼容垫片，杜绝 Firefox 上未捕获的 Promise rejection；
 //  2. 新增“输入框上方常驻提示条”实时嗅探 (方案 A)：
@@ -6,6 +6,7 @@
 //     无需用户手动打开用量弹窗即可动态更新重置时间与限流状态；
 //  3. MutationObserver 回调全面节流 + 廉价扫描，消除高频 innerText 布局抖动。
 (() => {
+  if (window.__KIMINO_TRACKER__) return;
   class KiminoTracker {
     constructor() {
       this.listeners = new Set();
@@ -49,8 +50,6 @@
       this._lastDialogScan = 0;
       this._lastMetricsScan = 0;
       this._scrapeTimer = null;
-      this._lastReplayAt = 0;
-      this._loggedRawOnce = false;
       this._lastLedgerAt = 0;   // 用量账本刷新节流
       this._ledgerInFlight = false;
 
@@ -74,7 +73,7 @@
       this.initTurnDomWatcher();
       this.initUrlListener();
       this.startCountdownTimer();
-      this.startQuotaRpcRefreshLoop();
+      this.startQuotaRefreshLoop();
       // 页面载入即刻强制拉取一次最新官方账本（零延迟，杜绝旧缓存）
       this.refreshUsageLedger('page-load', true);
       this.startUsagePageScraper();
@@ -88,7 +87,7 @@
           this.sessionData.realQuota = { ...cur, ...incoming };
           if (incoming.resetTimestamp) this.sessionData.resetTimestamp = incoming.resetTimestamp;
           this.notify();
-          console.log('[星语喵伴] 已并入其他页面的额度账本更新:', incoming.currentUsagePercent ?? '?', '%');
+          console.log('[Catstella] 已并入其他页面的额度账本更新:', incoming.currentUsagePercent ?? '?', '%');
         });
       } catch (e) {}
       // 启动后先立刻嗅探一轮，避免冷启动空白
@@ -119,9 +118,7 @@
       this.sessionData.thinkingTokensEst = Math.round(this.sessionData.thinkingChars * 0.7);
       this.sessionData.totalTokensEst = this.sessionData.promptTokensEst + this.sessionData.outputTokensEst + this.sessionData.thinkingTokensEst;
 
-      // 额度显示语义（v1.3.7）：官方 MaZiqc 数据权威，但 5h 窗口初期官方恒为 0%
-      // （四舍五入滞后），会话估算更能实时反映消耗 —— 取两者较大值驱动用量条，
-      // 并记录 displaySource 供挂件标注来源；官方重置时间始终照常显示。
+      // Official percentages take precedence; estimates are only a fallback.
       const official = this.sessionData.realQuota.currentUsagePercent;
       const turnRatio = this.sessionData.turns / Math.max(1, this.config.argonMaxSafeTurns);
       const tokenRatio = this.sessionData.totalTokensEst / Math.max(1, this.config.argonMaxSafeTokens);
@@ -152,8 +149,9 @@
     initNetworkListener() {
       window.addEventListener('message', (event) => {
         try {
+          if (event.source !== window) return;
           if (event.data?.source !== 'KIMINO_INTERCEPTOR') return;
-          const { type, data } = event.data;
+          const { type } = event.data;
 
           if (type === 'STREAM_START') {
             this.sessionData.status = 'thinking';
@@ -163,65 +161,16 @@
             this.sessionData.status = 'idle';
             this.sessionData.lastActiveTime = Date.now();
             this.scheduleScrape(true);
-            // 每轮对话结束后刷新官方用量账本（60s 内部节流）+ RPC 重放兜底
+            // Stream completion refreshes the official SSR ledger (throttled).
             this.refreshUsageLedger('after-turn');
-            this.requestQuotaRpcRefresh('after-turn');
           } else if (type === 'RATE_LIMIT_HIT') {
             this.triggerRateLimit('网络返回 429 配额用尽');
-          } else if (type === 'QUOTA_SNIFFED') {
-            this.updateRealQuota(data);
-          } else if (type === 'QUOTA_RPC_RAW') {
-            this.handleQuotaRpcRaw(data);
+          } else if (type === 'STREAM_ERROR') {
+            this.sessionData.status = 'idle';
+            this.notify();
           }
         } catch (e) {}
       });
-    }
-
-    // ============ MaZiqc RPC 数据管线（零 UI 实时额度） ============
-    // interceptor.js (MAIN world, document_start) 在每次应用启动时被动捕获
-    // MaZiqc（官方双周期额度 RPC），并可按需静默重放 —— 无需打开任何界面。
-    handleQuotaRpcRaw(data = {}) {
-      try {
-        if (data.error) {
-          console.warn('[星语喵伴] 额度RPC重放失败:', data.error, '(将依赖 DOM 嗅探兜底)');
-          return;
-        }
-        const text = data.responseText || '';
-        if (!text) return;
-        const parsed = this.parseMaZiqcResponse(text);
-        if (!parsed) {
-          if (!this._loggedRawOnce) {
-            this._loggedRawOnce = true;
-            console.log('[星语喵伴] MaZiqc 原始负载（供解析器调优）:', text.slice(0, 2000));
-          }
-          return;
-        }
-        if (this._lastQuotaSource !== 'rpc') this._loggedRawOnce = true;
-        this._lastQuotaSource = 'rpc';
-
-        let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
-        let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-        if (parsed.currentReset) {
-          const loc = this.toLocalResetTime(parsed.currentReset);
-          if (loc) {
-            curReset = loc.display;
-            this.sessionData.resetTimestamp = loc.epoch;
-          }
-        }
-        if (parsed.weeklyReset) {
-          const locW = this.toLocalResetTime(parsed.weeklyReset);
-          if (locW) weekReset = locW.display;
-        }
-
-        this.updateRealQuota({
-          currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
-          currentResetTime: curReset,
-          weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-          weeklyResetTime: weekReset,
-          resetSource: 'rpc-' + (data.source || 'boot'),
-          isReal: true
-        });
-      } catch (e) {}
     }
 
     // 字符串转本地重置对象 { epoch, date, display, isUtcCorrected }
@@ -249,136 +198,6 @@
       return null;
     }
 
-    // "06:37" / "6:37 下午" / "11月3日23:37" → 本地 epoch（智能时区换算 + 过期自动顺延）
-    resetTextToEpoch(s) {
-      const res = this.toLocalResetTime(s);
-      return res ? res.epoch : null;
-    }
-
-    // batchexecute 响应 → 双周期额度（锚点式自适应解析，不依赖字段名与顺序）
-    parseMaZiqcResponse(text) {
-      try {
-        // 标准行: [["wrb.fr","MaZiqc","<内部JSON字符串>",null,"generic"]]
-        const anchor = text.indexOf('"MaZiqc"');
-        if (anchor === -1) return null;
-        let i = text.indexOf('"', anchor + 8);
-        if (i === -1) return null;
-        let decoded = '';
-        let ok = false;
-        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
-          const { value, next } = this.scanJsonString(text, i);
-          if (value && value.length > 2) {
-            try {
-              const inner = JSON.parse(value);
-              decoded = typeof inner === 'string' ? inner : JSON.stringify(inner);
-              ok = true;
-            } catch (e) { i = next; }
-          } else {
-            i = next;
-          }
-        }
-        if (!ok || !decoded) return null;
-
-        let obj;
-        try { obj = JSON.parse(decoded); } catch (e) { return null; }
-
-        // ---- 锚点式分组：找"同时含 0-100 整数 与 时间串"的最小对象节点 ----
-        // 当前周期重置 = 纯时钟 ("06:37")；每周限额重置 = 带日期 ("11月3日23:37")
-        const groups = [];
-        const isTimeStr = (s) => /^\d{1,2}:\d{2}(:\d{2})?$/.test(s) ||
-          /^\d{1,2}:\d{2}\s*(上午|下午|AM|PM)?$/i.test(s) || /\d{1,2}月\d{1,2}日/.test(s);
-        const collect = (node) => {
-          if (!node || typeof node !== 'object') return { nums: [], times: [] };
-          const nums = [];
-          const times = [];
-          const childResults = [];
-          for (const key of Object.keys(node)) {
-            const v = node[key];
-            if (typeof v === 'number') {
-              if (Number.isFinite(v) && v >= 0 && v <= 100 && Number.isInteger(v)) nums.push(v);
-            } else if (typeof v === 'string') {
-              const s = v.trim();
-              if (s && s.length <= 32 && isTimeStr(s)) times.push(s);
-            } else if (v && typeof v === 'object') {
-              childResults.push(collect(v));
-            }
-          }
-          // 汇总子树，但保留本层分组信息供"最小分组"筛选
-          const merged = {
-            nums: [...nums],
-            times: [...times],
-            selfNums: nums,
-            selfTimes: times
-          };
-          for (const cr of childResults) {
-            merged.nums.push(...cr.nums);
-            merged.times.push(...cr.times);
-          }
-          merged.hasBoth = merged.nums.length > 0 && merged.times.length > 0;
-          merged.childHasBoth = childResults.some((cr) => cr.hasBoth);
-          groups.push(merged);
-          return merged;
-        };
-        collect(obj);
-
-        // 取"最小命中分组"（自身同时含数字+时间，且子树无更小命中）
-        const minimal = groups.filter((g) => g.hasBoth && !g.childHasBoth && g.selfNums.length > 0 && g.selfTimes.length > 0);
-
-        let currentPct = null;
-        let weeklyPct = null;
-        let currentReset = '';
-        let weeklyReset = '';
-        for (const g of minimal) {
-          const weekly = g.selfTimes.some((t) => /\d{1,2}月\d{1,2}日/.test(t));
-          const pct = g.selfNums.find((n) => n <= 100);
-          const time = g.selfTimes[0];
-          if (weekly) {
-            if (weeklyPct === null) { weeklyPct = pct; weeklyReset = time; }
-          } else if (currentPct === null) {
-            currentPct = pct; currentReset = time;
-          }
-        }
-
-        // 兜底：没有成组命中时退回扁平顺序映射
-        if (currentPct === null && weeklyPct === null) {
-          const allNums = [];
-          const allTimes = [];
-          (function flat(n) {
-            if (!n || typeof n !== 'object') return;
-            for (const v of Object.values(n)) {
-              if (typeof v === 'number') { if (v >= 0 && v <= 100 && Number.isInteger(v)) allNums.push(v); }
-              else if (typeof v === 'string') { const s = v.trim(); if (s && s.length <= 32 && isTimeStr(s)) allTimes.push(s); }
-              else flat(v);
-            }
-          })(obj);
-          currentPct = allNums.length > 0 ? allNums[0] : null;
-          weeklyPct = allNums.length > 1 ? allNums[1] : null;
-          currentReset = allTimes.length > 0 ? allTimes[0] : '';
-          weeklyReset = allTimes.length > 1 ? allTimes[1] : '';
-        }
-
-        if (currentPct === null && weeklyPct === null && !currentReset && !weeklyReset) return null;
-        return { currentPct, weeklyPct, currentReset, weeklyReset };
-      } catch (e) {
-        return null;
-      }
-    }
-
-    // 从 text 的 startIdx 处扫描一个完整 JSON 字符串字面量（含转义），返回解码前的原文
-    scanJsonString(text, startIdx) {
-      if (text[startIdx] !== '"') return { value: '', next: startIdx + 1 };
-      let i = startIdx + 1;
-      while (i < text.length) {
-        const ch = text[i];
-        if (ch === '\\') { i += 2; continue; }
-        if (ch === '"') { i += 1; break; }
-        i += 1;
-      }
-      return { value: text.slice(startIdx, i), next: i };
-    }
-
-    // 请求 interceptor 静默重放 MaZiqc（60s 最小间隔，手动可强制，绝不打开任何界面）
-    
     // ============ 官方用量账本抓取 (v1.3.9 根治方案) ============
     // 实机破案：/usage 的额度数据【不在任何运行期 RPC】，而是服务端渲染的流式
     // JSON 块 —— HTML 里 <script type="application/json"> 中 id="usage:0" 的
@@ -387,16 +206,16 @@
     //   {poolType:"GXU_WEEKLY",...}]}}}},...}]。
     // 直接 fetch('/usage')（同源带 cookie、no-store）解析即可：零 UI、零导航、
     // 无跨域限制 —— 取代会被同源嵌入策略拦截的 iframe 探针。
-    async refreshUsageLedger(reason, force) {
+    async refreshUsageLedger(reason = 'manual', force = false) {
       const now = Date.now();
-      // 节流：回合后 20s、其余 60s；被节流时不丢弃——安排一次延后补刷
+      // Keep one deferred refresh, retaining the original trigger priority.
       const minGap = reason.startsWith('after-turn') ? 3500 : (reason === 'boot' || reason === 'page-load' ? 0 : 30000);
       if (!force && now - (this._lastLedgerAt || 0) < minGap) {
         if (!this._ledgerPendingTimer) {
           const wait = Math.max(3000, minGap - (now - (this._lastLedgerAt || 0)));
           this._ledgerPendingTimer = setTimeout(() => {
             this._ledgerPendingTimer = null;
-            this.refreshUsageLedger('pending', false);
+            this.refreshUsageLedger(reason, false);
           }, wait);
         }
         return;
@@ -423,7 +242,7 @@
             this.applyUsageLedger(info, reason);
             this._lastLedgerAt = Date.now(); // 成功才计入节流
             this._ledgerFailCount = 0;
-            console.log('[星语喵伴] 用量账本刷新成功 (' + reason + '): 5h ' +
+            console.log('[Catstella] 用量账本刷新成功 (' + reason + '): 5h ' +
               (this.sessionData.realQuota.currentUsagePercent ?? '?') + '% | 周 ' +
               (this.sessionData.realQuota.weeklyUsagePercent ?? '?') + '%');
             return;
@@ -434,7 +253,7 @@
         // 全部失败：30s 后允许重试（不按 60s 节流惩罚）
         this._lastLedgerAt = Date.now() - 30000;
         this._ledgerFailCount = (this._ledgerFailCount || 0) + 1;
-        console.warn('[星语喵伴] 用量账本抓取失败（已重试 3 次）:', lastErr && lastErr.message,
+        console.warn('[Catstella] 用量账本抓取失败（已重试 3 次）:', lastErr && lastErr.message,
           '| 连败', this._ledgerFailCount, '次');
         // 连续 2 轮失败 → 请求后台开隐藏 /usage 标签页兜底（页面 DOM 抓取链路）
         if (this._ledgerFailCount >= 2) {
@@ -557,7 +376,7 @@
         subscriptionTier: info.tier || '',
         isReal: true
       });
-      console.log('[星语喵伴] 用量账本已刷新 (' + reason + '): 5h ' +
+      console.log('[Catstella] 用量账本已刷新 (' + reason + '): 5h ' +
         (fivePct !== null ? fivePct + '%' : '?') + ' @ ' + (fiveMs ? this.formatClockLocal(fiveMs) : '?') +
         ' | 周 ' + (weekPct !== null ? weekPct + '%' : '?') + ' @ ' + (weekMs ? this.formatWeekLocal(weekMs) : '?'));
       try { this.scrapePromptResetHint(); } catch (e) {}
@@ -600,64 +419,9 @@
       return { currentPct, currentReset, weeklyPct, weeklyReset };
     }
 
-    scrapeQuotaFromDocument(doc) {
-      if (!doc) return;
-      try {
-        const text = doc.body ? (doc.body.innerText || doc.body.textContent || '') : '';
-        const parsed = this.parseQuotaText(text);
-        if (parsed) {
-          let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
-          let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-          if (parsed.currentReset) {
-            const loc = this.toLocalResetTime(parsed.currentReset);
-            if (loc) {
-              curReset = loc.display;
-              this.sessionData.resetTimestamp = loc.epoch;
-            }
-          }
-          if (parsed.weeklyReset) {
-            const locW = this.toLocalResetTime(parsed.weeklyReset);
-            if (locW) weekReset = locW.display;
-          }
-
-          this.updateRealQuota({
-            currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
-            currentResetTime: curReset,
-            weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
-            weeklyResetTime: weekReset,
-            resetSource: 'silent-prober',
-            isReal: true
-          });
-          console.log('[星语喵伴] 静默探针成功解析官方配额:', parsed.currentPct, '% 重置:', curReset);
-        }
-      } catch (e) {}
-    }
-
-    requestQuotaRpcRefresh(reason = 'manual', force = false) {
-      // v1.3.9: 主链路 = 用量账本（SSR JSON 块）；RPC 重放仅作兜底
-      this.refreshUsageLedger(reason, force);
-      const now = Date.now();
-      if (!force && now - this._lastReplayAt < 60000) return;
-      this._lastReplayAt = now;
-      try {
-        window.postMessage({
-          source: 'KIMINO_TRACKER',
-          type: 'QUOTA_RPC_REPLAY',
-          reason,
-          timestamp: now
-        }, '*');
-      } catch (e) {}
-    }
-
-    startQuotaRpcRefreshLoop() {
-      // 每 5 分钟刷新官方用量账本（真实百分比 + UTC 重置时刻）
+    startQuotaRefreshLoop() {
+      // The page-load refresh is already issued by init(); keep one periodic source.
       setInterval(() => this.refreshUsageLedger('periodic'), 5 * 60 * 1000);
-      // 启动先抓一次（缓存兜底之后再校准）
-      setTimeout(() => this.refreshUsageLedger('boot'), 2500);
-      // 每 5 分钟静默刷新一次官方额度（RPC 重放兜底链路）
-      setInterval(() => this.requestQuotaRpcRefresh('periodic'), 5 * 60 * 1000);
-      // 启动 3 秒后先试一次（若 interceptor 已捕获 boot 的 f.req 即可立即刷新）
-      setTimeout(() => this.requestQuotaRpcRefresh('boot'), 3000);
     }
 
     // ============ /usage 路由自身的 DOM 抓取 ============
@@ -701,7 +465,7 @@
               if (rt && rt.sendMessage) rt.sendMessage({ type: 'KG_USAGE_FALLBACK_DONE' });
             } catch (e) {}
             clearInterval(timer);
-            console.log('[星语喵伴] 已从用量页 DOM 同步官方配额（兜底链路）');
+            console.log('[Catstella] 已从用量页 DOM 同步官方配额（兜底链路）');
           } else if (attempts >= 25) {
             clearInterval(timer);
           }
@@ -739,7 +503,6 @@
     // → 刷账本（内部 20s 节流 + 延后补刷，不会打爆网络）。
     initTurnDomWatcher() {
       this.__turnLastUq = -1;
-      this.__turnLastMr = -1;
       this.__turnLastText = '';
       this.__turnPending = false;
       this.__turnSettleAt = 0;
@@ -749,7 +512,9 @@
           const uqs = document.querySelectorAll('user-query').length;
           const mrs = [...document.querySelectorAll('model-response')];
           const last = mrs[mrs.length - 1];
-          const text = last ? (last.innerText || '') : '';
+          // Completion detection needs content changes, not rendered visibility.
+          // innerText forces layout every 600ms and changes when a reply is collapsed.
+          const text = last ? (last.textContent || '') : '';
           if (uqs > this.__turnLastUq) {
             this.__turnPending = true;
             this.__turnLastUq = uqs;
@@ -762,7 +527,7 @@
           }
           if (this.__turnPending && this.__turnSettleAt && Date.now() - this.__turnSettleAt > 1200) {
             this.__turnPending = false;
-            this.refreshUsageLedger('after-turn-dom', true);
+            this.refreshUsageLedger('after-turn-dom');
           }
         } catch (e) {}
       }, 600);
@@ -872,7 +637,7 @@
           this.sessionData.resetTimestamp = parsed.resetAt.getTime();
         }
 
-        console.log('[星语喵伴] 从常驻提示条捕获官方重置信息:', parsed.display, parsed.limited ? '(限流中)' : '');
+        console.log('[Catstella] 从常驻提示条捕获官方重置信息:', parsed.display, parsed.limited ? '(限流中)' : '');
         this.notify();
       }
     }
@@ -922,7 +687,7 @@
 
         if (patched) {
           containerEl.setAttribute('data-kimino-tz-fixed', effectiveDisplay);
-          console.log(`[星语喵伴] 页面提示条时区自动修正成功: "${targetText}" → "${replacement}"`);
+          console.log(`[Catstella] 页面提示条时区自动修正成功: "${targetText}" → "${replacement}"`);
         }
       } catch (e) {}
     }
@@ -1244,7 +1009,7 @@
       try {
         window.KIMINO_API.storageSet({ cachedRealQuota: this.sessionData.realQuota });
       } catch (e) {}
-      console.log('[星语喵伴] 成功捕获 Google 官方真实额度:', this.sessionData.realQuota);
+      console.log('[Catstella] 成功捕获 Google 官方真实额度:', this.sessionData.realQuota);
       this.notify();
     }
 
@@ -1372,6 +1137,6 @@
   try {
     window.__KIMINO_TRACKER__ = new KiminoTracker();
   } catch (e) {
-    console.error('[星语喵伴] 追踪器初始化失败 (不影响桌宠与皮肤):', e);
+    console.error('[Catstella] 追踪器初始化失败 (不影响桌宠与皮肤):', e);
   }
 })();

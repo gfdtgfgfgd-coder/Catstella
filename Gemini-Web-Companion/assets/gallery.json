@@ -1,0 +1,36 @@
+{
+  "wallpapers": [
+    {
+      "id": "gemini-character-sheet-v1",
+      "name": "星语 · 星幕夜话",
+      "src": "assets/wallpapers/gemini-sheet.png"
+    },
+    {
+      "id": "stella-halloween",
+      "name": "星语 · 万圣星夜",
+      "src": "assets/wallpapers/stella-halloween.jpg"
+    },
+    {
+      "id": "aica-clouds",
+      "name": "霓音 · 云端来信",
+      "src": "assets/wallpapers/aica-clouds.png"
+    },
+    {
+      "id": "aica-starship",
+      "name": "霓音 · 星舱漫游",
+      "src": "assets/wallpapers/aica-starship.jpg"
+    }
+  ],
+  "characters": [
+    {
+      "id": "gemini-star-v1",
+      "name": "星语",
+      "description": "星空魔女 · 紫发异色瞳"
+    },
+    {
+      "id": "lin-cat",
+      "name": "霓音",
+      "description": "粉色猫耳 · 全息航行服"
+    }
+  ]
+}

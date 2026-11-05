@@ -14,5 +14,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: node tools/audit-web-layout.cjs
+      - run: npm run test:web
+      - run: npx playwright install chromium
+      - run: npm run test:web:browser
+        env:
+          SKIN_BROWSER_CHANNEL: chromium
       - run: npm run build:native
       - run: npm test
