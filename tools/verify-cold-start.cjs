@@ -40,7 +40,18 @@ async function main() {
     assert.equal(state.pack, 'lin-cat');
     assert.match(state.idle, /character-packs\/lin-cat\/frames\/idle\.png/);
     assert.equal(state.hidden, 'visible');
-    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isVisible()), true);
+    // Art readiness is observed in the renderer before the main process handles
+    // widget:ready and shows the window. Wait for that separate lifecycle event.
+    const shown = await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win.isVisible()) return true;
+      return new Promise(resolve => {
+        const onShow = () => { clearTimeout(timer); resolve(true); };
+        const timer = setTimeout(() => { win.removeListener('show', onShow); resolve(false); }, 8000);
+        win.once('show', onShow);
+      });
+    });
+    assert.equal(shown, true, 'desktop pet window must become visible after artwork is ready');
 
     const motion = await page.locator('#motion').boundingBox();
     const x = motion.x + motion.width / 2;

@@ -44,6 +44,7 @@ jobs:
       - run: npm test
       - run: node --test test/turn-watcher.test.cjs test/runtime.test.cjs
         working-directory: web/Gemini-Web-Companion
+      - run: npm run verify:cold-start
       - run: npm run setup:inno
       - name: Build and verify the installer and bundled Web extension
         run: |
@@ -54,7 +55,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node tools/verify-installers.cjs --verify-legacy-log
         shell: pwsh
-      - run: npm run verify:cold-start
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
