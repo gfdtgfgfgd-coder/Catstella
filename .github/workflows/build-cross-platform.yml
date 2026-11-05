@@ -4,6 +4,11 @@ on:
   push:
     tags: ['v*', 'desktop-v*']
   workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Validate Windows installer without packaging macOS and Linux
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +55,11 @@ jobs:
           node tools/verify-installers.cjs --verify-legacy-log
         shell: pwsh
       - run: npm run verify:cold-start
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-logs
+          path: desktop/dist/安装验证-*/*.log
       - uses: actions/upload-artifact@v4
         with:
           name: catstella-windows-x64
@@ -61,6 +71,7 @@ jobs:
 
   unix:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} (experimental)
+    if: github.event_name != 'workflow_dispatch' || !inputs.windows_only
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
