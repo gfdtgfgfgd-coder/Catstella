@@ -101,7 +101,16 @@ async function installTheme(config){
   }
  };
  let layer=document.createElement("div");layer.id="agy-dream-wallpaper-v2";layer.setAttribute("aria-hidden","true");
- Object.assign(layer.style,{position:"fixed",inset:"0",zIndex:"0",pointerEvents:"none",backgroundRepeat:"no-repeat",backgroundPosition:"center",backgroundColor:"#f8f6ff",transition:"background-image 0.8s ease-in-out, opacity 0.4s ease"});
+ Object.assign(layer.style,{position:"fixed",inset:"0",zIndex:"0",pointerEvents:"none",overflow:"hidden",backgroundRepeat:"no-repeat",backgroundPosition:"center",backgroundColor:"#f8f6ff",transition:"opacity 0.4s ease"});
+ let wallpaperGen=0,incoming=null;
+ function commitIncoming(url,p,factor,cfg){
+  if(incoming){try{incoming.getAnimations?.().forEach(a=>a.cancel());}catch{}incoming.remove();incoming=null;}
+  layer.style.backgroundImage='linear-gradient(rgba('+p.scrimRgb+','+cfg.scrim+'),rgba('+p.scrimRgb+','+cfg.scrim+')),url("'+url+'")';
+  layer.style.backgroundSize="100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px";
+  layer.style.backgroundPosition="center,"+(cfg.positionX??50)+"% "+(cfg.positionY??50)+"%";
+  layer.style.backgroundColor=cfg.fit==="adaptive"?p.adaptiveBg:"transparent";
+  currentSrc=url;
+ }
  const style=document.createElement("style");style.id="agy-dream-style-v2";style.textContent=`
  html.agy-dream-active-v2 body { background:var(--agy-dream-base-bg)!important; }
  html.agy-dream-active-v2 [data-agy-dream-root] { position:relative;z-index:1; }
@@ -415,6 +424,7 @@ async function installTheme(config){
   if(!active||healing||!root.isConnected)return false;
   healing=true;
   try{
+   document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});
    if(!document.documentElement.classList.contains("agy-dream-active-v2"))document.documentElement.classList.add("agy-dream-active-v2");
    if(!style.isConnected&&document.head)document.head.append(style);
    if(!layer.isConnected&&document.body)document.body.prepend(layer);
@@ -435,9 +445,13 @@ async function installTheme(config){
   if(r.width>0&&r.height>0){
    Object.assign(layer.style,{inset:"auto",left:r.left+"px",top:r.top+"px",width:r.width+"px",height:r.height+"px",borderRadius:pane?"22px":"0"});
    if(resize&&geometryTarget!==region){if(geometryTarget&&geometryTarget!==root)resize.unobserve(geometryTarget);resize.observe(region);geometryTarget=region;}
-   const factor=(config.fit==="contain"?Math.min(r.width/image.naturalWidth,r.height/image.naturalHeight):Math.max(r.width/image.naturalWidth,r.height/image.naturalHeight))*(config.zoom??1);
-   layer.style.backgroundSize="100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px";
-   layer.style.backgroundPosition="center,"+(config.positionX??50)+"% "+(config.positionY??50)+"%";
+   if(image&&image.naturalWidth>0&&image.naturalHeight>0){
+    const factor=(config.fit==="contain"?Math.min(r.width/image.naturalWidth,r.height/image.naturalHeight):Math.max(r.width/image.naturalWidth,r.height/image.naturalHeight))*(config.zoom??1);
+    const size="100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px";
+    const pos="center,"+(config.positionX??50)+"% "+(config.positionY??50)+"%";
+    layer.style.backgroundSize=size;layer.style.backgroundPosition=pos;
+    if(incoming){incoming.style.backgroundSize=size;incoming.style.backgroundPosition=pos;}
+   }
   }
   return{region,scope:pane||root,width:r.width,height:r.height};
  }
@@ -502,10 +516,49 @@ async function installTheme(config){
  }
  function schedule(){clearTimeout(timer);timer=setTimeout(scan,120);}
  function onWindowLifecycle(){ensureMounted();schedule();}
- async function update(next){let crossfade=false;if(next.image&&next.image!==currentSrc){const fresh=new Image();fresh.src=next.image;await fresh.decode();image=fresh;currentSrc=next.image;crossfade=next.transition!=="none"&&layer.isConnected;}config=next;const p=applyPalette(config.themePreset);document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});let previous=null;if(crossfade){previous=layer;layer=previous.cloneNode(false);layer.style.transition="none";layer.style.opacity="0";previous.after(layer);}root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");layer.style.opacity=String(config.opacity??.55);layer.style.backgroundColor="transparent";layer.style.backgroundImage='linear-gradient(rgba('+p.scrimRgb+','+config.scrim+'),rgba('+p.scrimRgb+','+config.scrim+')),url("'+config.image+'")';layer.style.backgroundSize=config.fit==="adaptive"?"100% 100%,cover":"100% 100%,"+config.fit;layer.style.backgroundColor=config.fit==="adaptive"?p.adaptiveBg:"transparent";scan();if(previous){const target=String(config.opacity??.55),old=previous,fadeIn=layer;layer.style.opacity="0";void layer.offsetWidth;const ease="opacity 1.3s cubic-bezier(.4,0,.2,1)";layer.style.transition=ease;old.style.transition=ease;requestAnimationFrame(()=>{fadeIn.style.opacity=target;old.style.opacity="0";});setTimeout(()=>{old.remove();fadeIn.style.transition="opacity 0.4s ease";},1500);}}
+ async function update(next){
+  const thisGen=++wallpaperGen;
+  let crossfade=false;
+  if(next.image&&next.image!==currentSrc){
+   const fresh=new Image();fresh.src=next.image;
+   try{await fresh.decode();}catch{}
+   if(thisGen!==wallpaperGen||!active||!root.isConnected)return;
+   image=fresh;
+   crossfade=next.transition!=="none"&&layer.isConnected&&Boolean(currentSrc);
+  }
+  config=next;
+  const p=applyPalette(config.themePreset);
+  document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});
+  root.setAttribute("data-agy-output-mode",config.outputMode==="glass"?"glass":"transparent");
+  layer.style.opacity=String(config.opacity??.55);
+  const region=document.querySelector(".agy-sheet")||root;
+  const r=region.getBoundingClientRect();
+  const factor=(r.width>0&&r.height>0&&image.naturalWidth>0&&image.naturalHeight>0)?(config.fit==="contain"?Math.min(r.width/image.naturalWidth,r.height/image.naturalHeight):Math.max(r.width/image.naturalWidth,r.height/image.naturalHeight))*(config.zoom??1):1;
+  if(!crossfade){
+   commitIncoming(config.image,p,factor,config);
+  }else{
+   if(incoming){try{incoming.getAnimations?.().forEach(a=>a.cancel());}catch{}incoming.remove();incoming=null;}
+   const inc=document.createElement("div");inc.className="agy-dream-wallpaper-incoming";
+   Object.assign(inc.style,{
+    position:"absolute",inset:"0",pointerEvents:"none",borderRadius:"inherit",
+    backgroundRepeat:"no-repeat",backgroundPosition:"center,"+(config.positionX??50)+"% "+(config.positionY??50)+"%",
+    backgroundImage:'linear-gradient(rgba('+p.scrimRgb+','+config.scrim+'),rgba('+p.scrimRgb+','+config.scrim+')),url("'+config.image+'")',
+    backgroundSize:"100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px",
+    backgroundColor:config.fit==="adaptive"?p.adaptiveBg:"transparent",
+    opacity:"0"
+   });
+   layer.appendChild(inc);incoming=inc;
+   try{
+    const anim=inc.animate([{opacity:0},{opacity:1}],{duration:1200,easing:"cubic-bezier(.4,0,.2,1)",fill:"forwards"});
+    anim.onfinish=()=>{if(thisGen!==wallpaperGen||incoming!==inc)return;commitIncoming(config.image,p,factor,config);};
+   }catch{commitIncoming(config.image,p,factor,config);}
+  }
+  scan();
+ }
  function destroy(){
   active=false;clearTimeout(timer);observer?.disconnect();attrObserver?.disconnect();resize?.disconnect();
   window.removeEventListener("focus",onWindowLifecycle);window.removeEventListener("blur",onWindowLifecycle);document.removeEventListener("visibilitychange",onWindowLifecycle);
+  if(incoming){try{incoming.remove();}catch{}incoming=null;}
   document.querySelectorAll('#agy-dream-style-v2, #agy-dream-wallpaper-v2').forEach(el => el.remove());
   document.documentElement.classList.remove("agy-dream-active-v2");
   for(const entry of saved.reverse())restore(entry);
