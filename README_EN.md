@@ -17,7 +17,7 @@ Catstella is an open-source desktop enhancement and dual-end companion suite des
 | <img src="art_assets/stella/idle.png" alt="Stella Idle" width="280" /> | <img src="art_assets/stock_wallpaper/stella_1.png" alt="Stella Wallpaper" width="500" /> |
 
 > [!TIP]
-> Includes full expression frame sets (proud, shy, sad, nap, etc.) for both **Stella** and **Aica**, alongside 4 bundled panoramic wallpapers. See [ASSETS.md](ASSETS.md) and the [online catalog](online-assets/README.md).
+> Includes full expression frame sets (proud, shy, sad, nap, etc.) for two Gemini personification variants, alongside 4 bundled panoramic wallpapers. See [ASSETS.md](ASSETS.md) and the [online catalog](online-assets/README.md).
 
 ---
 
