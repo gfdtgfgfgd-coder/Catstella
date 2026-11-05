@@ -18,7 +18,11 @@
     {
       "id": "aica-starship",
       "name": "霓音 · 星舱漫游",
-      "src": "assets/wallpapers/aica-starship.jpg"
+      "src": "assets/wallpapers/aica-starship.jpg",
+      "sha256": "7f8c969c652e95b50fcd81167eb073aa84fc797af80d2c83d6d52e5713bd4c5a",
+      "width": 1672,
+      "height": 941,
+      "size": 1618113
     }
   ],
   "characters": [
@@ -30,7 +34,7 @@
     {
       "id": "lin-cat",
       "name": "霓音",
-      "description": "粉色猫耳 · 全息航行服"
+      "description": "粉色猫娘 · 全息航行服"
     }
   ]
 }
