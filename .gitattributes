@@ -5,3 +5,5 @@
 *.mp3 binary
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+# Online catalog entries pin the exact byte size and SHA-256 of these JSON assets.
+online-assets/**/*.json text eol=lf

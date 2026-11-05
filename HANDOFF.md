@@ -1,14 +1,15 @@
 # Catstella 桌面工作区 · DeepSeek Harness 交接
 
 > 更新时间：2026-11-05  
-> 状态：下文保留的是 20:41 那次构建的验收记录。安装包之后已重建，请先处理下面的发布复核事项。<br>
+> 状态：下文保留的是 20:41 那次构建的历史记录。发布以 GitHub Actions 的三端构建和验收结果为准。<br>
 > 工作区：`D:\Catstella`，分支 `feat/desktop-suite`  
 > Web 工作区：`D:\Catstella-web`，分支 `feat/browser-extension`
 
-## 发布前复核
+## 0.6.0 发布流程
 
-- 当前 Windows 安装包为 21:56 写入的构建，大小为 173,010,390 字节。`evidence/installer-report.json` 记录了随后一次本机安装、启动及卸载通过，但同目录 `.sha256` 仍对应 20:41 的旧包。Web `dist/SHA256SUMS.txt` 也与当前 ZIP、XPI 不符。应在最后一次构建和验收之后，针对实际要上传的文件重新生成校验和。
-- `tools/installer/star-suite.iss` 的 `[UninstallDelete]` 递归删除整个 `{app}`。当前安装器允许指定安装目录，若目录原先已有用户文件，卸载时也会被删。将递归删除改为仅清理已知残留（例如 `debug.log`），再验证卸载能清除 Catstella，同时保留安装目录中测试用的其他文件。
+- 新安装器移除了递归删除整个 `{app}` 的规则，并替换旧测试版遗留的卸载记录。卸载只额外清理内容全部是 Chromium 缺语言包告警的 `debug.log`。CI 分别验证干净安装、覆盖旧卸载记录后卸载，并检查安装目录中的用户文件仍在。
+- Windows 和 Web 构建完成时自动生成 SHA-256 校验和。Windows 验收会比对随包内置的两份 Web 压缩包。发布任务对实际上传的七份 Windows、macOS、Linux 安装文件生成 `SHA256SUMS.txt`。
+- Web 源码由 `web-source-v1.5.0` 标签固定，`v0.6.0` 触发三端封包。首次 `desktop-v0.6.0` 运行因 Windows 工作流漏编原生助手和素材换行转换而未发布。所有构建和启动检查通过后才创建 Release。Mac 和 Linux 是实验构建，未做实机回归。
 
 ## 用户最新决定
 
