@@ -6,6 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
+const { createHash } = require('node:crypto');
 
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
@@ -15,6 +16,8 @@ const chromiumDir = path.join(distDir, 'chromium');
 console.log('🚀 开始打包 Gemini Web Companion (Catstella)...');
 
 if (!fs.existsSync(distDir)) fs.mkdirSync(distDir, { recursive: true });
+const checksumsPath = path.join(distDir, 'SHA256SUMS.txt');
+fs.rmSync(checksumsPath, { force: true });
 
 function copyRecursive(src, dest) {
   if (fs.statSync(src).isDirectory()) {
@@ -276,6 +279,11 @@ const userCssFooter = `\n}\n`;
 const userCssDest = path.join(distDir, 'kimino-dream.user.css');
 fs.writeFileSync(userCssDest, userCssHeader + userCssBody + userCssFooter, 'utf8');
 console.log('✅ Stylus UserCSS 生成成功:', userCssDest);
+
+const sums = [zipDest, xpiDest].map(file =>
+  `${createHash('sha256').update(fs.readFileSync(file)).digest('hex')}  ${path.basename(file)}`
+);
+fs.writeFileSync(checksumsPath, sums.join('\n') + '\n', 'ascii');
 
 console.log('\n✨ 打包完毕！');
 console.log(`📁 1. 火狐安装包 (.xpi): ${xpiDest}`);
