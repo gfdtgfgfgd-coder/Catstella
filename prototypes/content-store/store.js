@@ -9,7 +9,9 @@ const kinds = {
 };
 const petRoot = '../../Antigravity-Cat-Widget/assets/character-packs';
 const wallpaperRoot = '../../online-assets/wallpapers';
-const items = [
+const moriyamaRoot = '../../art_assets/wallpaper_pack_1';
+
+const singleItems = [
   { id: 'gemini-star-v1', kind: 'character', name: '星语', alias: 'Stella', description: '紫色猫耳 · 星空魔女礼装', size: 912272, art: `${petRoot}/gemini-star-v1/frames/idle.png` },
   { id: 'lin-cat', kind: 'character', name: '霓音', alias: 'Aica', description: '粉色猫耳 · 全息航行服', size: 896800, art: `${petRoot}/lin-cat/frames/idle.png`, style: 'aica' },
   { id: 'gemini-character-sheet-v1', kind: 'wallpaper', name: '星语 · 星幕夜话', description: '1672 × 941', size: 1923996, art: `${wallpaperRoot}/gemini-character-sheet-v1.png` },
@@ -19,6 +21,47 @@ const items = [
   { id: 'aica-starship', kind: 'wallpaper', name: '霓音 · 星舱漫游', description: '1376 × 768', size: 1618113, art: `${wallpaperRoot}/aica-starship.jpg` },
   { id: 'stella-halloween', kind: 'wallpaper', name: '星语 · 万圣星夜', description: '1376 × 768', size: 845169, art: `${wallpaperRoot}/stella-halloween.jpg` }
 ];
+
+const packFrames = ['gemini-character-sheet-v1', 'aica-clouds', 'aica-starship', 'stella-halloween']
+  .map(id => singleItems.find(item => item.id === id));
+
+const starlightPack = {
+  id: 'starlight-wallpaper-pack', kind: 'wallpaper', name: '星海漫游 · 壁纸包',
+  description: '星语与霓音的四幕星空', frames: packFrames, art: packFrames[0].art,
+  size: packFrames.reduce((total, frame) => total + frame.size, 0)
+};
+
+const moriyamaFrames = [
+  { id: 'moriyama-01', kind: 'wallpaper', name: '元气初醒 · 异色星眸', description: '2432 × 1664 · 原作 @森山白月', size: 1246121, art: `${moriyamaRoot}/moriyama-catgirl-01.jpg` },
+  { id: 'moriyama-02', kind: 'wallpaper', name: '星芒跳跃 · 灿烂午后', description: '2432 × 1664 · 原作 @森山白月', size: 1141212, art: `${moriyamaRoot}/moriyama-catgirl-02.jpg` },
+  { id: 'moriyama-03', kind: 'wallpaper', name: '猫耳微动 · 懵懂凝视', description: '2432 × 1664 · 原作 @森山白月', size: 1223878, art: `${moriyamaRoot}/moriyama-catgirl-03.jpg` },
+  { id: 'moriyama-04', kind: 'wallpaper', name: '甜度超标 · 托腮浅笑', description: '2432 × 1664 · 原作 @森山白月', size: 1264046, art: `${moriyamaRoot}/moriyama-catgirl-04.jpg` },
+  { id: 'moriyama-05', kind: 'wallpaper', name: '阳光倾落 · 纯白毛绒', description: '1216 × 832 · 原作 @森山白月', size: 432299, art: `${moriyamaRoot}/moriyama-catgirl-05.jpg` },
+  { id: 'moriyama-06', kind: 'wallpaper', name: '元气出击 · 灵动飞扬', description: '1216 × 832 · 原作 @森山白月', size: 448164, art: `${moriyamaRoot}/moriyama-catgirl-06.jpg` },
+  { id: 'moriyama-07', kind: 'wallpaper', name: '星轨漫步 · 温柔依偎', description: '2432 × 1664 · 原作 @森山白月', size: 1161190, art: `${moriyamaRoot}/moriyama-catgirl-07.jpg` },
+  { id: 'moriyama-08', kind: 'wallpaper', name: '微风吹拂 · 俏皮眨眼', description: '1216 × 832 · 原作 @森山白月', size: 420738, art: `${moriyamaRoot}/moriyama-catgirl-08.jpg` },
+  { id: 'moriyama-09', kind: 'wallpaper', name: '星夜流光 · 谁能拒绝', description: '2432 × 1664 · 原作 @森山白月', size: 1113669, art: `${moriyamaRoot}/moriyama-catgirl-09.jpg` }
+];
+
+const moriyamaPack = {
+  id: 'moriyama-catgirl-pack', kind: 'wallpaper',
+  name: '全部人类都会控猫猫的 · 壁纸包',
+  alias: 'All Humans Love Catgirls',
+  description: '是猫猫，傻傻的元气娘，是猫娘还有异色瞳，只要是人类就不可能拒绝！全套 9 张授权壁纸',
+  frames: moriyamaFrames,
+  art: moriyamaFrames[0].art,
+  size: moriyamaFrames.reduce((total, frame) => total + frame.size, 0),
+  author: '@森山白月',
+  authorUrl: 'https://space.bilibili.com/2146089',
+  sourceUrl: 'https://www.bilibili.com/video/BV17PxC6SERc/',
+  sourceTitle: '【NovelAI】Gemini - 全部人类都会控猫猫的 壁纸分享',
+  credit: '原作：@森山白月 · B站授权壁纸（BV17PxC6SERc）'
+};
+
+const featuredPack = moriyamaPack;
+const catalog = [featuredPack, starlightPack, ...singleItems.filter(item => !packFrames.includes(item))];
+// Keep prior single-wallpaper selections and installs readable in the demo.
+const items = [...catalog, ...packFrames, ...moriyamaFrames];
 const latest = item => item.id === 'lin-cat' ? 2 : 1;
 const views = {
   explore: ['在线内容商店', '发现桌宠、星空壁纸与主题配色，装点你的 Catstella。', '全部内容'],
@@ -26,11 +69,11 @@ const views = {
   favorites: ['在线内容商店', '把喜欢的内容放在这里，随时预览、安装或切换。', '我的收藏'],
   guide: ['在线内容商店', '有想在 Catstella 使用的素材？可以提交适配请求。', '']
 };
-const storageKey = 'catstella.content-store.demo.v1';
+const storageKey = 'catstella.content-store.demo.v2';
 const defaults = {
-  installed: { 'gemini-star-v1': 1, 'lin-cat': 1, 'violet-default': 1 },
-  favorites: ['gemini-star-v1', 'aica-clouds'],
-  active: { character: 'gemini-star-v1', theme: 'violet-default' }
+  installed: { 'gemini-star-v1': 1, 'lin-cat': 1, 'violet-default': 1, 'moriyama-catgirl-pack': 1 },
+  favorites: ['gemini-star-v1', moriyamaPack.id, starlightPack.id],
+  active: { character: 'gemini-star-v1', theme: 'violet-default', wallpaper: 'moriyama-01' }
 };
 
 function loadState() {
@@ -74,6 +117,123 @@ const isFavorite = item => state.favorites.includes(item.id);
 const fullName = item => item.alias ? `${item.name} ${item.alias}` : item.name;
 const currentAsset = kind => items.find(item => item.id === state.active[kind]);
 
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const carouselStates = new Map();
+const carouselDelay = 4000;
+
+function carouselState(item, scope) {
+  const key = `${scope}:${item.id}`;
+  if (!carouselStates.has(key)) carouselStates.set(key, { index: 0, playing: !reducedMotion.matches, due: performance.now() + carouselDelay });
+  return carouselStates.get(key);
+}
+
+function carouselAttrs(item, scope) {
+  return `data-carousel="${scope}" data-pack="${item.id}"`;
+}
+
+function carouselTrack(item, scope, decorative = false) {
+  const { index } = carouselState(item, scope);
+  return `<div class="pack-window"${decorative ? ' aria-hidden="true"' : ''}>${item.frames.map((frame, i) =>
+    `<img class="pack-slide" src="${frame.art}" alt="${decorative ? '' : frame.name}" aria-hidden="${i !== index}" decoding="async">`).join('')}</div>`;
+}
+
+const frameNumber = (index, total) => `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+const playLabel = playing => playing ? '暂停轮播' : '播放轮播';
+
+function carouselControls(item, scope) {
+  const { index, playing } = carouselState(item, scope);
+  const playback = scope === 'card' ? '' : `<button type="button" class="pack-control" data-pack-command="play" aria-label="${playLabel(playing)}" title="${playLabel(playing)}">${icon(playing ? 'pack-pause' : 'pack-play')}</button>`;
+  return `<div class="pack-controls" role="group" aria-label="壁纸包轮播控制">
+    <span class="pack-counter" data-pack-counter>${frameNumber(index, item.frames.length)}</span>
+    <button type="button" class="pack-control pack-prev" data-pack-command="prev" aria-label="上一张" title="上一张">${icon('pack-chevron')}</button>
+    ${playback}
+    <button type="button" class="pack-control" data-pack-command="next" aria-label="下一张" title="下一张">${icon('pack-chevron')}</button>
+  </div>`;
+}
+
+function carouselThumbnails(item) {
+  const { index } = carouselState(item, 'detail');
+  return `<div class="pack-thumbnails" role="group" aria-label="选择包内壁纸">${item.frames.map((frame, i) =>
+    `<button type="button" class="pack-thumb" data-pack-command="${i}" aria-pressed="${i === index}" aria-label="${frame.name}" title="${frame.name}"><img src="${frame.art}" alt="" decoding="async"><span class="pack-thumb-index">${i + 1}</span></button>`).join('')}</div>`;
+}
+
+function updateCarousel(root, item, nextIndex, direction = 1) {
+  const state = carouselState(item, root.dataset.carousel);
+  const slides = Array.from(root.querySelectorAll('.pack-slide'));
+  const outgoing = slides[state.index];
+  state.index = (nextIndex + item.frames.length) % item.frames.length;
+  state.due = performance.now() + carouselDelay;
+  const incoming = slides[state.index];
+  for (const slide of slides) {
+    for (const animation of slide.getAnimations()) animation.cancel();
+    slide.setAttribute('aria-hidden', slide !== incoming);
+  }
+  if (outgoing !== incoming && !reducedMotion.matches) {
+    const timing = { duration: 410, easing: 'cubic-bezier(.22,.65,.3,1)' };
+    outgoing.animate([{ transform: 'translateX(0)', visibility: 'visible' }, { transform: `translateX(${-direction * 100}%)`, visibility: 'visible' }], timing);
+    incoming.animate([{ transform: `translateX(${direction * 100}%)` }, { transform: 'translateX(0)' }], timing);
+  }
+  root.querySelector('[data-pack-counter]').textContent = frameNumber(state.index, item.frames.length);
+  const caption = root.querySelector('[data-pack-caption]');
+  if (caption) caption.textContent = item.frames[state.index].name;
+  for (const thumb of root.querySelectorAll('.pack-thumb')) {
+    const isCurrent = Number(thumb.dataset.packCommand) === state.index;
+    thumb.setAttribute('aria-pressed', isCurrent);
+    if (isCurrent && typeof thumb.scrollIntoView === 'function') {
+      thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }
+}
+
+function toggleCarousel(root, item, playing) {
+  const state = carouselState(item, root.dataset.carousel);
+  state.playing = playing;
+  state.due = performance.now() + carouselDelay;
+  const button = root.querySelector('[data-pack-command="play"]');
+  button.setAttribute('aria-label', playLabel(playing));
+  button.title = playLabel(playing);
+  button.innerHTML = icon(playing ? 'pack-pause' : 'pack-play');
+}
+
+function tickCarousels() {
+  const now = performance.now();
+  const viewport = $('#content').getBoundingClientRect();
+  for (const root of document.querySelectorAll('[data-carousel]')) {
+    const item = items.find(asset => asset.id === root.dataset.pack);
+    if (!item || !item.frames) continue;
+    const state = carouselState(item, root.dataset.carousel);
+    if (!state.playing) continue;
+    const box = root.querySelector('.pack-window')?.getBoundingClientRect();
+    if (!box || document.hidden || dialog.open || !box.height || box.bottom <= viewport.top || box.top >= viewport.bottom) {
+      state.due = now + carouselDelay;
+    } else if (now >= state.due) {
+      updateCarousel(root, item, state.index + 1);
+    }
+  }
+}
+
+function renderFeatured(item) {
+  const section = $('#featured');
+  section.dataset.carousel = 'hero';
+  section.dataset.pack = item.id;
+  const authorBadge = item.author ? `<span class="hero-author-pill">${item.author} 授权</span>` : '';
+  section.innerHTML = `<div class="hero-copy">
+    <div class="hero-tag-row">
+      <p class="hero-tag">✦ &nbsp; 精选壁纸包</p>
+      ${authorBadge}
+    </div>
+    <h2 id="featured-title">${item.name.split(' · ')[0]}</h2>
+    <p>${item.description} · ${item.frames.length} 张全景壁纸</p>
+    <div class="hero-actions">
+      ${action(item, 'detail', '预览壁纸包', 'primary', 'arrow')}
+      ${item.sourceUrl ? `<a class="btn quiet hero-source-link" href="${item.sourceUrl}" target="_blank" rel="noopener noreferrer">${icon('external')} 原片发布</a>` : ''}
+    </div>
+  </div>
+  <div class="hero-pack-art">${carouselTrack(item, 'hero')}
+    <div class="hero-pack-overlay"><span data-pack-caption>${item.frames[carouselState(item, 'hero').index].name}</span>${carouselControls(item, 'hero')}</div>
+  </div>`;
+}
+
 function settingsDemo() {
   const toggle = (label, hint, on = false) => `<label class="row"><span class="row-text"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span><input type="checkbox" ${on ? 'checked' : ''}></label>`;
   const card = (title, content) => `<div class="card"><h3>${title}</h3>${content}</div>`;
@@ -111,7 +271,7 @@ function switchSetting(next) {
   $('#store-page').hidden = next !== 'store';
   $('#settings-demo').hidden = next === 'store';
   for (const page of document.querySelectorAll('[data-demo]')) page.hidden = page.dataset.demo !== next;
-  $('#status-label').textContent = next === 'store' ? `目录快照 · ${items.length} 件素材` : '桌面设置预览';
+  $('#status-label').textContent = next === 'store' ? `目录快照 · ${catalog.length} 件素材` : '桌面设置预览';
   if (next !== 'store') updateSelections();
   $('#content').scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -148,13 +308,19 @@ function card(item) {
   const kind = kinds[item.kind];
   const badge = hasUpdate(item) ? `<span class="asset-status update">${icon('update')} 可更新</span>`
     : installed(item) ? `<span class="asset-status installed">${icon('check')} 已安装</span>` : '';
-  return `<article class="store-card" data-item="${item.id}">
+  const cover = item.frames ? `<div class="art wallpaper pack-cover">${carouselTrack(item, 'card', true)}</div>` : artwork(item);
+  const authorTag = item.author ? `<span class="asset-author-tag">${item.author}</span>` : '';
+  return `<article class="store-card" data-item="${item.id}" ${item.frames ? carouselAttrs(item, 'card') : ''}>
     <div class="card-cover">
-      <button class="cover-button" type="button" data-action="detail" data-id="${item.id}" aria-label="预览${fullName(item)}">${artwork(item)}</button>
-      ${badge}${favoriteButton(item)}
+      <button class="cover-button" type="button" data-action="detail" data-id="${item.id}" aria-label="预览${fullName(item)}">${cover}</button>
+      ${badge || (item.frames ? `<span class="asset-status">${icon('box')} ${item.frames.length} 张一包</span>` : '')}${favoriteButton(item)}
+      ${item.frames ? carouselControls(item, 'card') : ''}
     </div>
     <div class="asset-body">
-      <div class="asset-meta"><span>${icon(kind.icon)} ${kind.label}</span><span>${fileSize(item.size)}</span></div>
+      <div class="asset-meta">
+        <span>${icon(kind.icon)} ${item.frames ? '壁纸包' : kind.label}</span>
+        <span>${authorTag || fileSize(item.size)}</span>
+      </div>
       <h3>${fullName(item)}</h3><p>${item.description}</p>
       <div class="asset-actions">${action(item, 'detail', '详情', 'quiet')}${mainAction(item)}</div>
     </div>
@@ -165,7 +331,8 @@ function render() {
   const [title, subtitle, section] = views[view];
   $('#page-title').textContent = title;
   $('#page-subtitle').textContent = subtitle;
-  $('#featured').hidden = view !== 'explore';
+  const query = search.value.trim().toLocaleLowerCase();
+  $('#featured').hidden = view !== 'explore' || !!query || !['all', 'wallpaper'].includes(category);
   $('#installed-count').textContent = items.filter(installed).length;
   $('#favorite-count').textContent = state.favorites.length;
   for (const button of document.querySelectorAll('[data-view]')) {
@@ -185,11 +352,10 @@ function render() {
   $('#guide-page').hidden = view !== 'guide';
   if (detail || view === 'guide') return;
 
-  const query = search.value.trim().toLocaleLowerCase();
-  const collection = items.filter(item => view === 'library' ? installed(item) : view === 'favorites' ? isFavorite(item) : true);
+  const collection = view === 'explore' ? catalog : items.filter(view === 'library' ? installed : isFavorite);
   const visible = collection.filter(item =>
     (category === 'all' || item.kind === category) &&
-    `${fullName(item)} ${item.description} ${kinds[item.kind].label}`.toLocaleLowerCase().includes(query)
+    `${fullName(item)} ${item.description} ${kinds[item.kind].label} ${item.author || ''} ${item.frames?.map(frame => frame.name).join(' ') || ''}`.toLocaleLowerCase().includes(query)
   );
   resultsTitle.textContent = query ? '搜索结果' : category === 'all' ? section : kinds[category].label;
   $('#result-count').textContent = `${visible.length} 件内容`;
@@ -228,27 +394,47 @@ const themeLooks = {
   'violet-default': { name: '星轨紫', surface: '#f3edfc', edge: '#e5d8f6', ink: '#1c1828', accent: '#9370db', opacity: .88 }
 };
 
-function effectPreview(item) {
+function effectPreview(item, rotating) {
   const chosen = kind => previewComparison === 'candidate' && item.kind === kind ? item : currentAsset(kind);
   const pet = chosen('character');
   const wallpaper = chosen('wallpaper');
   const theme = themeLooks[chosen('theme')?.id] || themeLooks['violet-default'];
   return `<figure class="effect-preview">
     <div class="scene" style="--scene-surface:${theme.surface};--scene-edge:${theme.edge};--scene-accent:${theme.accent};--scene-ink:${theme.ink};--scene-opacity:${theme.opacity}">
-      ${wallpaper ? `<img class="scene-wallpaper" src="${wallpaper.art}" alt="">` : ''}
+      ${rotating ? `<div class="scene-wallpaper">${carouselTrack(item, 'detail', true)}</div>` : wallpaper ? `<img class="scene-wallpaper" src="${wallpaper.art}" alt="">` : ''}
       <div class="scene-title"><span class="scene-dots"><i></i><i></i><i></i></span><span>Antigravity · 工作区</span><span class="scene-caption">界面示意</span></div>
       <div class="scene-window" aria-hidden="true"><div class="scene-side"><b>资源管理器</b><span>▾ &nbsp; 项目</span><span>◇ &nbsp; notes.md</span><span>◇ &nbsp; README.md</span></div><div class="scene-editor"><b>notes.md</b><div class="scene-lines"><i></i><i></i><i></i><i></i></div></div></div>
       ${pet ? `<div class="scene-pet"><span class="scene-bubble">准备好啦 ✦</span><img src="${pet.art}" alt="${fullName(pet)}"></div>` : ''}
     </div>
-    <figcaption>${pet ? fullName(pet) : '无桌宠'} <span>·</span> ${wallpaper ? wallpaper.name : '无壁纸'} <span>·</span> ${theme.name}</figcaption>
+    <figcaption>${pet ? fullName(pet) : '无桌宠'} <span>·</span> ${rotating ? `<b data-pack-caption>${item.frames[carouselState(item, 'detail').index].name}</b>` : wallpaper ? wallpaper.name : '无壁纸'} <span>·</span> ${theme.name}</figcaption>
   </figure>`;
+}
+
+function renderCredit(item) {
+  if (item.authorUrl && item.sourceUrl) {
+    return `<a class="detail-source-link" href="${item.authorUrl}" target="_blank" rel="noopener noreferrer">${item.author}</a> · <a class="detail-source-link" href="${item.sourceUrl}" target="_blank" rel="noopener noreferrer" title="${item.sourceTitle || '查看发布源'}">B站授权壁纸 (BV17PxC6SERc) ${icon('external')}</a>`;
+  }
+  if (item.credit) return item.credit;
+  return item.kind === 'theme' ? 'Catstella · CC0' : 'Catstella · 项目素材';
 }
 
 function renderDetail(item, message = '') {
   const kind = kinds[item.kind];
   const status = hasUpdate(item) ? '有可用更新' : inUse(item) ? '正在使用' : installed(item) ? '已安装' : '未安装';
   const revisions = hasUpdate(item) ? `${version(installed(item))} → ${version(latest(item))}` : version(latest(item));
-  const credit = item.kind === 'theme' ? 'Catstella · CC0' : 'Catstella · 项目素材';
+  const creditHtml = renderCredit(item);
+  const authorBadge = item.author ? `<span class="detail-author-pill">${item.author} 授权</span>` : '';
+  const sourceCard = item.sourceTitle ? `
+    <div class="detail-callout">
+      <div class="detail-callout-head">
+        ${icon('external')}
+        <b>原发布视频</b>
+        <a href="${item.sourceUrl}" target="_blank" rel="noopener noreferrer" class="callout-link">去 Bilibili 观看</a>
+      </div>
+      <p class="callout-title">${item.sourceTitle}</p>
+      <p class="hint callout-desc">“${item.description}”</p>
+    </div>` : '';
+
   detailPage.innerHTML = `
     <button class="btn small quiet detail-back" type="button" data-action="back-detail">${icon('arrow')} 返回${view === 'library' ? '已安装' : view === 'favorites' ? '收藏夹' : '探索'}</button>
     <div class="detail-layout">
@@ -262,10 +448,23 @@ function renderDetail(item, message = '') {
         </div></div>
       </section>
       <aside class="card detail-info">
-        <div class="eyebrow">${kind.label}</div><h2 id="detail-title" tabindex="-1">${fullName(item)}</h2><p class="hint">${item.description}</p>
-        <dl class="detail-data"><dt>状态</dt><dd>${status}</dd><dt>演示版本</dt><dd>${revisions}</dd><dt>大小</dt><dd>${fileSize(item.size)}</dd><dt>来源</dt><dd>${credit}</dd></dl>
+        <div class="eyebrow-row">
+          <span class="eyebrow">${item.frames ? '壁纸包' : kind.label}</span>
+          ${authorBadge}
+        </div>
+        <h2 id="detail-title" tabindex="-1">${fullName(item)}</h2>
+        <p class="hint">${item.description}</p>
+        <dl class="detail-data">
+          ${item.frames ? `<dt>包内壁纸</dt><dd>${item.frames.length} 张全景</dd>` : ''}
+          <dt>状态</dt><dd>${status}</dd>
+          <dt>演示版本</dt><dd>${revisions}</dd>
+          <dt>大小</dt><dd>${fileSize(item.size)}</dd>
+          <dt>来源</dt><dd class="detail-source-cell">${creditHtml}</dd>
+        </dl>
+        ${sourceCard}
         <div class="dialog-actions">${mainAction(item)}${hasUpdate(item) && !inUse(item) ? action(item, 'apply', '使用已安装版') : ''}${favoriteButton(item)}${installed(item) ? action(item, 'confirm-remove', '卸载', 'danger') : ''}</div>
         ${message ? `<p class="detail-feedback" role="status">${message}</p>` : ''}
+        ${item.frames ? '<p class="hint pack-note">整包安装与收藏。轮播可随时暂停与选图预览，使用时应用包内首张壁纸。</p>' : ''}
       </aside>
     </div>`;
   renderPreview(item);
@@ -279,7 +478,13 @@ function renderPreview(item) {
     }
   }
   $('#preview-compare').hidden = previewMode === 'asset';
-  $('#preview-content').innerHTML = previewMode === 'effect' ? effectPreview(item) : artwork(item, true);
+  const rotating = item.frames && (previewMode === 'asset' || previewComparison === 'candidate');
+  const preview = previewMode === 'effect' ? effectPreview(item, rotating)
+    : rotating ? `<div class="art wallpaper dialog-art pack-original">${carouselTrack(item, 'detail')}</div>` : artwork(item, true);
+  $('#preview-content').innerHTML = rotating ? `<div ${carouselAttrs(item, 'detail')}>
+    ${preview}
+    <div class="pack-detail-strip">${carouselThumbnails(item)}${carouselControls(item, 'detail')}</div>
+  </div>` : preview;
 }
 
 function showDetail(item, opener) {
@@ -288,6 +493,12 @@ function showDetail(item, opener) {
   listingScroll = $('#content').scrollTop;
   previewMode = 'effect';
   previewComparison = 'candidate';
+  if (item.frames) {
+    const origin = opener.closest('[data-carousel]');
+    const previewState = carouselState(item, 'detail');
+    previewState.index = origin ? carouselState(item, origin.dataset.carousel).index : 0;
+    previewState.due = performance.now() + carouselDelay;
+  }
   render();
   renderDetail(item);
   $('#content').scrollTo({ top: 0, behavior: 'instant' });
@@ -299,7 +510,7 @@ function backToListing() {
   render();
   $('#content').scrollTo({ top: listingScroll, behavior: 'instant' });
   const { id, action: name, cover, featured } = detailReturn || {};
-  const target = featured ? $('#featured button') : grid.querySelector(`${cover ? '.cover-button' : '.asset-actions button'}[data-id="${id}"][data-action="${name}"]`);
+  const target = featured ? $('#featured [data-action="detail"]') : grid.querySelector(`${cover ? '.cover-button' : '.asset-actions button'}[data-id="${id}"][data-action="${name}"]`);
   (target || resultsTitle).focus({ preventScroll: true });
 }
 
@@ -379,6 +590,18 @@ function applyAction(name, item, button) {
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
+  const command = button.dataset.packCommand;
+  if (command !== undefined) {
+    const root = button.closest('[data-carousel]');
+    const item = items.find(asset => asset.id === root.dataset.pack);
+    if (!item) return;
+    const state = carouselState(item, root.dataset.carousel);
+    if (command === 'play') toggleCarousel(root, item, !state.playing);
+    else if (command === 'next') updateCarousel(root, item, state.index + 1);
+    else if (command === 'prev') updateCarousel(root, item, state.index - 1, -1);
+    else updateCarousel(root, item, Number(command), Number(command) < state.index ? -1 : 1);
+    return;
+  }
   const { action: name, id, kind, view: next, setting, preview, compare } = button.dataset;
   const item = items.find(x => x.id === id);
   if (setting) switchSetting(setting);
@@ -409,6 +632,8 @@ dialog.addEventListener('close', () => {
 search.addEventListener('input', render);
 settingsDemo();
 prepareGuide();
+renderFeatured(featuredPack);
 const initialSetting = location.hash.slice(1);
-if (['overview','pet','wallpaper','store','agy','interact','quota','about'].includes(initialSetting)) switchSetting(initialSetting);
+switchSetting(['overview','pet','wallpaper','store','agy','interact','quota','about'].includes(initialSetting) ? initialSetting : 'store');
 render();
+setInterval(tickCarousels, 250);
