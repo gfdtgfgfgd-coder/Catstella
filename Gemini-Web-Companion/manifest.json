@@ -60,6 +60,7 @@
         "content/skin.js",
         "content/ambient.js",
         "content/pet-behavior.js",
+        "content/usage-viewer.js",
         "content/widget.js"
       ],
       "css": [

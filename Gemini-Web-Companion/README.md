@@ -23,6 +23,8 @@
 
 ### 📥 安装指南
 
+网页桌宠、主题和 Gemini 网页额度可独立使用。只有跨端同步需要本机 Catstella 桌面套件运行。Edge／Chrome 当前发布的是解压安装用 ZIP；加载后请保留包含 `manifest.json` 的目录。Firefox 的 XPI 已包含扩展文件，不需要另存一份解压目录。
+
 #### 🦊 火狐浏览器 (Firefox)
 - **方法 A (临时载入调试)**：
   1. 在 Firefox 输入 `about:debugging#/runtime/this-firefox` 并回车；
@@ -56,6 +58,8 @@
 - **MIT License Compliance**: Derived from [Antigravity-Star-Suite](https://github.com/Monokumakuki/Antigravity-Star-Suite) under the MIT License. Original character reference credited to **ZipZipPipe**. Not an official Google product.
 
 ### 📥 Installation Guide
+
+The web pet, theme, and Gemini web usage work without the Catstella desktop suite. Keep the desktop app running if you want to sync with it. Keep the extracted directory after loading the current Edge/Chrome ZIP. Firefox's XPI contains the extension files and does not require a separate extracted copy.
 
 #### 🦊 Firefox
 - **Option A (Temporary Debugging)**:

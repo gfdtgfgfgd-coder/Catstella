@@ -13,22 +13,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (outcome && typeof outcome.catch === 'function') outcome.catch(() => {});
     } catch (e) {}
   };
-  const sendBridgePatch = (patch) => new Promise((resolve) => {
-    if (!api || !api.runtime || !api.runtime.sendMessage) { resolve(null); return; }
-    try {
-      api.runtime.sendMessage({ type: 'KG_BRIDGE_PATCH', patch }, (res) => {
-        try { void api.runtime.lastError; } catch (e) {}
-        resolve(res || null);
-      });
-    } catch (e) { resolve(null); }
-  });
+  const compat = window.KIMINO_API;
+  const sendBridgePatch = patch => compat.sendMessage({ type: 'KG_BRIDGE_PATCH', patch });
 
   const bridgePill = document.getElementById('bridge-pill');
   const chkSyncChar = document.getElementById('chk-sync-char');
   const chkSyncWall = document.getElementById('chk-sync-wall');
   const segBtns = document.querySelectorAll('#seg-display-mode .seg-btn');
   const chkWidget = document.getElementById('chk-widget');
-  const chkSkin = document.getElementById('chk-skin');
+  const skinSelect = document.getElementById('skin-style');
+  const chkAgyUsage = document.getElementById('chk-agy-usage');
   const chkSound = document.getElementById('chk-sound');
   const radioCharacters = document.querySelectorAll('input[name="character"]');
   const rangeScale = document.getElementById('range-scale');
@@ -37,12 +31,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const valTurns = document.getElementById('val-turns');
   const btnResetPos = document.getElementById('btn-reset-pos');
   const btnRefresh = document.getElementById('btn-refresh');
+  const currentLabel = document.getElementById('character-current');
+  const names = { 'gemini-star-v1': '星语', 'lin-cat': '霓音' };
 
   const renderFromStorage = async () => {
     if (!api) return;
     const config = await safeGet([
-      'enabled', 'skinEnabled', 'soundEnabled', 'character', 'widgetScale',
-      'argonMaxSafeTurns', 'syncCharacter', 'syncWallpaper', 'petDisplayMode', 'agyBridgeState'
+      'enabled', 'skinStyle', 'skinEnabled', 'syncAgyUsage', 'soundEnabled', 'character', 'widgetScale',
+      'argonMaxSafeTurns', 'syncCharacter', 'syncWallpaper', 'petDisplayMode', 'agyBridgeState',
+      'onlineCharacterPacks'
     ]);
 
     const online = !!config.agyBridgeState?.online;
@@ -53,18 +50,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     chkSyncChar.checked = config.syncCharacter !== false;
     chkSyncWall.checked = config.syncWallpaper !== false;
-    const mode = config.petDisplayMode || 'both';
-    segBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+    const mode = config.petDisplayMode === 'prefer-desktop' ? 'prefer-desktop' : 'both';
+    segBtns.forEach((b) => {
+      const selected = b.dataset.mode === mode;
+      b.classList.toggle('active', selected);
+      b.setAttribute('aria-pressed', String(selected));
+    });
 
     chkWidget.checked = config.enabled !== false;
-    chkSkin.checked = config.skinEnabled !== false;
+    skinSelect.value = window.KiminoSkinStyle.read(config);
+    chkAgyUsage.checked = config.syncAgyUsage !== false;
     chkSound.checked = !!config.soundEnabled;
 
-    const currentCharacter = (chkSyncChar.checked && online && config.agyBridgeState?.desktop?.characterPack)
-      ? config.agyBridgeState.desktop.characterPack
-      : (config.character || 'gemini-star-v1');
+    const savedPack = config.character || 'gemini-star-v1';
+    const desktopPack = chkSyncChar.checked && online ? config.agyBridgeState?.desktop?.characterPack : null;
+    const packName = id => names[id] || config.onlineCharacterPacks?.[id]?.name;
+    const desktopName = desktopPack && packName(desktopPack);
+    const localName = packName(savedPack) || names['gemini-star-v1'];
+    const summary = `当前显示：${desktopName || localName} · ${desktopName ? '同步桌面' : '网页独立'}`;
+    if (currentLabel.textContent !== summary) currentLabel.textContent = summary;
     radioCharacters.forEach((radio) => {
-      radio.checked = radio.value === currentCharacter;
+      radio.checked = radio.value === savedPack;
     });
 
     const currentScale = config.widgetScale || 200;
@@ -78,15 +84,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await renderFromStorage();
 
-  // 打开 Popup 时顺便触发一次桌面端握手探测
-  if (api && api.runtime && api.runtime.sendMessage) {
-    try {
-      api.runtime.sendMessage({ type: 'KG_TAB_HEARTBEAT', active: true }, () => {
-        try { void api.runtime.lastError; } catch (e) {}
-        renderFromStorage();
-      });
-    } catch (e) {}
-  }
+  compat.onChanged((changes, area) => {
+    if (area === 'local' && ['agyBridgeState', 'syncCharacter', 'syncWallpaper', 'character',
+      'onlineCharacterPacks', 'petDisplayMode', 'skinStyle', 'skinEnabled', 'syncAgyUsage'].some(key => changes[key])) void renderFromStorage();
+  });
+  void compat.sendMessage({ type: 'KG_BRIDGE_GET' });
 
   chkSyncChar.addEventListener('change', async () => {
     await sendBridgePatch({ syncCharacter: chkSyncChar.checked });
@@ -111,8 +113,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     safeSet({ enabled: chkWidget.checked });
   });
 
-  chkSkin.addEventListener('change', () => {
-    safeSet({ skinEnabled: chkSkin.checked });
+  skinSelect.addEventListener('change', async () => {
+    if (!await compat.storageSet(window.KiminoSkinStyle.patch(skinSelect.value))) void renderFromStorage();
+  });
+  chkAgyUsage.addEventListener('change', async () => {
+    if (!await compat.storageSet({ syncAgyUsage: chkAgyUsage.checked })) void renderFromStorage();
   });
 
   chkSound.addEventListener('change', () => {
@@ -123,11 +128,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   radioCharacters.forEach((radio) => {
     radio.addEventListener('change', async () => {
       if (!radio.checked) return;
-      if (chkSyncChar.checked) {
-        await sendBridgePatch({ characterPack: radio.value });
-      } else {
-        safeSet({ character: radio.value, customCharacter: null });
-      }
+      await compat.storageSet({ character: radio.value });
+      void renderFromStorage();
     });
   });
 

@@ -42,12 +42,19 @@
         </label>
       </div>
 
+      <div class="setting-item">
+        <label class="setting-label" for="chk-agy-usage">同步反重力用量</label>
+        <label class="switch">
+          <input type="checkbox" id="chk-agy-usage" checked aria-label="同步反重力用量">
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <div class="setting-item vertical">
         <span class="setting-label">双端桌宠显示策略</span>
         <div class="seg-row" id="seg-display-mode">
           <button type="button" class="seg-btn active" data-mode="both">双端同显</button>
           <button type="button" class="seg-btn" data-mode="prefer-desktop">仅桌面端</button>
-          <button type="button" class="seg-btn" data-mode="prefer-web">焦点互斥</button>
         </div>
       </div>
     </div>
@@ -66,14 +73,12 @@
       </div>
 
       <div class="setting-item">
-        <div class="label-box">
-          <span class="setting-label">星空毛玻璃壁纸 (Dream Skin)</span>
-          <span class="setting-sub">Frosted Glass Theme</span>
-        </div>
-        <label class="switch">
-          <input type="checkbox" id="chk-skin" checked>
-          <span class="slider"></span>
-        </label>
+        <label class="setting-label" for="skin-style">界面样式</label>
+        <select class="skin-style" id="skin-style">
+          <option value="glass">星空毛玻璃</option>
+          <option value="solid">简洁实色</option>
+          <option value="native">Gemini 原生</option>
+        </select>
       </div>
 
       <div class="setting-item">
@@ -90,7 +95,8 @@
 
     <div class="section-group">
       <div class="setting-item vertical">
-        <span class="setting-label">角色形象选择 / Character Pack</span>
+        <span class="setting-label">网页独立形象 / Web Character</span>
+        <div class="setting-desc" id="character-current" aria-live="polite"></div>
         <div class="radio-cards">
           <label class="radio-card">
             <input type="radio" name="character" value="gemini-star-v1" checked>
@@ -139,6 +145,7 @@
     </div>
   </div>
 
+  <script src="../content/shim.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

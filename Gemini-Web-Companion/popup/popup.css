@@ -118,6 +118,16 @@ body {
   color: #e9d5ff;
 }
 
+.skin-style {
+  color-scheme: dark;
+  color: #f1ebff;
+  background: #211932;
+  border: 1px solid #57436f;
+  border-radius: 7px;
+  padding: 4px 6px;
+  font: inherit;
+}
+
 .setting-sub {
   font-size: 10px;
   color: #9f8ec2;
@@ -172,7 +182,7 @@ input:checked + .slider:before {
 /* Segmented Row */
 .seg-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   background: rgba(12, 9, 24, 0.6);
   padding: 3px;

@@ -12,14 +12,11 @@
       this.requested = '';
       this.current = '';
       this.pending = null;
+      this.visible = !document.hidden;
     }
     async setSource(url, transition = 'fade') {
-      this.transition = transition;
-      if (transition === 'none' && this.root.__kgWallpaperStage) {
-        const target = this.pending || this.root.__kgWallpaperStage.url;
-        this.pending = null;
-        this.commit(target);
-      }
+      // Settings and bridge notifications can resend the same source. They must
+      // not change how an already requested image is being presented.
       if (this.requested === url) return true;
       this.requested = url;
       const generation = ++this.generation;
@@ -28,13 +25,28 @@
         image.src = url;
         await image.decode();
         if (generation !== this.generation) return false;
-        if (!this.current || this.transition === 'none') this.commit(url);
-        else if (this.root.__kgWallpaperStage) this.pending = url;
+        if (document.hidden) this.setVisible(false);
+        if (!this.current || transition === 'none') { this.pending = null; this.commit(url); }
+        else if (!this.visible || this.root.__kgWallpaperStage) this.pending = url;
         else this.start(url);
         return true;
       } catch {
         if (generation === this.generation) this.requested = '';
         return false; // Keep the last decoded image on failure.
+      }
+    }
+    setVisible(visible) {
+      if (this.visible === visible) return;
+      this.visible = visible;
+      const stage = this.root.__kgWallpaperStage;
+      if (!visible && stage) {
+        if (!this.pending) this.pending = stage.url;
+        this.discardStage();
+        this.changed();
+      } else if (visible && this.pending) {
+        const latest = this.pending;
+        this.pending = null;
+        if (latest === this.requested) this.start(latest);
       }
     }
     start(url) {
@@ -48,17 +60,23 @@
       this.root.__kgWallpaperStage = stage;
       animation.onfinish = () => {
         if (this.root.__kgWallpaperStage !== stage) return;
+        // A decode or animation task can arrive before visibilitychange.
+        if (document.hidden) this.setVisible(false);
+        if (!this.visible) return;
         const pending = this.pending;
         this.pending = null;
         this.commit(url);
-        if (pending) this.start(pending);
+        if (pending && pending === this.requested) this.start(pending);
       };
       this.changed();
     }
-    commit(url) {
+    discardStage() {
       const stage = this.root.__kgWallpaperStage;
       if (stage) { stage.animation.onfinish = null; stage.animation.cancel(); stage.element.remove(); }
       delete this.root.__kgWallpaperStage;
+    }
+    commit(url) {
+      this.discardStage();
       this.root.style.backgroundImage = background(url);
       this.root.__kgSrc = this.current = url;
       this.changed();
@@ -67,7 +85,8 @@
       ++this.generation;
       this.requested = '';
       this.pending = null;
-      if (this.root.__kgWallpaperStage) this.commit(this.root.__kgWallpaperStage.url);
+      this.discardStage();
+      this.changed();
     }
     static mirror(source, target) {
       if (target.style.backgroundImage !== source.style.backgroundImage) target.style.backgroundImage = source.style.backgroundImage;

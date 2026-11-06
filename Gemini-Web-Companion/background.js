@@ -16,8 +16,10 @@ const DEFAULT_CONFIG = {
   syncCharacter: true,
   syncWallpaper: true,
   syncInteraction: true,
-  petDisplayMode: 'both' // 'both' | 'prefer-desktop' | 'prefer-web'
+  syncAgyUsage: true,
+  petDisplayMode: 'both' // Web choices: 'both' | 'prefer-desktop'
 };
+const webDisplayMode = value => value === 'prefer-desktop' ? value : 'both';
 
 // Firefox (browser.*) 与 Chromium (chrome.*) 双命名空间兜底
 const extApi = (typeof browser !== 'undefined' && browser && browser.runtime) ? browser
@@ -116,12 +118,14 @@ async function installOnlineAsset(id, applyAfterwards) {
     dataUrl = `data:${saved.type};base64,${arrayBufferToBase64(await saved.arrayBuffer())}`;
   } finally { bitmap.close(); }
   const wallpaperId = 'custom:online-' + id;
-  const { customWallpapers = [] } = await safeStorageGet(['customWallpapers']);
-  const wallpapers = (Array.isArray(customWallpapers) ? customWallpapers : []).filter(w => w?.id !== wallpaperId);
-  wallpapers.push({ id: wallpaperId, title: asset.item.name, dataUrl });
-  const selection = applyAfterwards ? { wallpaperId, syncWallpaper: false, pendingOnlineWallpaper: true } : {};
-  const ok = await safeStorageSet({ customWallpapers: wallpapers, ...selection });
-  if (ok && applyAfterwards) void syncWithDesktop({ syncWallpaper: false });
+  const ok = await serializeAppearance(async () => {
+    const { customWallpapers = [] } = await safeStorageGet(['customWallpapers']);
+    const wallpapers = (Array.isArray(customWallpapers) ? customWallpapers : []).filter(w => w?.id !== wallpaperId);
+    wallpapers.push({ id: wallpaperId, title: asset.item.name, dataUrl });
+    const selection = applyAfterwards ? { wallpaperId, ...appearanceIntent({ syncWallpaper: false }) } : {};
+    return safeStorageSet({ customWallpapers: wallpapers, ...selection });
+  });
+  if (ok && applyAfterwards) void syncWithDesktop();
   return { ok };
 }
 async function onlineAction({ action, value }) {
@@ -287,6 +291,10 @@ async function syncDesktopWallpaperIfNeeded(port, desktop, syncCfg) {
       const bytes = await hit.resp.arrayBuffer();
       if (!mime.startsWith('image/') || !bytes.byteLength || bytes.byteLength > 25 * 1024 * 1024) continue;
       if (requestedWallpaper && (requestedWallpaper.syncCfg?.syncWallpaper === false || (requestedWallpaper.desktop?.wallpaperRev || requestedWallpaper.desktop?.wallpaperId) !== rev)) continue;
+      const current = await safeStorageGet(['syncWallpaper', 'agyBridgeState']);
+      const currentWall = current.agyBridgeState?.desktop;
+      if (current.syncWallpaper === false || current.agyBridgeState?.online !== true ||
+          (currentWall?.wallpaperRev || currentWall?.wallpaperId) !== rev) continue;
       const ok = await safeStorageSet({ agySyncedWallpaper: {
         rev, id: desktop.wallpaperId, title: desktop.wallpaperTitle || desktop.wallpaperId,
         dataUrl: 'data:' + mime + ';base64,' + arrayBufferToBase64(bytes), updatedAt: Date.now()
@@ -311,19 +319,57 @@ function syncWithDesktop(patch = null) {
 }
 
 const pendingSyncKeys = { syncCharacter: 'pendingOnlineCharacter', syncWallpaper: 'pendingOnlineWallpaper' };
+let appearanceWrites = Promise.resolve();
+let appearanceSequence = 0;
+const appearanceEpoch = Math.random().toString(36).slice(2);
+function serializeAppearance(task) {
+  const next = appearanceWrites.then(task);
+  appearanceWrites = next.catch(() => {});
+  return next;
+}
+function appearanceIntent(patch) {
+  const updates = {};
+  for (const [key, pending] of Object.entries(pendingSyncKeys)) {
+    if (typeof patch[key] !== 'boolean') continue;
+    updates[key] = patch[key];
+    updates[pending] = { enabled: patch[key], token: appearanceEpoch + ':' + ++appearanceSequence };
+  }
+  return updates;
+}
+function pendingAppearance(value) {
+  // Existing installations stored `true` for a queued switch to independent mode.
+  if (value === true) return { enabled: false, token: 'legacy' };
+  return typeof value?.enabled === 'boolean' && typeof value?.token === 'string' ? value : null;
+}
+async function markBridgeOffline() {
+  const { agyBridgeState: previous, syncAgyUsage } = await safeStorageGet(['agyBridgeState', 'syncAgyUsage']);
+  const desktop = { ...previous?.desktop };
+  if (syncAgyUsage === false) delete desktop.agyQuota;
+  if ((previous?.online === false && !(syncAgyUsage === false && previous.desktop?.agyQuota)) || await safeStorageSet({
+    agyBridgeState: { ...previous, desktop, online: false, ts: Date.now() }
+  })) lastStateSig = 'offline';
+  return { ok: false, online: false };
+}
 async function performDesktopSync(patch = null) {
   try {
-    const pendingBefore = await safeStorageGet(Object.values(pendingSyncKeys));
-    let effectivePatch = patch;
+    const pendingBefore = await serializeAppearance(() => safeStorageGet(['syncAgyUsage', ...Object.values(pendingSyncKeys)]));
+    const effectivePatch = { ...patch };
     for (const [key, pending] of Object.entries(pendingSyncKeys)) {
-      if (pendingBefore[pending] && typeof effectivePatch?.[key] !== 'boolean') effectivePatch = { ...effectivePatch, [key]: false };
+      const intent = pendingAppearance(pendingBefore[pending]);
+      if (intent) effectivePatch[key] = intent.enabled;
+    }
+    if (effectivePatch.syncCharacter === false) delete effectivePatch.characterPack;
+    if (effectivePatch.syncWallpaper === false) {
+      delete effectivePatch.dreamSkin;
+      if (effectivePatch.action === 'next-wallpaper') delete effectivePatch.action;
     }
     const bodyObj = {
       client: 'gemini-web-companion',
       webActive: isAnyGeminiTabFocused(),
       webVisible: isAnyGeminiTabVisible(),
       webQuota: latestWebQuota || undefined,
-      patch: effectivePatch || undefined
+      includeAgyQuota: pendingBefore.syncAgyUsage !== false,
+      patch: Object.keys(effectivePatch).length ? effectivePatch : undefined
     };
     const hit = await fetchBridge('/companion/sync', {
       method: 'POST',
@@ -331,75 +377,50 @@ async function performDesktopSync(patch = null) {
       body: JSON.stringify(bodyObj)
     });
 
-    if (!hit) {
-      if (lastStateSig !== 'offline') {
-        lastStateSig = 'offline';
-        const prev = await safeStorageGet(['agyBridgeState']);
-        if (!prev.agyBridgeState || prev.agyBridgeState.online !== false) {
-          await safeStorageSet({
-            agyBridgeState: {
-              ...(prev.agyBridgeState || {}),
-              online: false,
-              ts: Date.now()
-            }
-          });
-        }
-      }
-      return { ok: false, online: false };
-    }
+    if (!hit) return markBridgeOffline();
 
     const payload = await hit.resp.json();
-    if (!payload || !payload.ok) return { ok: false, online: false };
+    if (!payload?.ok) return markBridgeOffline();
 
     const syncCfg = payload.sync || {};
-    const desktop = payload.desktop || {};
+    const desktop = { ...payload.desktop };
     const nextBridgeState = {
       online: true,
       port: hit.port,
       sync: syncCfg,
       desktop
     };
-    const nextSig = JSON.stringify(nextBridgeState);
+    const useWallpaper = await serializeAppearance(async () => {
+      const stored = await safeStorageGet([
+        'soundEnabled', 'syncCharacter', 'syncWallpaper', 'syncInteraction', 'syncAgyUsage', 'petDisplayMode', ...Object.values(pendingSyncKeys)
+      ]);
+      // Older desktop versions may ignore includeAgyQuota; never cache their
+      // quota while disabled or let an in-flight response undo the switch.
+      if (!bodyObj.includeAgyQuota || stored.syncAgyUsage === false) delete desktop.agyQuota;
+      const nextSig = JSON.stringify(nextBridgeState);
+      const updates = {};
 
-    const stored = await safeStorageGet([
-      'character', 'soundEnabled', 'syncCharacter', 'syncWallpaper', 'syncInteraction', 'petDisplayMode', ...Object.values(pendingSyncKeys)
-    ]);
-    const updates = {};
+      if (nextSig !== lastStateSig) updates.agyBridgeState = { ...nextBridgeState, ts: Date.now() };
 
-    if (nextSig !== lastStateSig) {
-      lastStateSig = nextSig;
-      updates.agyBridgeState = { ...nextBridgeState, ts: Date.now() };
-    }
+      for (const [key, pending] of Object.entries(pendingSyncKeys)) {
+        const sent = pendingAppearance(pendingBefore[pending]);
+        const current = pendingAppearance(stored[pending]);
+        if (current && sent?.token === current.token && syncCfg[key] === current.enabled) updates[pending] = false;
+        if (!current && typeof syncCfg[key] === 'boolean' && stored[key] !== syncCfg[key]) updates[key] = syncCfg[key];
+      }
+      if (typeof syncCfg.syncInteraction === 'boolean' && stored.syncInteraction !== syncCfg.syncInteraction) updates.syncInteraction = syncCfg.syncInteraction;
+      if (typeof syncCfg.petDisplayMode === 'string' && stored.petDisplayMode !== webDisplayMode(syncCfg.petDisplayMode)) {
+        updates.petDisplayMode = webDisplayMode(syncCfg.petDisplayMode);
+      }
+      if (syncCfg.syncInteraction !== false && typeof desktop.sound === 'boolean' && stored.soundEnabled !== desktop.sound) updates.soundEnabled = desktop.sound;
 
-    const canMirror = {};
-    for (const [key, pending] of Object.entries(pendingSyncKeys)) {
-      canMirror[key] = !pendingBefore[pending] && !stored[pending];
-      if (stored[pending] && effectivePatch?.[key] === false && syncCfg[key] === false) updates[pending] = false;
-      if (canMirror[key] && typeof syncCfg[key] === 'boolean' && stored[key] !== syncCfg[key]) updates[key] = syncCfg[key];
-    }
-    if (typeof syncCfg.syncInteraction === 'boolean' && stored.syncInteraction !== syncCfg.syncInteraction) {
-      updates.syncInteraction = syncCfg.syncInteraction;
-    }
-    if (typeof syncCfg.petDisplayMode === 'string' && stored.petDisplayMode !== syncCfg.petDisplayMode) {
-      updates.petDisplayMode = syncCfg.petDisplayMode;
-    }
-
-    if (canMirror.syncCharacter && syncCfg.syncCharacter !== false && desktop.characterPack && stored.character !== desktop.characterPack) {
-      updates.character = desktop.characterPack;
-      updates.customCharacter = null;
-    }
-    if (syncCfg.syncInteraction !== false && typeof desktop.sound === 'boolean' && stored.soundEnabled !== desktop.sound) {
-      updates.soundEnabled = desktop.sound;
-    }
-
-    if (Object.keys(updates).length > 0) {
-      await safeStorageSet(updates);
-    }
-
-    if (canMirror.syncWallpaper) void syncDesktopWallpaperIfNeeded(hit.port, desktop, syncCfg);
+      if (!Object.keys(updates).length || await safeStorageSet(updates)) lastStateSig = nextSig;
+      return (updates.syncWallpaper ?? stored.syncWallpaper) !== false && syncCfg.syncWallpaper !== false;
+    });
+    if (useWallpaper) void syncDesktopWallpaperIfNeeded(hit.port, desktop, syncCfg);
     return { ok: true, online: true, state: nextBridgeState };
   } catch (e) {
-    return { ok: false, online: false };
+    return markBridgeOffline();
   }
 }
 
@@ -422,8 +443,24 @@ const closeUsageTab = id => {
   if (usageFallbackTabId === id) usageFallbackTabId = null;
 };
 
+let headPatWrites = Promise.resolve();
 extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message.type !== 'string') return;
+
+  if (message.type === 'KG_HEAD_PAT') {
+    let valid = false;
+    try { valid = sender.id === extApi.runtime.id && sender.frameId === 0 && new URL(sender.url).origin === 'https://gemini.google.com'; } catch {}
+    if (!valid) return;
+    const record = headPatWrites.then(async () => {
+      const { headPatTotal } = await safeStorageGet(['headPatTotal']);
+      const total = Number.isSafeInteger(headPatTotal) && headPatTotal >= 0 && headPatTotal < Number.MAX_SAFE_INTEGER
+        ? headPatTotal + 1 : 1;
+      return await safeStorageSet({ headPatTotal: total }) ? { total } : null;
+    });
+    headPatWrites = record.catch(() => null);
+    record.then(sendResponse, () => sendResponse(null));
+    return true;
+  }
 
   if (message.type === 'KG_ONLINE' && online && sender.url === onlinePage()) {
     onlineAction(message).then(sendResponse);
@@ -478,24 +515,25 @@ extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'KG_BRIDGE_GET') {
+    syncWithDesktop().then(sendResponse, () => sendResponse({ ok: false }));
+    return true;
+  }
+
   if (message.type === 'KG_BRIDGE_PATCH') {
     const patch = message.patch && typeof message.patch === 'object' ? message.patch : {};
-    // 同时立即落盘本地状态，即使桌面端未启动也能独立生效
-    const localMirror = {};
-    for (const [key, pending] of Object.entries(pendingSyncKeys)) {
-      if (typeof patch[key] !== 'boolean') continue;
-      localMirror[key] = patch[key];
-      localMirror[pending] = !patch[key];
-    }
+    const localMirror = appearanceIntent(patch);
+    const { syncCharacter, syncWallpaper, ...remotePatch } = patch;
     if (typeof patch.syncInteraction === 'boolean') localMirror.syncInteraction = patch.syncInteraction;
-    if (typeof patch.petDisplayMode === 'string') localMirror.petDisplayMode = patch.petDisplayMode;
-    if (typeof patch.characterPack === 'string') {
-      localMirror.character = patch.characterPack;
-      localMirror.customCharacter = null;
-    }
+    if (typeof patch.petDisplayMode === 'string') remotePatch.petDisplayMode = localMirror.petDisplayMode = webDisplayMode(patch.petDisplayMode);
     if (typeof patch.sound === 'boolean') localMirror.soundEnabled = patch.sound;
-    safeStorageSet(localMirror).then(() => syncWithDesktop(patch)).then((res) => {
-      sendResponse(res || { ok: true, localOnly: true });
+    serializeAppearance(() => Object.keys(localMirror).length ? safeStorageSet(localMirror) : true).then(async (saved) => {
+      if (!saved) return sendResponse({ ok: false });
+      if (!Object.keys(remotePatch).length) {
+        void syncWithDesktop();
+        return sendResponse({ ok: true, localOnly: true });
+      }
+      sendResponse(await syncWithDesktop(remotePatch));
     }).catch(() => sendResponse({ ok: false }));
     return true;
   }
@@ -552,6 +590,9 @@ extApi.runtime.onInstalled.addListener(async () => {
   }
 });
 extApi.runtime.onStartup?.addListener(maybeCheckUpdate);
+extApi.storage.onChanged?.addListener((changes, area) => {
+  if (area === 'local' && changes.syncAgyUsage) void syncWithDesktop();
+});
 
 // 启动时探测一次本地 AGY 套件
 syncWithDesktop();

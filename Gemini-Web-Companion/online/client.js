@@ -88,7 +88,7 @@
   }
   async function readBytes(response, limit) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    if (Number(response.headers.get('content-length')) > limit) throw new Error('file too large');
+    // Content-Length can be the compressed transfer size; cap the decoded stream.
     const reader = response.body.getReader();
     const chunks = [];
     let length = 0;

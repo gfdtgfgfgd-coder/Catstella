@@ -5,6 +5,12 @@
   if (window.__KIMINO_SHIM_READY__) return;
   window.__KIMINO_SHIM_READY__ = true;
 
+  window.KiminoSkinStyle = {
+    read: config => ['glass', 'solid', 'native'].includes(config?.skinStyle) ? config.skinStyle
+      : config?.skinEnabled === false ? 'native' : 'glass',
+    patch: style => ({ skinStyle: style, skinEnabled: style !== 'native' })
+  };
+
   const pickApi = () => {
     try {
       if (typeof browser !== 'undefined' && browser && browser.runtime && browser.runtime.id) return browser;

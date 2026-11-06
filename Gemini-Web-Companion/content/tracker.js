@@ -7,6 +7,10 @@
 //  3. MutationObserver 回调全面节流 + 廉价扫描，消除高频 innerText 布局抖动。
 (() => {
   if (window.__KIMINO_TRACKER__) return;
+  const quotaCycles = [
+    ['five', 'currentUsagePercent', 'currentResetTime', 'fiveResetEpoch'],
+    ['weekly', 'weeklyUsagePercent', 'weeklyResetTime', 'weeklyResetEpoch']
+  ];
   class KiminoTracker {
     constructor() {
       this.listeners = new Set();
@@ -52,6 +56,9 @@
       this._scrapeTimer = null;
       this._lastLedgerAt = 0;   // 用量账本刷新节流
       this._ledgerInFlight = false;
+      this._lastStreamId = 0;
+      this._activeStreamId = null;
+      this._lastNetworkCompletionAt = -Infinity;
 
       this.init();
     }
@@ -84,8 +91,7 @@
           const incoming = changes.cachedRealQuota.newValue;
           const cur = this.sessionData.realQuota;
           if (cur.fetchedAt && (incoming.fetchedAt || 0) <= cur.fetchedAt) return; // 只接受更新的数据
-          this.sessionData.realQuota = { ...cur, ...incoming };
-          if (incoming.resetTimestamp) this.sessionData.resetTimestamp = incoming.resetTimestamp;
+          this.mergeQuota(incoming);
           this.notify();
           console.log('[Catstella] 已并入其他页面的额度账本更新:', incoming.currentUsagePercent ?? '?', '%');
         });
@@ -127,7 +133,16 @@
       // 额度算法重构（v1.3.8）：
       // 官方权威优先：只要获取到官方真实配额，100% 以官方真实数据为准！
       // 绝不使用 Math.max(official, estimate) 覆盖，严禁因对话字数增加而虚假上调配额消耗。
-      if (typeof official === 'number') {
+      const quota = this.sessionData.realQuota;
+      for (const [key, , , epoch] of quotaCycles) {
+        quota[`${key}Pending`] = Number.isFinite(quota[epoch]) && quota[epoch] <= Date.now();
+      }
+      if (quota.fivePending) {
+        this.sessionData.fatiguePercent = null;
+        quota.displaySource = 'pending';
+        if (this.sessionData.status !== 'thinking') this.sessionData.status = 'idle';
+        return;
+      } else if (typeof official === 'number') {
         this.sessionData.fatiguePercent = official;
         this.sessionData.realQuota.displaySource = 'official';
       } else {
@@ -151,22 +166,38 @@
         try {
           if (event.source !== window) return;
           if (event.data?.source !== 'KIMINO_INTERCEPTOR') return;
-          const { type } = event.data;
+          const { type, data } = event.data;
+          const streamId = data?.streamId;
+          if (!Number.isSafeInteger(streamId) || streamId <= 0) return;
 
           if (type === 'STREAM_START') {
+            if (streamId <= this._lastStreamId) return;
+            this._lastStreamId = streamId;
+            this._activeStreamId = streamId;
             this.sessionData.status = 'thinking';
+            if (this.sessionData.activity?.kind !== 'generating') this.sessionData.activity = { kind: 'generating' };
             this.sessionData.lastActiveTime = Date.now();
             this.notify();
+          } else if (streamId !== this._activeStreamId) {
+            return;
           } else if (type === 'STREAM_COMPLETE') {
+            this._activeStreamId = null;
+            this._lastNetworkCompletionAt = Date.now();
             this.sessionData.status = 'idle';
+            if (this.sessionData.activity?.kind === 'generating') {
+              this.sessionData.activity = data.successful === true ? { kind: 'completed' } : null;
+            }
             this.sessionData.lastActiveTime = Date.now();
             this.scheduleScrape(true);
+            this.notify();
             // Stream completion refreshes the official SSR ledger (throttled).
             this.refreshUsageLedger('after-turn');
           } else if (type === 'RATE_LIMIT_HIT') {
             this.triggerRateLimit('网络返回 429 配额用尽');
           } else if (type === 'STREAM_ERROR') {
+            this._activeStreamId = null;
             this.sessionData.status = 'idle';
+            this.sessionData.activity = null;
             this.notify();
           }
         } catch (e) {}
@@ -174,7 +205,7 @@
     }
 
     // 字符串转本地重置对象 { epoch, date, display, isUtcCorrected }
-    toLocalResetTime(s) {
+    toLocalResetTime(s, anchorToLedger = true) {
       if (!s) return null;
       const text = String(s).trim();
       const dateMatch = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*([01]?\d|2[0-3])\s*[:：点]\s*(\d{1,2})/);
@@ -192,7 +223,7 @@
         return this.resolveResetDateTime({
           hour: parseInt(clock[2], 10),
           minute: parseInt(clock[3], 10),
-          meridiem
+          meridiem, anchorToLedger
         });
       }
       return null;
@@ -206,7 +237,18 @@
     //   {poolType:"GXU_WEEKLY",...}]}}}},...}]。
     // 直接 fetch('/usage')（同源带 cookie、no-store）解析即可：零 UI、零导航、
     // 无跨域限制 —— 取代会被同源嵌入策略拦截的 iframe 探针。
-    async refreshUsageLedger(reason = 'manual', force = false) {
+    refreshUsageLedger(reason = 'manual', force = false) {
+      if (reason === 'widget' && this._ledgerRequest) return this._ledgerRequest;
+      const request = this.fetchUsageLedger(reason, force);
+      if (this._ledgerInFlight && !this._ledgerRequest) {
+        this._ledgerRequest = request;
+        const clear = () => { if (this._ledgerRequest === request) this._ledgerRequest = null; };
+        request.then(clear, clear);
+      }
+      return request;
+    }
+
+    async fetchUsageLedger(reason, force) {
       const now = Date.now();
       // Keep one deferred refresh, retaining the original trigger priority.
       const minGap = reason.startsWith('after-turn') ? 3500 : (reason === 'boot' || reason === 'page-load' ? 0 : 30000);
@@ -222,7 +264,7 @@
       }
       if (this._ledgerInFlight) return;
       const path = (typeof window !== 'undefined' && window.location && window.location.pathname) || (typeof location !== 'undefined' && location.pathname) || '';
-      if (path === '/usage') return; // 页面自身即数据源，避免自抓
+      if (path === '/usage' && reason !== 'after-reset' && reason !== 'widget') return; // 平时直接读取本页 DOM；主动刷新或到点时重新读取服务端
       if (this._ledgerPendingTimer) {
         clearTimeout(this._ledgerPendingTimer);
         this._ledgerPendingTimer = null;
@@ -239,13 +281,13 @@
             const html = await res.text();
             const info = this.parseUsageLedgerHtml(html);
             if (!info) throw new Error('parse-failed');
-            this.applyUsageLedger(info, reason);
+            const confirmed = this.applyUsageLedger(info, reason);
             this._lastLedgerAt = Date.now(); // 成功才计入节流
             this._ledgerFailCount = 0;
             console.log('[Catstella] 用量账本刷新成功 (' + reason + '): 5h ' +
               (this.sessionData.realQuota.currentUsagePercent ?? '?') + '% | 周 ' +
               (this.sessionData.realQuota.weeklyUsagePercent ?? '?') + '%');
-            return;
+            return confirmed;
           } catch (e) {
             lastErr = e;
           }
@@ -340,36 +382,19 @@
     }
 
     applyUsageLedger(info, reason) {
-      const now = Date.now();
-      const fiveMs = info.five ? this.isoToMs(info.five.gxu && info.five.gxu.windowRefreshesAt) : null;
-      const weekMs = info.weekly ? this.isoToMs(info.weekly.gxu && info.weekly.gxu.windowRefreshesAt) : null;
+      const resetEpoch = pool => this.isoToMs(pool?.gxu?.windowRefreshesAt) ?? this.isoToMs(pool?.windowRefreshesAt);
+      const fiveMs = resetEpoch(info.five);
+      const weekMs = resetEpoch(info.weekly);
       const fivePct = info.five && typeof info.five.percentageUsed === 'number'
         ? Math.min(100, Math.round(info.five.percentageUsed * 100)) : null;
       const weekPct = info.weekly && typeof info.weekly.percentageUsed === 'number'
         ? Math.min(100, Math.round(info.weekly.percentageUsed * 100)) : null;
 
-      // v1.4.0 倒计时目标 = 两个池中【最近的未来重置时刻】：
-      // 周额度先到就先倒数周额度（到点强制刷账本——若 5h 池随周额度同步清零会立刻显示；
-      // 若没有，则 resetTimestamp 自动回退到 5h 池自己的重置时刻）
-      const futureResets = [fiveMs, weekMs].filter((ms) => ms && ms > now).sort((a, b) => a - b);
-      const nearest = futureResets[0] || fiveMs || null;
-      if (nearest) {
-        this.sessionData.resetTimestamp = nearest;
-        this.sessionData.nearestResetIsWeekly = nearest === weekMs && weekMs !== fiveMs;
-        const isActuallyLimited = fivePct !== null ? fivePct >= 100 : this.sessionData.rateLimited;
-        this.sessionData.rateLimited = isActuallyLimited;
-        if (!isActuallyLimited) {
-          if (this.sessionData.status === 'rate_limited') {
-            this.sessionData.status = 'idle';
-          }
-          this.sessionData.resetCountdownText = '';
-        }
-      }
-      this.updateRealQuota({
-        currentUsagePercent: fivePct !== null ? fivePct : this.sessionData.realQuota.currentUsagePercent,
-        currentResetTime: fiveMs ? this.formatClockLocal(fiveMs) : this.sessionData.realQuota.currentResetTime,
-        weeklyUsagePercent: weekPct !== null ? weekPct : this.sessionData.realQuota.weeklyUsagePercent,
-        weeklyResetTime: weekMs ? this.formatWeekLocal(weekMs) : this.sessionData.realQuota.weeklyResetTime,
+      const confirmed = this.updateRealQuota({
+        currentUsagePercent: fivePct,
+        currentResetTime: fiveMs ? this.formatClockLocal(fiveMs) : '',
+        weeklyUsagePercent: weekPct,
+        weeklyResetTime: weekMs ? this.formatWeekLocal(weekMs) : '',
         fiveResetEpoch: fiveMs,
         weeklyResetEpoch: weekMs,
         resetSource: 'usage-ledger',
@@ -380,6 +405,7 @@
         (fivePct !== null ? fivePct + '%' : '?') + ' @ ' + (fiveMs ? this.formatClockLocal(fiveMs) : '?') +
         ' | 周 ' + (weekPct !== null ? weekPct + '%' : '?') + ' @ ' + (weekMs ? this.formatWeekLocal(weekMs) : '?'));
       try { this.scrapePromptResetHint(); } catch (e) {}
+      return confirmed;
     }
 
     // 统一解析 Google 用量文本（弹窗、/usage 页面、隐形探针均复用此逻辑）
@@ -442,19 +468,20 @@
           if (parsed && (parsed.currentPct !== null || parsed.weeklyPct !== null)) {
             let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
             let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-            if (parsed.currentReset) {
-              const loc = this.toLocalResetTime(parsed.currentReset);
-              if (loc) { curReset = loc.display; this.sessionData.resetTimestamp = loc.epoch; }
-            }
+            const five = this.parseDomCycleReset(parsed.currentReset);
+            if (five) curReset = five.display;
             if (parsed.weeklyReset) {
               const locW = this.toLocalResetTime(parsed.weeklyReset);
               if (locW) weekReset = locW.display;
             }
             this.updateRealQuota({
-              currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
+              currentUsagePercent: parsed.currentPct,
               currentResetTime: curReset,
-              weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+              currentResetRaw: parsed.currentReset,
+              weeklyUsagePercent: parsed.weeklyPct,
               weeklyResetTime: weekReset,
+              fiveResetEpoch: five?.epoch,
+              weeklyResetEpoch: this.toLocalResetTime(parsed.weeklyReset)?.epoch,
               resetSource: 'usage-page-dom',
               isReal: true
             });
@@ -527,7 +554,7 @@
           }
           if (this.__turnPending && this.__turnSettleAt && Date.now() - this.__turnSettleAt > 1200) {
             this.__turnPending = false;
-            this.refreshUsageLedger('after-turn-dom');
+            if (Date.now() - this._lastNetworkCompletionAt >= 3500) this.refreshUsageLedger('after-turn-dom');
           }
         } catch (e) {}
       }, 600);
@@ -610,11 +637,12 @@
         const ledgerFresh = this.sessionData.realQuota.resetSource === 'usage-ledger' &&
           this.sessionData.realQuota.fetchedAt &&
           (now - this.sessionData.realQuota.fetchedAt < 10 * 60 * 1000);
-        if (parsed.resetAt && !ledgerFresh) {
+        if (parsed.resetAt && !ledgerFresh && !Number.isFinite(this.sessionData.realQuota.fiveResetEpoch)) {
           this.sessionData.realQuota.currentResetTime = parsed.display;
           this.sessionData.realQuota.fetchedAt = now;
           this.sessionData.realQuota.isReal = true;
           this.sessionData.realQuota.resetSource = 'hint-bar';
+          this.sessionData.realQuota.fiveResetEpoch = parsed.resetAt.getTime();
           this.sessionData.resetTimestamp = parsed.resetAt.getTime();
           try {
             window.KIMINO_API.storageSet({
@@ -791,7 +819,7 @@
     //  1) 误以为 09:37 已过去 7 小时，被迫顺延至明天/明年；
     //  2) 倒计时由真实的 1h02m 错乱变成 17h02m！
     // 本引擎同时推算 UTC 与本地时区时间戳，按窗口合理度自适应决断，并换算为本地系统时间。
-    resolveResetDateTime({ month, day, hour, minute, meridiem = '', tomorrow = false }) {
+    resolveResetDateTime({ month, day, hour, minute, meridiem = '', tomorrow = false, anchorToLedger = true }) {
       try {
         let h = hour;
         const m = minute || 0;
@@ -805,7 +833,7 @@
         const tzOffsetMin = now.getTimezoneOffset(); // 本地距 UTC 分钟数（例如东八区为 -480）
 
         // 门禁：若账本已持有权威 5h 重置时间戳且未携带跨月日期，优先与账本绝对对齐
-        if (!month && !day && this.sessionData.realQuota && this.sessionData.realQuota.fiveResetEpoch) {
+        if (anchorToLedger && !month && !day && this.sessionData.realQuota && this.sessionData.realQuota.fiveResetEpoch) {
           const epoch = this.sessionData.realQuota.fiveResetEpoch;
           if (epoch > nowMs - 90 * 60000 && epoch < nowMs + 6 * 3600 * 1000) {
             const date = new Date(epoch);
@@ -977,23 +1005,21 @@
         if (parsed && (parsed.currentPct !== null || parsed.weeklyPct !== null)) {
           let curReset = parsed.currentReset || this.sessionData.realQuota.currentResetTime;
           let weekReset = parsed.weeklyReset || this.sessionData.realQuota.weeklyResetTime;
-          if (parsed.currentReset) {
-            const loc = this.toLocalResetTime(parsed.currentReset);
-            if (loc) {
-              curReset = loc.display;
-              this.sessionData.resetTimestamp = loc.epoch;
-            }
-          }
+          const five = this.parseDomCycleReset(parsed.currentReset);
+          if (five) curReset = five.display;
           if (parsed.weeklyReset) {
             const locW = this.toLocalResetTime(parsed.weeklyReset);
             if (locW) weekReset = locW.display;
           }
 
           this.updateRealQuota({
-            currentUsagePercent: parsed.currentPct !== null ? parsed.currentPct : this.sessionData.realQuota.currentUsagePercent,
+            currentUsagePercent: parsed.currentPct,
             currentResetTime: curReset,
-            weeklyUsagePercent: parsed.weeklyPct !== null ? parsed.weeklyPct : this.sessionData.realQuota.weeklyUsagePercent,
+            currentResetRaw: parsed.currentReset,
+            weeklyUsagePercent: parsed.weeklyPct,
             weeklyResetTime: weekReset,
+            fiveResetEpoch: five?.epoch,
+            weeklyResetEpoch: this.toLocalResetTime(parsed.weeklyReset)?.epoch,
             resetSource: 'native-dialog',
             fetchedAt: now,
             isReal: true
@@ -1003,14 +1029,64 @@
       }
     }
 
+    parseDomCycleReset(text) {
+      const quota = this.sessionData.realQuota;
+      const now = Date.now();
+      const expired = Number.isFinite(quota.fiveResetEpoch) && quota.fiveResetEpoch <= now;
+      if (expired) {
+        if (!text || text === quota.currentResetTime || text === quota.currentResetRaw) return null;
+        const candidate = this.toLocalResetTime(text, false);
+        if (candidate && candidate.epoch > now && candidate.epoch <= now + 5 * 3600000 + 60000) return candidate;
+        return null;
+      }
+      return this.toLocalResetTime(text);
+    }
+
+    mergeQuota(data) {
+      const previous = this.sessionData.realQuota;
+      const next = { ...previous, ...data };
+      const now = Date.now();
+      let confirmed = false;
+      for (const [key, pct, label, epoch] of quotaCycles) {
+        const before = previous[epoch];
+        const after = data[epoch];
+        const hasBefore = Number.isFinite(before);
+        const hasAfter = Number.isFinite(after);
+        const expired = hasBefore && before <= now;
+        const validWindow = !hasBefore || (hasAfter ? after >= before && (!expired || after > now) : !expired);
+        const canUse = Number.isFinite(data[pct]) && validWindow;
+        if (!canUse) {
+          next[pct] = previous[pct];
+          next[label] = previous[label];
+          next[epoch] = previous[epoch];
+          if (key === 'five') next.currentResetRaw = previous.currentResetRaw;
+        } else {
+          if (!hasAfter || after > now) confirmed = true;
+          if (expired && hasAfter && after > now) this.sessionData.quotaReset = { cycle: key, at: now };
+          next[epoch] = hasAfter ? after : before;
+          next[label] = data[label] || previous[label];
+          if (key === 'five' && (expired || data.resetSource === 'usage-ledger')) this.sessionData.rateLimited = data[pct] >= 100;
+        }
+      }
+      this.sessionData.realQuota = next;
+      const future = quotaCycles.map(([, , , epoch]) => next[epoch]).filter(value => value > now);
+      if (future.length) {
+        const nearest = Math.min(...future);
+        this.sessionData.resetTimestamp = nearest;
+        this.sessionData.nearestResetIsWeekly = nearest === next.weeklyResetEpoch && nearest !== next.fiveResetEpoch;
+      }
+      return confirmed;
+    }
+
     updateRealQuota(data) {
       if (!data) return;
-      this.sessionData.realQuota = { ...this.sessionData.realQuota, ...data, isReal: true, fetchedAt: Date.now() };
+      const confirmed = this.mergeQuota({ ...data, isReal: true, fetchedAt: Date.now() });
+      this.notify();
       try {
         window.KIMINO_API.storageSet({ cachedRealQuota: this.sessionData.realQuota });
       } catch (e) {}
       console.log('[Catstella] 成功捕获 Google 官方真实额度:', this.sessionData.realQuota);
-      this.notify();
+      return confirmed;
     }
 
     scanDomMetrics() {
@@ -1082,31 +1158,38 @@
       this.notify();
     }
 
+    tickQuotaCountdown() {
+      const state = this.sessionData;
+      const now = Date.now();
+      const expired = quotaCycles.filter(([, , , epoch]) => Number.isFinite(state.realQuota[epoch]) && state.realQuota[epoch] <= now);
+      const alertExpired = state.resetTimestamp && state.resetTimestamp <= now;
+      if (alertExpired) {
+        const future = quotaCycles.map(([, , , epoch]) => state.realQuota[epoch]).filter(epoch => epoch > now);
+        state.resetTimestamp = future.length ? Math.min(...future) : null;
+        // An expired hint with no official cycle no longer proves rate limiting.
+        if (!expired.length) state.rateLimited = false;
+      }
+      const seconds = state.resetTimestamp ? Math.ceil((state.resetTimestamp - now) / 1000) : 0;
+      const countdown = seconds > 0 ? [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+        .map(part => String(part).padStart(2, '0')).join(':') : '';
+      const changed = countdown !== state.resetCountdownText || alertExpired || expired.some(([key]) => !state.realQuota[`${key}Pending`]);
+      state.resetCountdownText = countdown;
+      if (changed) this.notify();
+      const signature = expired.map(([key, , , epoch]) => `${key}:${state.realQuota[epoch]}`).join('|');
+      if ((signature || alertExpired) && !this._ledgerInFlight &&
+          (signature !== this._resetRefreshSignature || now - (this._resetRefreshAt ?? -Infinity) >= 30000)) {
+        this._resetRefreshSignature = signature;
+        this._resetRefreshAt = now;
+        void this.refreshUsageLedger('after-reset', true);
+      }
+    }
+
     startCountdownTimer() {
-      setInterval(() => {
-        if (!this.sessionData.resetTimestamp) return;
-        const diff = this.sessionData.resetTimestamp - Date.now();
-        if (diff <= 0) {
-          this.sessionData.rateLimited = false;
-          this.sessionData.resetTimestamp = null;
-          this.sessionData.resetCountdownText = '';
-          this.sessionData.status = 'idle';
-          this._lastHintSignature = ''; // 允许提示条重新广播
-          this.notify();
-          // v1.3.10：重置时刻已到 —— 立即强制刷账本，让进度条当场恢复
-          // （否则要等下一次 5 分钟轮询，期间一直显示旧的高占比）
-          if (!this._resetRefreshAt || Date.now() - this._resetRefreshAt > 30000) {
-            this._resetRefreshAt = Date.now();
-            this.refreshUsageLedger('after-reset', true);
-          }
-        } else {
-          const h = Math.floor(diff / 3600000);
-          const m = Math.floor((diff % 3600000) / 60000);
-          const s = Math.floor((diff % 60000) / 1000);
-          this.sessionData.resetCountdownText = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-          this.notify();
-        }
-      }, 1000);
+      setInterval(() => this.tickQuotaCountdown(), 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) this.tickQuotaCountdown();
+      });
+      window.addEventListener('focus', () => this.tickQuotaCountdown());
     }
 
     initUrlListener() {

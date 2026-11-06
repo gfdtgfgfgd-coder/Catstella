@@ -9,7 +9,7 @@
 * **垂直锚点铁律**：渐隐带与玻璃带的切线 = `getCutLineY()` = **滚动容器底边**（`getConversationScroller()`），绝不是 Composer 顶边（差 ~30px 就错位）；
 * **水平对齐铁律**：band/composer/card 三者以**回复卡视口矩形**为基准（宽度 + `__kgOffsetX` relative 偏移）；测量前必须先 `removeProperty('max-width')`（否则量到残留内联值）；
 * **z 序铁律**：body 必须**透明**（不透明 body 背景会盖住负 z-index 的壁纸/基底层）；基底色画在 `#kimino-base-layer`（z -100000），壁纸层 z -99999 圆角内容列；
-* **自定义资源**：storage 键 `customWallpaper`（JPEG dataURL ≤1920×1080）/ `customCharacter`（PNG dataURL ≤640×640，覆盖所有表情帧），skin.js/widget.js 经 onChanged 即时切换，设 null 还原默认。
+* **自定义资源**：Web 仍可上传壁纸（JPEG ≤1920×1080）。旧版 `customCharacter` 不再读取或应用，已上传数据保留；形象从内置与已安装的在线桌宠中选择。
 
 ### v1.3.4 增补（全毛玻璃 / 挖空圆角区 / 设置面板 / 滚动渐隐）
 * **宽度语义**：回复卡保持 Google 原生列宽（不强制 max-width），**Composer 药丸由 skin.js 拉宽至与回复等宽**（内联 width+居中）——不要再改回"拉宽回复"方向；

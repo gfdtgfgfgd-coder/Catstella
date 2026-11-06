@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>用量查看器 · Catstella Demo</title>
+  <link rel="stylesheet" href="../../Gemini-Web-Companion/content/skin.css">
+  <link rel="stylesheet" href="demo.css">
+  <script defer src="usage-viewer.js"></script>
+  <script defer src="demo.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="identity"><span class="identity-mark" aria-hidden="true">✦</span><span>Catstella</span><span class="separator"></span><span class="subtle">Web 原型</span></div>
+      <span class="badge"><span aria-hidden="true"></span> 演示数据</span>
+    </header>
+
+    <section class="scene" aria-labelledby="demo-title">
+      <div class="intro">
+        <h1 id="demo-title">用量查看器</h1>
+        <p>同一份用量，独立浮窗或桌宠气泡。</p>
+      </div>
+
+      <div class="preview">
+        <div class="panels">
+          <section class="sample" aria-labelledby="regular-title">
+            <h2 id="regular-title" class="caption">独立浮窗</h2>
+            <catstella-usage-viewer id="viewer"></catstella-usage-viewer>
+          </section>
+          <section class="sample" aria-labelledby="compact-title">
+            <h2 id="compact-title" class="caption">桌宠小窗 · 296 px</h2>
+            <div class="pet-bubble">
+              <div class="pet-header"><span aria-hidden="true">✦</span> 星语</div>
+              <catstella-usage-viewer id="compact-viewer" compact></catstella-usage-viewer>
+            </div>
+          </section>
+        </div>
+
+        <section class="controls" aria-label="演示设置">
+          <label class="switch-label"><input id="sync-agy" type="checkbox" checked> 同步反重力用量</label>
+          <label class="field" for="palette"><span>主题</span>
+            <select id="palette">
+              <option value="violet">星空紫</option>
+              <option value="pink">幻梦粉</option>
+              <option value="ocean">深海蓝</option>
+              <option value="onyx">极夜黑</option>
+            </select>
+          </label>
+          <label class="field" for="scenario"><span>预览状态</span>
+            <select id="scenario">
+              <option value="normal">常规</option>
+              <option value="low">低额度／耗尽</option>
+              <option value="expiry">倒计时归零</option>
+              <option value="unavailable">数据不可用</option>
+            </select>
+          </label>
+        </section>
+      </div>
+    </section>
+
+    <footer class="note">独立组件预览<span aria-hidden="true">·</span> 主题与同步开关同时作用于两种尺寸。</footer>
+  </main>
+</body>
+</html>

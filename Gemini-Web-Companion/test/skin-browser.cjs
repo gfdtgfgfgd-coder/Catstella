@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, '..');
 const baseline = process.argv.includes('--baseline');
 const source = baseline ? path.resolve(root, '../evidence/web-skin-before') :
   path.join(root, process.argv.includes('--built') ? 'dist/chromium/content' : 'content');
-const out = path.resolve(root, '../evidence');
+const out = path.resolve(root, process.env.SKIN_EVIDENCE_DIR || '../evidence');
 fs.mkdirSync(out, { recursive: true });
 
 async function main() {
@@ -129,6 +129,80 @@ async function main() {
     if (fs.existsSync(path.join(source, 'wallpaper.js'))) await page.addScriptTag({ path: path.join(source, 'wallpaper.js') });
     if (fs.existsSync(path.join(source, 'fade.js'))) await page.addScriptTag({ path: path.join(source, 'fade.js') });
     await page.addScriptTag({ path: path.join(source, 'skin.js') });
+    if (!baseline) {
+      await page.waitForSelector('html.kimino-dream-active', {state:'attached'});
+      const aurora = await page.evaluate(() => {
+        const landing = document.createElement('chat-window');
+        landing.innerHTML = '<div class="welcome-grow-container"><div class="aurora-outer-container" style="height:100px;filter:blur(12px);background:black"><div class="aurora-bg">native</div></div></div><input-area-v2></input-area-v2>';
+        document.body.append(landing);
+        const outer = landing.querySelector('.aurora-outer-container');
+        const inner = landing.querySelector('.aurora-bg');
+        const composer = landing.querySelector('input-area-v2');
+        const before = readStyle(composer).backgroundImage;
+        document.documentElement.dataset.kiminoPalette = 'ocean';
+        const after = readStyle(composer).backgroundImage;
+        const result = {before, after, native:readStyle(inner).visibility, blur:readStyle(outer).filter, outer:readStyle(outer).backgroundImage};
+        delete document.documentElement.dataset.kiminoPalette;
+        landing.remove();
+        return result;
+      });
+      assert.match(aurora.before, /radial-gradient.*189, 162, 242/);
+      assert.match(aurora.after, /124, 192, 255/);
+      assert.equal(aurora.native, 'hidden');
+      assert.equal(aurora.blur, 'none');
+      assert.equal(aurora.outer, 'none');
+      const solid = await page.evaluate(() => {
+        const root = document.documentElement;
+        const surface = document.querySelector('model-response');
+        const glass = readStyle(surface).backdropFilter;
+        root.dataset.kiminoStyle = 'solid';
+        root.dataset.kiminoPalette = 'ocean';
+        const result = { glass, solid: readStyle(surface).backdropFilter, color: readStyle(surface).backgroundColor };
+        delete root.dataset.kiminoStyle;
+        delete root.dataset.kiminoPalette;
+        return result;
+      });
+      assert.match(solid.glass, /blur/);
+      assert.equal(solid.solid, 'none');
+      assert.equal(solid.color, 'rgb(20, 29, 43)');
+      await page.evaluate(() => {
+        const query = document.querySelector('user-query');
+        const copy = document.createElement('button');
+        copy.setAttribute('aria-label', '复制提示');
+        copy.style.cssText = 'position:fixed;left:420px;top:190px';
+        query.append(copy);
+        const pending = document.createElement('model-response');
+        pending.id = 'pending-thought';
+        pending.innerHTML = '<model-thoughts><details class="thought-container"><summary>Reacting to the new image</summary><p>Expanded thought</p></details></model-thoughts>';
+        document.querySelector('main').append(pending);
+        copy.click();
+        const toast = document.createElement('mat-snack-bar-container');
+        toast.style.cssText = 'position:fixed;right:8px;top:8px;padding:8px;background:#222';
+        toast.innerHTML = '<div role="status">已复制提示<button>发起新对话</button></div>';
+        document.body.append(toast);
+      });
+      await page.waitForSelector('[data-kg-copy-toast]', {state:'attached'});
+      await page.waitForSelector('#pending-thought [data-kg=thinking]', {state:'attached'});
+      const layout = await page.evaluate(() => {
+        const toast = document.querySelector('[data-kg-copy-toast]');
+        const anchor = document.querySelector('[aria-label="复制提示"]');
+        return {
+          gap: anchor.getBoundingClientRect().top - toast.getBoundingClientRect().bottom,
+          background: readStyle(document.querySelector('#pending-thought')).backgroundColor,
+          disclosure: readStyle(document.querySelector('#pending-thought details')).display,
+          action: toast.querySelector('button').textContent
+        };
+      });
+      assert.ok(Math.abs(layout.gap - 8) < 2);
+      assert.equal(layout.background, 'rgba(0, 0, 0, 0)');
+      assert.equal(layout.disclosure, 'block');
+      assert.equal(layout.action, '发起新对话');
+      await page.evaluate(() => {
+        document.querySelector('[data-kg-copy-toast]').remove();
+        document.querySelector('#pending-thought').remove();
+        document.querySelector('[aria-label="复制提示"]').remove();
+      });
+    }
     await page.waitForTimeout(1200);
     if (!baseline) assert.deepEqual(await page.evaluate(() => window.readSurfaces()), await page.evaluate(() => window.unmarkedSurfaces), 'annotation must not change native surface appearance');
     const cdp = await page.context().newCDPSession(page);
@@ -239,6 +313,15 @@ async function main() {
     assert.equal(await page.locator('#kimino-dream-wallpaper').evaluate(el => el.style.left),
       await page.locator('bard-sidenav').evaluate(el => Math.round(el.getBoundingClientRect().right) + 'px'));
     await page.screenshot({ path: path.join(out, 'skin-browser.png') });
+    await page.evaluate(() => {
+      history.pushState({}, '', '/usage');
+      document.querySelector('main').insertAdjacentHTML('beforeend', '<section id="usage-fixture" style="background:rgba(20,20,20,.6);backdrop-filter:blur(12px)"><h2>用量限额</h2><ul><li>当前用量 已使用 50% 重置时间：12:30</li></ul></section>');
+    });
+    const shell = page.locator('#usage-fixture');
+    await page.locator('#usage-fixture [data-kg="usage-card"]').waitFor();
+    assert.equal(await shell.evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
+    assert.equal(await shell.evaluate(el => getComputedStyle(el).backdropFilter), 'none');
+    assert.notEqual(await shell.locator('li').evaluate(el => getComputedStyle(el).backgroundColor), 'rgba(0, 0, 0, 0)');
     assert.deepEqual(errors, [], 'no late errors during edit, toggle, scroll, resize or cleanup');
     console.log('PASS: continuous blur, no stylesheet swap, scoped work, repeated toggle, edit/composer, attachment, code decoration, disable/re-enable, streaming.');
   } finally { await browser.close(); }

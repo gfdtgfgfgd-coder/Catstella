@@ -1,0 +1,60 @@
+:root {
+  color-scheme:dark;
+  font-family:system-ui,"Microsoft YaHei UI",sans-serif;
+  color:#f0edf6; background:#14121c;
+  --surface:var(--kg-palette-base,#211e2d);
+  --accent:var(--kg-palette-accent,#bda2f2);
+  --border:rgba(var(--kg-palette-accent-rgb,189,162,242),.25);
+}
+* { box-sizing:border-box }
+[hidden] { display:none !important }
+body { margin:0 }
+button,select { font:inherit }
+input:focus-visible,select:focus-visible { outline:2px solid var(--accent); outline-offset:3px }
+.shell { max-width:1280px; margin:0 auto; padding:0 32px }
+.masthead { display:flex; align-items:center; justify-content:space-between; min-height:72px; gap:16px }
+.identity { display:flex; align-items:center; gap:11px; font-size:15px; font-weight:650 }
+.identity-mark { display:grid; place-items:center; width:27px; height:27px; border:1px solid #554668; border-radius:8px; color:#d5bafa; background:#292139 }
+.separator { height:15px; border-left:1px solid #3e374c }
+.subtle { font-size:12px; color:#a9a2b5; font-weight:500 }
+.badge { display:flex; align-items:center; gap:7px; padding:5px 9px; white-space:nowrap; font-size:11px; border:1px solid #3c354b; border-radius:6px; color:#c9bdd9; background:#211c2b }
+.badge span { display:block; width:6px; height:6px; border-radius:50%; background:#c0a6ef }
+.scene {
+  display:flex; flex-direction:column; justify-content:space-between; min-height:660px;
+  border:1px solid #514463; border-radius:20px; overflow:hidden;
+  background:
+    linear-gradient(90deg,#171321ef 0%,#20182e8a 58%,#1a142966 100%),
+    linear-gradient(0deg,#211831b5,transparent 55%),
+    #2a2043 url('../../Gemini-Web-Companion/assets/wallpapers/aica-starship.jpg') center 48% / cover no-repeat;
+}
+.intro { width:min(100%,790px); padding:44px 0 20px; margin:0 auto }
+h1 { margin:0; font-size:clamp(30px,5vw,42px); line-height:1.2; font-weight:680; letter-spacing:-.04em }
+.intro p { margin:12px 0 0; color:#cfc4de; font-size:14px }
+.preview { width:min(100%,790px); margin:0 auto 42px }
+.panels { display:grid; grid-template-columns:minmax(0,390px) minmax(0,296px); gap:22px; align-items:start; padding-bottom:18px }
+.sample { min-width:0 }
+.caption { margin:0 0 8px; font-size:12px; font-weight:500; color:#d9cee7 }
+.pet-bubble { position:relative; width:100%; max-width:296px; padding:9px 10px 10px; border:1px solid var(--border); border-radius:13px; background:var(--surface); box-shadow:0 14px 32px #100a2070 }
+.pet-bubble::after { content:''; position:absolute; right:24px; bottom:-5px; width:8px; height:8px; transform:rotate(45deg); background:var(--surface); border-right:1px solid var(--border); border-bottom:1px solid var(--border) }
+.pet-header { margin:0 1px 7px; color:#eae0f3; font-size:12px; font-weight:600 }
+.pet-header span { color:var(--accent); margin-right:3px }
+.controls { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:12px }
+.switch-label,.field { display:flex; align-items:center; gap:8px; color:#e1d8ea; font-size:12px }
+.switch-label { cursor:pointer }
+.switch-label input { accent-color:var(--accent); width:15px; height:15px; margin:0 }
+.field select { max-width:100%; padding:6px 7px; color:#f0edf6; background:var(--kg-palette-selected,#382b49); border:1px solid var(--border); border-radius:7px }
+.note { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:#aca4ba; font-size:12px; padding:16px 0 21px }
+@media (max-width:920px) {
+  .intro,.preview { width:calc(100% - 56px) }
+}
+@media (max-width:650px) {
+  .shell { padding:0 14px }
+  .masthead { min-height:57px }
+  .scene { min-height:0; border-radius:14px }
+  .intro,.preview { width:calc(100% - 24px) }
+  .intro { padding:28px 3px 20px }
+  .intro p { line-height:1.6 }
+  .preview { margin-bottom:12px }
+  .panels { grid-template-columns:1fr; gap:14px }
+  .controls { padding:10px; gap:10px; justify-content:flex-start }
+}

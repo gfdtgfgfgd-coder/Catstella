@@ -105,7 +105,7 @@ const fixture = `
       await window.KIMINO_API.storageSet({ wallpaperId: 'custom:online-sample' });
       await window.KIMINO_API.sendMessage({ type: 'KG_BRIDGE_PATCH', patch: { syncWallpaper: false } });
     });
-    assert.equal(await page.evaluate(() => store.pendingOnlineWallpaper), true);
+    assert.equal(await page.evaluate(() => store.pendingOnlineWallpaper?.enabled), false);
     bridgeUp = true;
     await page.evaluate(async () => {
       const ping = () => window.KIMINO_API.sendMessage({ type: 'KG_TAB_HEARTBEAT', active: true });

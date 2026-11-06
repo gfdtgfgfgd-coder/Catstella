@@ -22,9 +22,18 @@
   let wallpaperSrc = null; // 自定义或同步壁纸 dataURL，或 null（用默认）
   let skinCurrentlyEnabled = true;
   let currentSkinOpacity = 0.88;
+  let opacityRevision = 0;
   const fixedFade = window.KiminoFixedFade ? new window.KiminoFixedFade(() => scheduleGeometry()) : null;
 
   const getWallpaperUrl = () => wallpaperSrc || api.getURL('assets/wallpapers/gemini-sheet.png');
+  const setWallpaperOpacity = opacity => {
+    ++opacityRevision;
+    currentSkinOpacity = typeof opacity === 'number' ? opacity : 0.88;
+    if (!wallpaperEl || !skinCurrentlyEnabled) return;
+    wallpaperEl.style.opacity = String(currentSkinOpacity);
+    fixedFade?.syncWallpaper(wallpaperEl, currentSkinOpacity);
+  };
+  window.KiminoPreviewWallpaperOpacity = setWallpaperOpacity;
 
   const applySkin = (enabled = true, opacity = 0.88) => {
     skinCurrentlyEnabled = !!enabled;
@@ -96,17 +105,19 @@
   let configRevision = 0;
   const loadAndApply = async () => {
     const revision = ++configRevision;
+    const previousOpacityRevision = opacityRevision;
     const res = await api.storageGet([
-      'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper',
+      'skinStyle', 'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper',
       'syncWallpaper', 'agyBridgeState', 'agySyncedWallpaper', 'onlinePalette'
     ]);
-    const isEnabled = res ? res.skinEnabled !== false : true;
+    const style = window.KiminoSkinStyle?.read(res) ?? (res?.skinEnabled === false ? 'native' : 'glass');
+    const isEnabled = style !== 'native';
     const opacity = res && typeof res.wallpaperOpacity === 'number' ? res.wallpaperOpacity : 0.88;
 
     let src = null;
     // 双端壁纸同步模式：启用同步且存在桌面端同步壁纸时优先应用桌面壁纸（支持轮播自动跟进）
-    const wantSync = res ? res.syncWallpaper !== false : true;
-    if (wantSync && res?.agySyncedWallpaper?.dataUrl) {
+    const usingDesktop = res?.syncWallpaper !== false && res?.agyBridgeState?.online === true && !!res.agySyncedWallpaper?.dataUrl;
+    if (usingDesktop) {
       src = res.agySyncedWallpaper.dataUrl;
     }
 
@@ -130,11 +141,13 @@
     if (revision !== configRevision) return; // A slow gallery lookup cannot undo a newer toggle.
     const palette = res?.onlinePalette;
     const root = document.documentElement;
+    if (style === 'solid') root.dataset.kiminoStyle = style;
+    else delete root.dataset.kiminoStyle;
     if (isEnabled && ['pink', 'ocean', 'onyx'].includes(palette)) root.dataset.kiminoPalette = palette;
     else delete root.dataset.kiminoPalette;
-    wallpaperTransition = wantSync && res?.agyBridgeState?.desktop?.wallpaperTransition === 'none' ? 'none' : 'fade';
+    wallpaperTransition = usingDesktop && res.agyBridgeState.desktop?.wallpaperTransition === 'none' ? 'none' : 'fade';
     wallpaperSrc = src; // null → getWallpaperUrl 回落默认
-    applySkin(isEnabled, opacity);
+    applySkin(isEnabled, previousOpacityRevision === opacityRevision ? opacity : currentSkinOpacity);
     if (isEnabled) schedule();
   };
 
@@ -189,7 +202,7 @@
     });
     scoped(root, 'model-response').forEach(mr => {
       mark(mr, 'card');
-      const thoughts = [...mr.querySelectorAll('details, model-thoughts, .thought-container, .thought-box, .thinking-container, [data-test-id="thinking-process"]')];
+      const thoughts = [...mr.querySelectorAll('model-thoughts, .thought-container, .thought-box, .thinking-container, [data-test-id="thinking-process"]')];
       thoughts.forEach(node => {
         if (!node.closest('response-footer, .response-footer') && !thoughts.some(other => other !== node && other.contains(node))) mark(node, 'thinking');
       });
@@ -203,7 +216,15 @@
     scoped(root, 'aside[aria-label="Notifications"]').forEach(el => mark(el, 'ghost'));
     if (location.pathname === '/usage') {
       scoped(root, 'li').forEach(el => {
-        if (/重置时间|resets?/i.test(el.textContent) && /当前用量|每周限额|usage|weekly/i.test(el.textContent)) mark(el, 'usage-card');
+        if (!/重置时间|resets?/i.test(el.textContent) || !/当前用量|每周限额|usage|weekly/i.test(el.textContent)) return;
+        mark(el, 'usage-card');
+        let shell = el.parentElement;
+        for (let depth = 0; shell && depth < 5 && shell.matches('ul, div, section'); depth++, shell = shell.parentElement) {
+          // Require the shared usage surface, never an individual card or the app shell.
+          if (shell.matches('section') || shell.matches('ul') || shell.querySelector('h1,h2')) {
+            shell.setAttribute('data-kg-usage-shell', '');
+          }
+        }
       });
       scoped(root, 'section').forEach(el => {
         if (/AI Ultra/.test(el.textContent) && /升级|upgrade/i.test(el.textContent)) mark(el, 'usage-banner');
@@ -260,6 +281,7 @@
     if (!skinCurrentlyEnabled) { dirtyRoots.clear(); return; }
     const wait = animGateUntil - performance.now();
     if (wait > 0) { annotateTimer = setTimeout(flushAnnotations, wait + 16); return; }
+    document.documentElement.toggleAttribute('data-kg-usage-page', location.pathname === '/usage');
     const roots = [...dirtyRoots];
     dirtyRoots.clear();
     roots.filter(root => !roots.some(other => other !== root && other.contains(root))).forEach(root => annotate(root));
@@ -271,11 +293,41 @@
     animGateUntil = performance.now() + 400;
     schedule(button.closest('user-query, model-response') || button);
   };
+  const toastSelector = 'mat-snack-bar-container, snack-bar, [role="status"], [role="alert"]';
+  const copiedPrompt = /^(?:已复制提示(?:词)?|已複製提示(?:詞)?|prompt copied(?: to clipboard)?)[。.!！]?(?:\s*(?:发起新对话|發起新對話|start new chat|start a new chat))?$/i;
+  let copyAnchor, copyAt = -Infinity, activeToast;
+  const placeCopyToast = () => {
+    if (!activeToast?.isConnected) { activeToast = null; return; }
+    const { width, height } = activeToast.getBoundingClientRect();
+    const anchor = copyAnchor?.isConnected && performance.now() - copyAt < 5000 ? copyAnchor.getBoundingClientRect() : null;
+    const composer = document.querySelector('input-container, input-area-v2')?.getBoundingClientRect();
+    const limit = (value, end) => Math.max(8, Math.min(value, end - 8));
+    const near = anchor && anchor.bottom > 0 && anchor.top < innerHeight;
+    const center = near ? (anchor.left + anchor.right) / 2 : innerWidth / 2;
+    const fallback = composer?.top > height + 16 && composer.top < innerHeight ? composer.top - height - 12 : innerHeight - height - 20;
+    const y = near && anchor.top >= height + 16 ? anchor.top - height - 8
+      : near && anchor.bottom + height + 16 < innerHeight ? anchor.bottom + 8 : fallback;
+    activeToast.style.setProperty('--kg-toast-left', limit(center - width / 2, innerWidth - width) + 'px');
+    activeToast.style.setProperty('--kg-toast-top', limit(y, innerHeight - height) + 'px');
+    activeToast.setAttribute('data-kg-copy-toast', '');
+  };
+  const findCopyToast = node => {
+    const candidates = new Set([node.closest(toastSelector), ...node.querySelectorAll(toastSelector)]);
+    for (const candidate of candidates) {
+      if (!candidate || !copiedPrompt.test(candidate.textContent.trim().replace(/\s+/g, ' '))) continue;
+      activeToast?.removeAttribute('data-kg-copy-toast');
+      activeToast = candidate.closest('mat-snack-bar-container, snack-bar') || candidate;
+      placeCopyToast();
+      break;
+    }
+  };
   const queueMutation = (mutation) => {
     const parent = mutation.target.nodeType === 1 ? mutation.target : mutation.target.parentElement;
     if (!parent || parent.closest('#kimino-companion-root')) return;
     for (const node of mutation.addedNodes) {
+      if (node.nodeType === 3 && parent.closest(toastSelector)) findCopyToast(parent);
       if (node.nodeType !== 1 || node.id?.startsWith('kimino-')) continue;
+      if (node.matches(toastSelector) || node.closest(toastSelector) || node.querySelector(toastSelector)) findCopyToast(node);
       const anchors = 'user-query, model-response, input-area-v2, input-container, rich-textarea, bard-sidenav, aside[aria-label="Notifications"], details, model-thoughts, .thought-container, .thought-box, .thinking-container';
       const queryControl = node.matches('button, [role="button"]') && node.closest('user-query, model-response');
       const quotaSurface = location.pathname === '/usage' && (node.matches('li, section') || node.querySelector('li, section'));
@@ -312,16 +364,22 @@
   // ============ 启动 ============
   (async () => {
     try {
-      await loadAndApply();
       api.onChanged((changes, area) => {
-        if (area === 'local' && (
-          changes.skinEnabled || changes.onlinePalette || changes.wallpaperOpacity || changes.customWallpaper ||
+        if (area !== 'local') return;
+        if (changes.wallpaperOpacity) setWallpaperOpacity(changes.wallpaperOpacity.newValue);
+        const before = changes.agyBridgeState?.oldValue;
+        const after = changes.agyBridgeState?.newValue;
+        const bridgeAffectsWallpaper = before?.online !== after?.online ||
+          before?.desktop?.wallpaperTransition !== after?.desktop?.wallpaperTransition;
+        if (
+          changes.skinStyle || changes.skinEnabled || changes.onlinePalette || changes.customWallpaper ||
           changes.wallpaperId || changes.customWallpapers || changes.syncWallpaper ||
-          changes.agySyncedWallpaper || changes.agyBridgeState
-        )) {
+          changes.agySyncedWallpaper || bridgeAffectsWallpaper
+        ) {
           loadAndApply();
         }
       });
+      await loadAndApply();
     } catch (err) {
       console.warn('[Catstella] 初始化皮肤配置异常，使用默认参数兜底:', err);
       applySkin(true, 0.88);
@@ -355,9 +413,18 @@
       }
       window.addEventListener('focus', ensureSkinAlive);
       window.addEventListener('blur', ensureSkinAlive);
-      document.addEventListener('visibilitychange', ensureSkinAlive);
+      document.addEventListener('visibilitychange', () => {
+        wallpaperController?.setVisible(!document.hidden);
+        ensureSkinAlive();
+      });
       // 收起/展开切换 → 进入动画禁窗（捕获阶段，键盘 Enter 触发的 click 同样命中）
       document.addEventListener('click', (ev) => {
+        const control = ev.target?.closest?.('user-query button, user-query [role="button"]');
+        const label = control?.getAttribute('aria-label') || control?.getAttribute('title') || '';
+        if (/复制|複製|\bcopy\b/i.test(label)) {
+          copyAnchor = control;
+          copyAt = performance.now();
+        }
         const b = ev.target && ev.target.closest && ev.target.closest('.luminous-toggle-button, [data-kg-expand-btn="true"]');
         if (b && !b.closest('bard-sidenav') && !b.closest('[data-test-id="side-nav"]')) enterAnimGate(b);
       }, { capture: true, passive: true });
@@ -385,6 +452,7 @@
         scheduleGeometry(); // Recovery only; no periodic full-page annotation.
       }, 15000);
       window.addEventListener('resize', scheduleGeometry);
+      window.addEventListener('resize', placeCopyToast, { passive: true });
       window.addEventListener('popstate', () => schedule());
     } catch (e) {}
     console.log('[Catstella] Dream Skin 增量标注与固定渐隐就绪喵～✨');
