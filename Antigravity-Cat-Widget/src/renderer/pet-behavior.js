@@ -3,6 +3,7 @@
   const priority = { dialogue: 1, touch: 2, system: 2, preview: 3 };
   const expressionTime = 3200;
   const napTime = 180000;
+  const rapidTouchWindow = 1250;
 
   class PetBehavior {
     static wakeTime = 280;
@@ -110,11 +111,15 @@
 
     show(kind, source) {
       if (!expressions.has(kind) || !priority[source]) return false;
-      if (source !== "preview" && (!this.context.visible || !this.context.expressions || this.rest === "sleeping")) return false;
+      if (source !== "preview" && (!this.context.visible || !this.context.expressions || this.rest !== "awake")) return false;
       if (this.expression && priority[this.expression.source] > priority[source]) return false;
       this.wake(false);
       this.activity();
       clearTimeout(this.expressionTimer);
+      if (source === "preview") {
+        this.recentTouches = [];
+        this.gentleTouch = null;
+      }
       this.expression = { kind, source };
       this.scheduleBlink();
       this.emit();
@@ -131,10 +136,10 @@
     }
 
     tap() {
-      if (!this.context.visible || !this.context.expressions || this.rest !== "awake") return null;
+      if (!this.context.visible || !this.context.expressions || this.rest !== "awake" || this.expression?.source === "preview") return null;
       const now = this.now();
       this.activity();
-      this.recentTouches = this.recentTouches.filter(at => now - at <= 1600);
+      this.recentTouches = this.recentTouches.filter(at => now - at <= rapidTouchWindow);
       this.recentTouches.push(now);
       if (this.recentTouches.length >= 3) {
         this.gentleTouch = null;

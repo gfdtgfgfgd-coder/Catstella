@@ -15,6 +15,22 @@ test("missing daily token components and unsafe aggregates remain unknown",()=>{
  assert.equal(large.getSnapshot().todayTokens.total,null);
 });
 test("zero volume, soft-spring, invalid booleans and settings persistence",()=>{const file=path.join(tmp(),"settings.json"),s=new SettingsManager(file);s.update({volume:0,soundSet:"soft-spring",sound:"false",scale:999});assert.equal(s.get("volume"),0);assert.equal(s.get("sound"),false);assert.equal(s.get("scale"),360);assert.equal(new SettingsManager(file).get("soundSet"),"soft-spring");});
+test("failed desktop appearance writes keep the live and persisted selections in agreement",()=>{
+ const {DreamSkinSettings}=require("../../Antigravity-Dream-Skin/src/domain/settings.cjs");
+ for(const [Manager,saved,attempt] of [
+  [SettingsManager,{syncCharacter:true,characterPack:"lin-cat"},{syncCharacter:false,characterPack:"gemini-star-v1"}],
+  [DreamSkinSettings,{wallpaperId:"current"},{wallpaperId:"replacement"}]
+ ]){
+  const file=path.join(tmp(),"settings.json"),store=new Manager(file);
+  store.update(saved);
+  fs.mkdirSync(file+".tmp"); // Deny the atomic staging write without changing the original file.
+  assert.throws(()=>store.update(attempt));
+  for(const [key,value] of Object.entries(saved)){
+   assert.equal(store.get(key),value);
+   assert.equal(new Manager(file).get(key),value);
+  }
+ }
+});
 test("session-scoped dedup, null metrics, local day, restart persistence and no invented price",()=>{const file=path.join(tmp(),"usage.json"),now=()=>new Date("2026-10-29T12:00:00+08:00"),l=new UsageLedger({storagePath:file,now});const step={step_index:1,status:"DONE",created_at:now().toISOString(),input_tokens:10,cache_read_tokens:20,output_tokens:5};assert.equal(l.getSnapshot().todayTokens.total,null);assert(l.recordStep(step,"A"));assert.equal(l.recordStep(step,"A"),null);assert(l.recordStep(step,"B"));assert.equal(l.getSnapshot().todayTokens.total,70);assert.equal(l.calculateTurnCost(10,5),null);assert.equal(l.recordStep({...step,step_index:2,input_tokens:-1}).tokens.total,null);l.save();assert.equal(new UsageLedger({storagePath:file,now}).records.size,3);assert.equal(localDate(now()),"2026-10-29");l.quotaRemainingPercent=0;assert.equal(l.getQuotaStatus().isKnown,true);l.quotaRemainingPercent=null;assert.equal(l.getQuotaStatus().ariaValueNow,null);});
 test("append parser handles split UTF8 JSON, RUNNING->DONE same index, bootstrap silent, truncation and new session",()=>{const dir=tmp(),file=path.join(dir,"transcript_full.jsonl"),events=[];const base={step_index:4,source:"MODEL",type:"PLANNER_RESPONSE",status:"RUNNING",created_at:new Date().toISOString()};fs.writeFileSync(file,JSON.stringify(base)+"\n");const a=new TranscriptAdapter({filePath:file});a.on("turnDone",e=>events.push(e));a.scan();assert.equal(events.length,0);const line=JSON.stringify({...base,status:"DONE",input_tokens:12,cache_read_tokens:0,output_tokens:2,content:"此内容不能输出"});fs.appendFileSync(file,line.slice(0,35));a.scan();assert.equal(events.length,0);fs.appendFileSync(file,line.slice(35)+"\n");a.scan();assert.equal(events.length,1);assert.equal(events[0].historical,false);assert.equal(events[0].content,undefined);a.scan();assert.equal(events.length,1);fs.writeFileSync(file,JSON.stringify({...base,status:"DONE",step_index:1,input_tokens:1})+"\n");a.scan();assert.equal(events[1].historical,true);a.stop();});
 test("press is not interrupted by a success bounce; persistent warning restores",()=>{const s=new WidgetStateMachine("warning");s.handlePointerDown();s.handleTurnSuccess();assert.equal(s.currentState,"pressed");s.handlePointerUp();s.clearTransient();assert.equal(s.currentState,"warning");s.destroy();});

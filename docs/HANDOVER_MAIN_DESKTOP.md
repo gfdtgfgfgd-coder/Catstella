@@ -1,6 +1,6 @@
 > 2026-11-05 补充：桌面旧内嵌 Web 副本已移除；下文旧目录描述仅供历史参考。安装器与素材同步共用 tools/web-companion-path.cjs，活动源为 D:\Catstella-web\Gemini-Web-Companion。
 
-# 🐱 Catstella · 桌面端交接文档（Branch: `feat/desktop-suite`）
+# 🐱 Catstella · 桌面端交接文档（Branch: `main`）
 > **项目定位**：独立于反重力宿主的常驻桌面猫娘套件（桌宠 + 毛玻璃主题 + 壁纸管理 + 界面汉化），单实例单托盘。
 > **文档版本**：v0.6.0-handoff | 更新时间：2026-11-05
 > **适用受众**：接手桌面端开发的会话 / Agent / 开发者
@@ -12,7 +12,7 @@
 | 项 | 现状 |
 |---|---|
 | 版本 | **0.6.0**（已出包 `Catstella-Setup-0.6.0-x64.exe`，Inno Setup，164.75 MiB） |
-| 桌面分支 | `feat/desktop-suite`（工作区 `D:\Catstella`，工作区含大量未提交改动，勿清理） |
+| 桌面分支 | `main` → `origin/main`（工作区 `D:\Catstella`，保留未提交改动） |
 | web 分支 | `feat/browser-extension` **已分房**到 worktree `D:\Catstella-web`（隔壁会话地盘，勿越界） |
 | 测试 | `npm.cmd test` = **65 项全绿** |
 | 安装包验收 | `npm run verify:installers` = **4/4 全绿**（Inno 静默装 → 无 locales 真启渲染层 → unins000 卸载目录消失） |
@@ -110,7 +110,7 @@ StarSuite.exe（Electron 45）
 ## 4. 分房约定（worktree）
 
 ```
-D:\Catstella       @ feat/desktop-suite    ← 桌面端；本会话工作区
+D:\Catstella       @ main                  ← 桌面端，跟踪 origin/main
 D:\Catstella-web   @ feat/browser-extension ← web 插件；隔壁会话工作区
 ```
 - 同一仓库、历史共享；合并走 git，**CHANGELOG.md 是唯一共享文件**（两边各自追加，合并两边都保留）

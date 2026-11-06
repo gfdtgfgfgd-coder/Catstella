@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f1ecfb">
+  <title>Catstella · 在线内容商店</title>
+  <link rel="stylesheet" href="../../Antigravity-Cat-Widget/src/renderer/settings.css">
+  <link rel="stylesheet" href="store.css">
+  <script src="store.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="paw" viewBox="0 0 24 24"><path d="M8.5 12.5c1.2-1.8 2.3-2.5 3.5-2.5s2.3.7 3.5 2.5c1.4 2 4 2.7 4 5 0 1.9-1.2 3-3 3-1.7 0-2.9-1.1-4.5-1.1s-2.8 1.1-4.5 1.1c-1.8 0-3-1.1-3-3 0-2.3 2.6-3 4-5Z" fill="currentColor" stroke="none"/><ellipse cx="4" cy="9" rx="2.2" ry="2.8" transform="rotate(-28 4 9)" fill="currentColor" stroke="none"/><ellipse cx="9" cy="5.5" rx="2.2" ry="2.8" transform="rotate(-12 9 5.5)" fill="currentColor" stroke="none"/><ellipse cx="15" cy="5.5" rx="2.2" ry="2.8" transform="rotate(12 15 5.5)" fill="currentColor" stroke="none"/><ellipse cx="20" cy="9" rx="2.2" ry="2.8" transform="rotate(28 20 9)" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="spark" viewBox="0 0 24 24"><path d="M10 2l2.4 6.6L19 11l-6.6 2.4L10 20l-2.4-6.6L1 11l6.6-2.4L10 2ZM19 14v7m-3.5-3.5h7"/></symbol>
+    <symbol id="box" viewBox="0 0 24 24"><path d="M3 8h18v12H3zM2 4h20v4H2zM10 12h4"/></symbol>
+    <symbol id="heart" viewBox="0 0 24 24"><path d="M20.8 8.5c0 4-5.4 7.9-8.8 10.8-3.4-2.9-8.8-6.8-8.8-10.8A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8.8 1.5Z"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m16 16 4 4"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="external" viewBox="0 0 24 24"><path d="M13 4h7v7m0-7-9 9m7 0v7H4V6h7"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="update" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-.8 6m1-11v5h-5"/></symbol>
+    <symbol id="image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8" cy="9" r="1.5"/><path d="m3 16 4-3 3 2 5-5 6 5"/></symbol>
+    <symbol id="palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18h1a2 2 0 0 0 1.5-3.3 1.5 1.5 0 0 1 1.1-2.5H18a3 3 0 0 0 3-3A9 9 0 0 0 12 3Z"/><circle cx="7.5" cy="11" r=".6"/><circle cx="10.5" cy="7.5" r=".6"/><circle cx="15" cy="7.8" r=".6"/></symbol>
+  </svg>
+  <div class="settings-shell store-shell">
+    <header class="custom-titlebar store-titlebar">
+      <div class="titlebar-drag-area">
+        <span class="app-mark"><svg class="icon" aria-hidden="true"><use href="#paw"/></svg></span>
+        <span class="titlebar-title">Catstella · 设置中心</span>
+        <span class="titlebar-subtitle">Gemini Companion</span>
+      </div>
+      <span class="prototype-label"><i></i> 原型预览</span>
+    </header>
+    <div class="settings-layout">
+      <nav class="side-nav store-nav" aria-label="设置分类">
+        <button type="button" class="nav-item" data-setting="overview"><span class="nav-ico">🏠</span><span>总览</span></button>
+        <button type="button" class="nav-item" data-setting="pet"><span class="nav-ico">🐱</span><span>桌宠</span></button>
+        <button type="button" class="nav-item" data-setting="wallpaper"><span class="nav-ico">🖼️</span><span>壁纸</span></button>
+        <button type="button" class="nav-item active" data-setting="store" aria-current="page"><span class="nav-ico">🛍️</span><span>内容商店</span></button>
+        <button type="button" class="nav-item" data-setting="agy"><span class="nav-ico">🪐</span><span>反重力</span></button>
+        <button type="button" class="nav-item" data-setting="interact"><span class="nav-ico">💬</span><span>互动</span></button>
+        <button type="button" class="nav-item" data-setting="quota"><span class="nav-ico">📊</span><span>用量</span></button>
+        <div class="nav-spacer"></div>
+        <button type="button" class="nav-item" data-setting="about"><span class="nav-ico">✨</span><span>关于</span></button>
+      </nav>
+      <div class="content-col">
+        <main class="content-scroll" id="content">
+          <section class="store-main" id="settings-demo" aria-label="设置预览" hidden></section>
+          <section class="store-main" id="store-page" aria-labelledby="page-title">
+            <header class="intro">
+              <div>
+                <div class="eyebrow">CATSTELLA HUB</div>
+                <h1 id="page-title">在线内容商店</h1>
+                <p id="page-subtitle">发现桌宠、星空壁纸与主题配色，装点你的 Catstella。</p>
+              </div>
+            </header>
+            <nav class="hub-nav" aria-label="内容商店栏目">
+              <button type="button" class="hub-tab active" data-view="explore" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#spark"/></svg>探索内容</button>
+              <button type="button" class="hub-tab" data-view="library"><svg class="icon" aria-hidden="true"><use href="#box"/></svg>已安装<span class="nav-count" id="installed-count"></span></button>
+              <button type="button" class="hub-tab" data-view="favorites"><svg class="icon" aria-hidden="true"><use href="#heart"/></svg>收藏夹<span class="nav-count" id="favorite-count"></span></button>
+              <button type="button" class="hub-tab guide-tab" data-view="guide"><svg class="icon" aria-hidden="true"><use href="#external"/></svg>适配请求</button>
+            </nav>
+            <div id="listing">
+            <section class="hero store-hero" id="featured" aria-labelledby="featured-title">
+              <div class="hero-art" aria-hidden="true">
+                <svg class="orbits" viewBox="0 0 465 210" fill="none">
+                  <ellipse cx="248" cy="112" rx="168" ry="68" transform="rotate(-18 248 112)" stroke="#a588df" stroke-opacity=".42"/>
+                  <ellipse cx="248" cy="112" rx="187" ry="86" transform="rotate(-18 248 112)" stroke="#a588df" stroke-opacity=".34" stroke-dasharray="3 5"/>
+                  <circle cx="249" cy="110" r="76" fill="#fdf9ff" fill-opacity=".54"/>
+                  <path fill="#fff" d="M147 48q0 12 12 12-12 0-12 12 0-12-12-12 12 0 12-12Zm228 83q0 15 15 15-15 0-15 15 0-15-15-15 15 0 15-15ZM87 130q0 8 8 8-8 0-8 8 0-8-8-8 8 0 8-8Z"/>
+                  <path fill="#8d6fe0" fill-opacity=".65" d="M398 43q0 8 8 8-8 0-8 8 0-8-8-8 8 0 8-8Zm-250 121q0 6 6 6-6 0-6 6 0-6-6-6 6 0 6-6Z"/>
+                  <circle cx="116" cy="103" r="3" fill="#fff"/><circle cx="327" cy="39" r="3.5" fill="#fff"/><circle cx="339" cy="171" r="3" fill="#ad92e8"/><circle cx="415" cy="105" r="3" fill="#fff"/>
+                </svg>
+                <img src="../../Antigravity-Cat-Widget/assets/character-packs/gemini-star-v1/frames/idle.png" alt="" class="hero-character">
+                <span class="hero-caption">✦ &nbsp; STELLA</span>
+              </div>
+              <div class="hero-copy">
+                <p class="hero-tag">✦ &nbsp; 星语精选</p>
+                <h2 id="featured-title">把星光带到桌面</h2>
+                <p>和星语一起，给日常添一点星光。</p>
+                <button type="button" class="btn primary" data-action="detail" data-id="gemini-star-v1">预览星语 <svg class="icon" aria-hidden="true"><use href="#arrow"/></svg></button>
+              </div>
+            </section>
+            <div class="store-tools">
+              <div class="view-mode-toggle categories" role="group" aria-label="内容分类">
+                <button type="button" class="view-btn active" data-kind="all" aria-pressed="true">全部</button>
+                <button type="button" class="view-btn" data-kind="character" aria-pressed="false">桌宠</button>
+                <button type="button" class="view-btn" data-kind="wallpaper" aria-pressed="false">壁纸</button>
+                <button type="button" class="view-btn" data-kind="theme" aria-pressed="false">主题配色</button>
+              </div>
+              <label class="search"><svg class="icon" aria-hidden="true"><use href="#search"/></svg><input id="store-search" type="search" aria-label="搜索内容" placeholder="搜索名称或关键词"></label>
+            </div>
+            <div class="results-heading"><h2 id="results-title">全部内容</h2><span id="result-count" role="status"></span></div>
+            <section class="store-grid" id="grid" aria-labelledby="results-title"></section>
+            </div>
+            <section id="detail-page" aria-labelledby="detail-title" hidden></section>
+            <section id="guide-page" aria-labelledby="guide-title" hidden>
+              <header class="guide-intro card">
+                <div><span class="eyebrow">创作者社区</span><h2 id="guide-title" tabindex="-1">请求适配素材</h2><p>用 GitHub Issue 建议适配桌宠、壁纸或主题。每件素材单独开一条 Issue，提供来源和你想要的效果即可。</p></div>
+                <a id="issue-draft" class="btn primary" target="_blank" rel="noopener noreferrer">打开 Issue 草稿 <svg class="icon" aria-hidden="true"><use href="#external"/></svg></a>
+              </header>
+              <article class="card guide-card">
+                <h3><span class="step">01</span> 说明想适配什么</h3>
+                <dl class="guide-specs">
+                  <div><dt>桌宠</dt><dd>注明角色或形象，以及希望保留的姿势或表情。</dd></div>
+                  <div><dt>壁纸</dt><dd>提供原作页面，说明是否希望保留构图、适配特定屏幕比例。</dd></div>
+                  <div><dt>主题配色</dt><dd>用截图或文字说明目标配色、透明度，以及希望在工作区或网页上看到的效果。</dd></div>
+                </dl>
+                <p class="hint">有可公开分享的截图时，可以拖入 Issue 正文作为参考。无需提前打包素材。</p>
+              </article>
+              <article class="card guide-card">
+                <h3><span class="step">02</span> 按字段填写 Issue</h3>
+                <dl class="guide-specs">
+                  <div><dt>标题</dt><dd><code>[适配请求][壁纸] 云海观测站</code>。把分类和名称换成你想适配的素材。</dd></div>
+                  <div><dt>素材来源</dt><dd>填写素材名称、原作者和原作链接，方便维护者找到原作。</dd></div>
+                  <div><dt>目标平台与效果</dt><dd>说明希望适配桌面端、Gemini 网页或两者，以及希望保留或调整的地方。</dd></div>
+                  <div><dt>授权情况</dt><dd>说明是原创、已获授权还是尚待确认；有公开许可或授权说明时附上链接。</dd></div>
+                </dl>
+                <details class="issue-example"><summary>查看可填写的正文模板</summary><label for="issue-template" class="hint">可复制以下 Markdown 到 Issue 正文：</label><textarea id="issue-template" rows="10" readonly></textarea><button type="button" class="btn small" data-action="copy-issue">复制正文模板</button><span id="copy-status" role="status"></span></details>
+              </article>
+              <article class="card guide-card">
+                <h3><span class="step">03</span> 预览、提交与补充</h3>
+                <p>登录 GitHub，打开草稿并填写标题和正文。在 <b>Preview</b> 检查图片和链接，再点 <b>Submit new issue</b>。补充截图、来源或授权时，在同一条 Issue 下回复。</p>
+                <p class="hint">维护者会评估适配方式和授权情况。提交 Issue 后，素材不会自动上架。</p>
+              </article>
+            </section>
+          </section>
+        </main>
+        <footer class="status-bar store-status"><span class="source-dot" aria-hidden="true"></span><span id="status-label">目录快照 · 8 件素材</span><span class="status-note">更改仅保存在原型中</span></footer>
+      </div>
+    </div>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <div id="toast" class="toast" role="status" aria-atomic="true"></div>
+</body>
+</html>

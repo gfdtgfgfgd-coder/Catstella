@@ -108,8 +108,13 @@ class CompanionBridgeServer {
     };
   }
 
-  buildPayload() {
-    const base = this.getState() || {};
+  buildPayload(includeAgyQuota = true) {
+    let base = this.getState() || {};
+    if (!includeAgyQuota && base.desktop) {
+      const desktop = { ...base.desktop };
+      delete desktop.agyQuota;
+      base = { ...base, desktop };
+    }
     return {
       ok: true,
       ts: Date.now(),
@@ -264,7 +269,7 @@ class CompanionBridgeServer {
             try { this.onWebUpdate(this.getWebSnapshot()); } catch {}
           }
 
-          this.sendJson(req, res, 200, this.buildPayload());
+          this.sendJson(req, res, 200, this.buildPayload(body.includeAgyQuota !== false));
         } catch {
           this.sendJson(req, res, 400, { ok: false, error: "invalid_json" });
         }

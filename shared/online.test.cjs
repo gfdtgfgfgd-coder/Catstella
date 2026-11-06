@@ -36,6 +36,16 @@ test('release detection separates both clients, ignores previews and requires re
   assert.equal(selectRelease(list.filter(r => !r.tag_name.startsWith('web-')), 'web', '1.4.4').status, 'unpublished');
 });
 
+test('a desktop beta can move to the matching stable release without downgrading or following other betas', () => {
+  const older = desktop('v0.6.0', '0.6.0');
+  const beta = desktop('desktop-v0.6.2-beta.1', '0.6.2-beta.1', { prerelease: true });
+  assert.equal(selectRelease([older, beta], 'desktop', '0.6.1-beta.1').status, 'current');
+  const final = desktop('desktop-v0.6.1', '0.6.1');
+  const result = selectRelease([older, beta, final], 'desktop', '0.6.1-beta.1');
+  assert.equal(result.status, 'available');
+  assert.equal(result.latest, '0.6.1');
+});
+
 test('concurrent and frequent automatic checks share one request and a restart cache', async () => {
   let count = 0, cache, now = Date.UTC(2026, 10, 5);
   const options = { now: () => now, loadCheck: () => cache, saveCheck: value => { cache = value; },
@@ -55,7 +65,13 @@ test('concurrent and frequent automatic checks share one request and a restart c
 });
 
 test('checked-in assets are intact; catalog traversal and invalid palettes fail closed', async () => {
-  const client = create({ fetcher: assetFetch });
+  const client = create({ fetcher: async url => {
+    const response = await assetFetch(url);
+    if (!url.includes('/themes/')) return response;
+    const bytes = await response.arrayBuffer();
+    // Fetch yields decoded bytes while Content-Length reports the wire size.
+    return new Response(bytes, { headers: { 'content-length': String(bytes.byteLength + 20) } });
+  } });
   for (const entry of await client.list()) {
     const downloaded = await client.download(entry.id);
     if (entry.kind === 'theme') assert.ok(['ocean', 'violet'].includes(downloaded.theme.palette));
@@ -71,6 +87,9 @@ test('checked-in assets are intact; catalog traversal and invalid palettes fail 
     return new Response(bytes);
   } });
   await assert.rejects(tampered.download(entry.id), /digest mismatch/);
+  const oversized = create({ fetcher: url => url.endsWith('catalog.json') ? assetFetch(url)
+    : new Response(Buffer.alloc(entry.size + 1), { headers: { 'content-length': '1' } }) });
+  await assert.rejects(oversized.download(entry.id), /file too large/);
 });
 
 test('desktop imports a verified wallpaper into its usual gallery and leaves it unchanged on a bad download', async t => {

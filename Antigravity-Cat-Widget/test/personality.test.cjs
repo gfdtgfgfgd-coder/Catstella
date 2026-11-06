@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {Personality}=require('../src/renderer/personality.js');
 const {PetBehavior}=require('../src/renderer/pet-behavior.js');
+const {ModelActivity}=require('../src/domain/model-activity.cjs');
 const {hostPlacement,ForegroundMonitor}=require('../src/domain/host-visibility.cjs');
 test('native heartbeat stays live while stationary and stale helper is replaced',async()=>{
  const monitor=new ForegroundMonitor();try{
@@ -55,6 +56,7 @@ test('spaced head taps can show shy without counting separate visits or overridi
  assert.ok(reactions(1000,.46).every(result=>result===null));
  assert.ok(reactions(1900,.40).every(result=>result===null));
  assert.ok(reactions(1000,.40,true).every(result=>result===null));
+ assert.ok(reactions(750,.46).every(result=>result===null), 'evenly spaced taps should not be mistaken for rapid repeated taps');
 });
 test('preview survives state and settings changes for its full duration',t=>{
  t.mock.timers.enable({apis:['setTimeout']});
@@ -88,9 +90,33 @@ test('idle pet blinks, naps with eyes closed, and a click wakes with a rebound',
  assert.equal(pet.activity(true),true);
  assert.equal(visual.rest,'waking');
  assert.equal(visual.blink,false);
+ assert.equal(pet.show('proud','system'),false,'refresh must not interrupt the wake motion');
  t.mock.timers.tick(PetBehavior.wakeTime);
  assert.equal(visual.rest,'awake');
  pet.dispose();
+});
+
+test('AGY activity keeps the current step through late and duplicate events',()=>{
+ let now=0;
+ const activity=new ModelActivity(()=>now);
+ assert.equal(activity.begin('first',3),true);
+ assert.equal(activity.begin('first',3),false);
+ assert.equal(activity.begin('second',9),true);
+ now=6000;
+ assert.deepEqual(activity.snapshot(),{kind:'model-running',stepIndex:9});
+ activity.end('first',3,'model-done',true);
+ assert.deepEqual(activity.snapshot(),{kind:'model-running',stepIndex:9});
+ assert.equal(activity.end('unknown',11,'model-done',true),false);
+ assert.equal(activity.end('second',9,'model-error'),true);
+ assert.equal(activity.end('second',9,'model-error'),false);
+ assert.deepEqual(activity.snapshot(),{kind:'model-error',stepIndex:9,expiresAt:10500});
+ now=10500;
+ assert.equal(activity.snapshot(),null);
+ activity.end('next',10,'model-done',true);
+ assert.equal(activity.snapshot().kind,'model-done');
+ activity.begin('another',1);
+ activity.clear();
+ assert.equal(activity.snapshot(),null);
 });
 test('nap preview works with the bubble open and can finish automatically or by waking early',t=>{
  t.mock.timers.enable({apis:['setTimeout']});
@@ -180,4 +206,19 @@ test('explicit host docking stays at the same side after resizing',()=>{
  const area={x:30,y:50,width,height:800},p=hostPlacement({kind:'host',bounds:area},220,400,0,side);
  assert.equal(side==='left'?p.visualX:p.visualX+p.scale,side==='left'?area.x:area.x+area.width);
  }
+});
+
+test('pet reflection dialogue contains count placeholders and honors honorific substitution',()=>{
+ const dialogue=require('../assets/dialogue/zh-CN.json');
+ assert.ok(Array.isArray(dialogue.lines.petReflection)&&dialogue.lines.petReflection.length>=10);
+ for(const line of dialogue.lines.petReflection){
+  assert.ok(line.includes('{count}'), 'Line missing {count}: ' + line);
+  assert.ok(line.includes('人类'), 'Line missing honorific placeholder 人类: ' + line);
+ }
+ const personality=new Personality(dialogue.lines,()=>0);
+ const line=personality.say('petReflection').replaceAll('{count}','42');
+ assert.ok(line.includes('42'));
+ const substituted=line.replaceAll('人类','杂鱼君');
+ assert.ok(substituted.includes('杂鱼君'));
+ assert.ok(!substituted.includes('人类'));
 });

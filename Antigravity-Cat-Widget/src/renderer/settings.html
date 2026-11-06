@@ -52,7 +52,7 @@
             </div>
 
             <div class="card">
-              <h3>快捷开关</h3>
+              <h3>常用设置</h3>
               <label class="row"><span class="row-text"><b>应用到 Antigravity</b><small>开启后壁纸与毛玻璃主题会应用到反重力窗口</small></span><input id="dream-enabled" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>仅在 Antigravity 窗口内显示</b><small>反重力未打开时桌宠自动隐藏或退守桌面</small></span><input id="hostWindowOnly" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>显示气泡</b></span><input id="bubbleOn" type="checkbox"></label>
@@ -85,6 +85,10 @@
                   <button id="open-character-dir" class="btn small" type="button">📁 素材</button>
                 </div>
               </div>
+              <label class="row appearance-mode">
+                <span class="row-text"><b id="desktop-current-character">当前桌面形象</b><small id="desktop-character-mode"></small></span>
+                <span class="appearance-toggle"><span>网页跟随桌面</span><input id="syncCharacter" type="checkbox" aria-label="同步桌宠形象到网页" aria-describedby="desktop-character-mode"></span>
+              </label>
               <div class="gallery-container mode-carousel" id="character-gallery"></div>
               <select id="characterPack" style="display:none"></select>
             </div>
@@ -101,8 +105,6 @@
                   <option value="prefer-web">焦点互斥（浏览 Gemini 网页时隐藏桌面猫猫）</option>
                 </select>
               </label>
-              <label class="row"><span class="row-text"><b>同步角色形态样式</b><small>开启后双端共用同一套桌宠形象；关闭后两端可各自独立选择</small></span><input id="syncCharacter" type="checkbox"></label>
-              <label class="row"><span class="row-text"><b>同步壁纸图库与自动轮播</b><small>开启后 Web 端实时同步桌面端壁纸与轮播节奏；关闭后两端使用各自独立的壁纸</small></span><input id="syncWallpaper" type="checkbox"></label>
               <label class="row"><span class="row-text"><b>同步互动偏好</b><small>开启后点击猫猫的动作模式在双端保持一致</small></span><input id="syncInteraction" type="checkbox"></label>
             </div>
 
@@ -150,6 +152,10 @@
                   <button id="next-wallpaper" class="btn small" type="button">⏭ 下一张</button>
                 </div>
               </div>
+              <label class="row appearance-mode">
+                <span class="row-text"><b id="desktop-current-wallpaper">当前桌面壁纸</b><small id="desktop-wallpaper-mode"></small></span>
+                <span class="appearance-toggle"><span>网页跟随桌面</span><input id="syncWallpaper" type="checkbox" aria-label="同步壁纸到网页" aria-describedby="desktop-wallpaper-mode"></span>
+              </label>
               <div class="gallery-container mode-carousel" id="wallpaper-gallery"></div>
               <p class="hint">壁纸目录支持放入任意 16:9 壁纸，自动加入轮播与预览。</p>
             </div>

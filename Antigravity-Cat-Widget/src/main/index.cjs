@@ -2,7 +2,7 @@ const {app,BrowserWindow,screen,Tray,Menu,ipcMain,nativeImage,globalShortcut,she
 const path=require("node:path"),os=require("node:os"),{pathToFileURL}=require("node:url");
 const {SettingsManager}=require("../domain/settings.cjs"),{UsageLedger}=require("../domain/ledger.cjs"),{WidgetStateMachine}=require("../domain/state-machine.cjs"),{TranscriptAdapter}=require("../adapters/transcript-adapter.cjs"),{AudioManager}=require("../domain/audio-manager.cjs");
 const {HostQuotaAdapter}=require("../adapters/host-quota.cjs");
-const {ForegroundMonitor,hostPlacement,characterPlacement,widgetLayout}=require("../domain/host-visibility.cjs");
+const {ForegroundMonitor,hostPlacement,characterPlacement,widgetLayout,placeDraggedWidget,facingAt}=require("../domain/host-visibility.cjs");
 // BYOK is sealed in archive/legacy-byok and must not be loaded by normal or release runs.
 const devGateway=null;
 const {CompanionBridgeServer}=require("../../../shared/companion-bridge.cjs");
@@ -12,9 +12,18 @@ const {CompanionVisibility}=require("../domain/companion-visibility.cjs");
 const {DreamSkinSettings,legacyRotatePatch}=require("../../../Antigravity-Dream-Skin/src/domain/settings.cjs"),{WallpaperManager}=require("../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs"),{HostController}=require("../../../Antigravity-Dream-Skin/src/domain/host-controller.cjs"),{LocalizationController}=require("../../../Antigravity-Dream-Skin/src/domain/localization-controller.cjs");
 let localizationDict={};
 try{const loaded=require("../../../Antigravity-Dream-Skin/assets/localization/zh-CN.json");for(const k of Object.keys(loaded))if(!k.startsWith("$"))localizationDict[k]=loaded[k];}catch{}
-const skinDataDir=path.join(os.homedir(),".antigravity-dream-skin");
-const dataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11)||path.join(os.homedir(),".antigravity-cat-widget");
-app.setPath("userData",path.join(dataDir,"runtime"));app.setName("Catstella");
+const isolatedDev=process.argv.includes("--isolated-dev");
+const explicitDataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11);
+const dataDir=explicitDataDir||path.join(os.homedir(),".antigravity-cat-widget");
+if(isolatedDev){
+ const fs=require("node:fs");
+ const localTemp=fs.realpathSync(os.tmpdir()),localData=explicitDataDir&&path.isAbsolute(explicitDataDir)&&fs.realpathSync(explicitDataDir);
+ if(!localData||path.relative(localTemp,path.dirname(localData))!==""||!path.basename(localData).startsWith("catstella-window-")){
+  throw Error("--isolated-dev requires an existing catstella-window-* test directory directly under the system temp folder.");
+ }
+}
+const skinDataDir=isolatedDev?path.join(dataDir,"skin"):path.join(os.homedir(),".antigravity-dream-skin");
+app.setPath("userData",path.join(dataDir,"runtime"));app.setName(isolatedDev?"Catstella (isolated source test)":"Catstella");
 // Transparent Chromium surfaces can stop presenting after GPU/desktop transitions.
 app.disableHardwareAcceleration();
 if(!app.requestSingleInstanceLock())app.quit();
@@ -27,28 +36,37 @@ else{
  let quitting=false,shutdownDaemonOnQuit=false,recoveryTimer,visualTimer,visualChecking=false,blankFrames=0,visualCheckInterval=15000,uptimeCheckTimer,bridgeMonitorTimer,updateCheckTimer,initialShowTimer;
  const recoveryLog=reason=>{try{require("node:fs").appendFileSync(path.join(dataDir,"recovery.log"),new Date().toISOString()+" "+reason+"\n");}catch{}};
  // BYOK Highest Startup Priority: bind/handshake gateway BEFORE UI rendering and Dream Skin injection.
- const explicitDataDir=process.argv.find(a=>a.startsWith("--data-dir="))?.slice(11);
  const explicitModelsPath=process.argv.find(a=>a.startsWith("--models-path="))?.slice(14);
  const installRoot=[path.resolve(__dirname,"../../../../.."),path.resolve(__dirname,"../../../.."),path.resolve(__dirname,"../../..")].find(d=>require("node:fs").existsSync(path.join(d,".starsuite-install")))||path.resolve(__dirname,"../../..");
  const modelsFilePath=explicitModelsPath||(explicitDataDir?path.join(explicitDataDir,".catstella","models.json"):devGateway?.defaultModelsPath());
  const byokGateway=devGateway?new devGateway.GatewayCoordinator({filePath:modelsFilePath,installRoot,argv:process.argv,env:process.env}):null;
  const byokHandshake=byokGateway?.available?byokGateway.ensureReady().catch(err=>{recoveryLog("byok-handshake-failed "+err.message);return{available:true,ready:false};}):Promise.resolve({available:false,ready:false});
- let win,tray,panel,source={online:false,source:"正在读取本机日志",files:0},saveTimer,displayScale=null,hostArea=null,hostLayout=null,facing="right",dockSide="",artShift=0;
- const foreground=new ForegroundMonitor(),quotaAdapter=new HostQuotaAdapter();
+ let win,tray,panel,source={online:false,source:"正在读取本机日志",files:0},saveTimer,displayScale=null,hostArea=null,hostLayout=null,facing="right",dockSide="",artShift=0,dragPlacement=null;
+ const noHost=isolatedDev?{discover:async()=>null}:{};
+ const foreground=new ForegroundMonitor(),quotaAdapter=new HostQuotaAdapter(noHost);
+ const startForeground=handle=>{if(!isolatedDev)foreground.start(handle);};
  const companionVisibility=new CompanionVisibility();
  const dialogue=require("../../assets/dialogue/zh-CN.json");
- const running=new Set();
- const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(),audio=new AudioManager();
+ const running=new (require("../domain/model-activity.cjs").ModelActivity)();
+ const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(isolatedDev?{appDataDir:path.join(dataDir,"transcripts")}:{}),audio=new AudioManager();
+ let headPatTotal=settings.get("headPatTotal"),headPatSaveTimer;
+ if(!Number.isSafeInteger(headPatTotal)||headPatTotal<0)headPatTotal=0;
+ const flushHeadPats=()=>{
+  clearTimeout(headPatSaveTimer);
+  if(settings.get("headPatTotal")===headPatTotal||!headPatTotal)return;
+  try{settings.update({headPatTotal});}catch(error){console.warn("Catstella: could not save head pat count",error.message);}
+ };
+ app.on("before-quit",flushHeadPats);
  const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
  const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
  const characterDir=path.join(dataDir,"character-packs");
- const online=createOnlineActions({dataDir,wallpaperDir:skinManager.userDir,characterDir,fetcher:(...args)=>net.fetch(...args),
+ const online=createOnlineActions({dataDir,wallpaperDir:skinManager.userDir,characterDir,fetcher:isolatedDev?async()=>{throw Error("Network disabled in isolated source test");}:(...args)=>net.fetch(...args),
   onInstalled:kind=>{if(kind==="character")cachedCharacterPacks=null;else cachedWallpapers=null;publish();},version:require("../../../package.json").version,settings,nativeImage,shell,apply,onCheck:result=>{
   const next=result.status==="available"?result:null;
   if(next?.latest!==availableUpdate?.latest){availableUpdate=next;updateMenu();}
  }});
- const skinController=new HostController(skinManager,()=>{publish();updateMenu();},{owner:"starsuite-desktop-host"});
- const localization=new LocalizationController(()=>{publish();},{dict:localizationDict});
+ const skinController=new HostController(skinManager,()=>{publish();updateMenu();},{owner:"starsuite-desktop-host",...noHost});
+ const localization=new LocalizationController(()=>{publish();},{dict:localizationDict,...noHost});
  const WALLPAPER_TITLES={"01_chibi_star_16_9.jpg":"星语星空 · Q版 Stella","02_halloween_duo_16_9.jpg":"万圣双子 · 萌宠同框","03_catgirl_witch_16_9.jpg":"星空大魔女 · 骑行法杖"};
  let availableUpdate=null;
  let cachedCharacterPacks=null,cachedWallpapers=null,lastPackScan=0,lastWallScan=0;
@@ -111,11 +129,12 @@ else{
 
  // 双端联动桥接服务（127.0.0.1:3921）：同步角色、桌面壁纸库、轮播状态与 AGY/Web 双端额度。
  const companionBridge=new CompanionBridgeServer({
+  ...(isolatedDev?{ports:[0]}:{}),
   getState:()=>{
    const fs=require("node:fs");
    const walls=getWallpapers();
    const ds=skinSettings.getAll();
-   const activeWall=walls.find(w=>w.id===ds.wallpaperId)||(ds.wallpaperFile?walls.find(w=>w.filePath&&path.resolve(w.filePath)===path.resolve(ds.wallpaperFile)):null)||walls[0]||null;
+   const activeWall=(ds.wallpaperFile?walls.find(w=>w.filePath&&path.resolve(w.filePath)===path.resolve(ds.wallpaperFile)):null)||walls.find(w=>w.id===ds.wallpaperId)||walls[0]||null;
    let wallMtime=0;
    try{if(activeWall?.filePath&&fs.existsSync(activeWall.filePath))wallMtime=Math.round(fs.statSync(activeWall.filePath).mtimeMs);}catch{}
    const q=quotaAdapter.snapshot;
@@ -152,6 +171,9 @@ else{
       weekly:manual?settings.get("manualWeeklyPercent"):(isArgon&&typeof q?.argon?.weekly==="number"?q.argon.weekly:(gData.weekly??null)),
       fiveHourReset:manual?"":gData.fiveHourReset||"",
       weeklyReset:manual?"":(isArgon&&typeof q?.argon?.weekly==="number"?(q.argon.weeklyReset||""):(gData.weeklyReset||"")),
+      geminiWeekly:manual?settings.get("manualWeeklyPercent"):gData.weekly??null,
+      geminiWeeklyReset:manual?"":gData.weeklyReset||"",
+      claudeGpt:q?.claudeGpt||null,
       argonWeekly:typeof q?.argon?.weekly==="number"?q.argon.weekly:null,
       argonWeeklyReset:typeof q?.argon?.weeklyReset==="string"?q.argon.weeklyReset:"",
       modelName:q?.modelInfo?.modelName||""
@@ -165,17 +187,20 @@ else{
    const targetId=requestedId||skinSettings.get("wallpaperId");
    const found=packs.find(p=>p.id===targetId);
    if(found?.file)return found.file;
+   if(requestedId)return null;
    const fallbackFile=skinSettings.get("wallpaperFile");
    if(fallbackFile&&require("node:fs").existsSync(fallbackFile))return fallbackFile;
    return packs[0]?.file||null;
   },
   onPatch:(patch)=>{
-   if(patch.action==="next-wallpaper"){rotateWallpaper();publish();return;}
+   const characterSync=typeof patch.syncCharacter==="boolean"?patch.syncCharacter:settings.get("syncCharacter")!==false;
+   const wallpaperSync=typeof patch.syncWallpaper==="boolean"?patch.syncWallpaper:settings.get("syncWallpaper")!==false;
    const next={};
-   for(const k of ["syncCharacter","syncWallpaper","syncInteraction","petDisplayMode","characterPack","clickCatAction","scale","sound"]){
-    if(patch[k]!==undefined)next[k]=patch[k];
+   for(const k of ["syncCharacter","syncWallpaper","syncInteraction","petDisplayMode","clickCatAction","scale","sound"]){
+    if(patch[k]!==undefined&&patch[k]!==settings.get(k))next[k]=patch[k];
    }
-   if(patch.dreamSkin&&typeof patch.dreamSkin==="object"&&!Array.isArray(patch.dreamSkin)){
+   if(characterSync&&typeof patch.characterPack==="string"&&patch.characterPack!==settings.get("characterPack"))next.characterPack=patch.characterPack;
+   if(wallpaperSync&&patch.dreamSkin&&typeof patch.dreamSkin==="object"&&!Array.isArray(patch.dreamSkin)){
     const dsPatch={};
     for(const dk of ["wallpaperId","slideshow","slideshowIntervalMinutes","opacity","scrim","themePreset"]){
      if(patch.dreamSkin[dk]!==undefined)dsPatch[dk]=patch.dreamSkin[dk];
@@ -183,17 +208,20 @@ else{
     if(dsPatch.wallpaperId){
      const pack=skinManager.listPacks().find(p=>p.id===dsPatch.wallpaperId);
      if(pack?.file)dsPatch.wallpaperFile=pack.file;
+     else delete dsPatch.wallpaperId;
     }
+    for(const key of Object.keys(dsPatch))if(dsPatch[key]===skinSettings.get(key))delete dsPatch[key];
     if(Object.keys(dsPatch).length)next.dreamSkin=dsPatch;
    }
    if(Object.keys(next).length)apply(next);
+   if(wallpaperSync&&patch.action==="next-wallpaper"){rotateWallpaper();publish();}
   },
   onWebUpdate:()=>{syncVisibility();publish();},
   onOpenSettings:byokGateway?.available?(tab=>openSettings(tab==="byok"?"models":tab)):undefined
  });
  const byokPortal=null;
 
- const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway?.getSnapshot()??{available:false,gatewayOnline:false},facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,dialogueTags:dialogue.expressionTags,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{visible:win?.isVisible()===true,supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
+ const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,modelActivity:running.snapshot(),quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway?.getSnapshot()??{available:false,gatewayOnline:false},facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,dialogueTags:dialogue.expressionTags,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{visible:win?.isVisible()===true,supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
  const send=(channel,data)=>{for(const w of [win,panel])if(w&&!w.isDestroyed())w.webContents.send(channel,data);};
  const syncByokPortal=()=>{if(byokPortal)byokPortal.setFromSnapshot(byokGateway.getSnapshot(),{port:companionBridge.boundPort,portalNonce:companionBridge.portalNonce}).catch(()=>{});};
  const publish=()=>{const snap=snapshot();send("widget:snapshot",snap);syncByokPortal();};
@@ -292,9 +320,10 @@ else{
   }
 
   // Host is available - native ForegroundHost.exe owns z-order (do NOT call win.setAlwaysOnTop(false) here!)
+  if(dragPlacement){hostArea=state.bounds;return false;}
   hostArea=state.bounds;displayScale=placement.scale;artShift=placement.artShift;
   dockSide=Math.abs(placement.visualX-hostArea.x)<2?"left":Math.abs(placement.visualX+displayScale-hostArea.x-hostArea.width)<2?"right":"";
-  facing=placement.visualX+displayScale/2<hostArea.x+hostArea.width/2?"left":"right";
+  facing=facingAt(placement.visualX+displayScale/2,hostArea,facing);
   const nextLayout=JSON.stringify([state.hostId,state.restoreGeneration,displayScale,hostArea.width,hostArea.height,settings.get("hostOffsetX"),settings.get("hostOffsetY"),settings.get("hostDock")]);
   const nativeTranslation=state.nativeFollowing&&previousArea&&hostLayout===nextLayout;
   const layoutChanged=hostLayout!==nextLayout;
@@ -316,7 +345,7 @@ else{
  }
  function show(){
   if(!win||win.isDestroyed())createWindow();
-  if(settings.get("hostWindowOnly"))foreground.start(win.getNativeWindowHandle());
+  if(settings.get("hostWindowOnly"))startForeground(win.getNativeWindowHandle());
   if(!win.isVisible()){
    win.show();
    if(!settings.get("hostWindowOnly"))applyStandaloneTopmost();
@@ -349,8 +378,8 @@ else{
   }
   syncQuotaState();
   if(oldHostOnly!==settings.get("hostWindowOnly")||oldDisplayMode!==settings.get("petDisplayMode"))foreground.stop();
-  if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
-  else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();
+  if(settings.get("hostWindowOnly"))startForeground(win?.getNativeWindowHandle());
+  else if(settings.get("petDisplayMode")==="prefer-web")startForeground();
   else foreground.stop();
   if(win){
    const following=settings.get("hostWindowOnly");
@@ -413,12 +442,16 @@ else{
  }
  function createWindow(){
   const pos=desktopBounds(settings.get("x"),settings.get("y"));
+  facing=facingAt(pos.x+pos.width/2,screen.getDisplayMatching(pos).workArea,facing,0);
   win=new BrowserWindow({...pos,frame:false,transparent:true,hasShadow:false,resizable:false,skipTaskbar:true,alwaysOnTop:!settings.get("hostWindowOnly")&&settings.get("alwaysOnTop"),show:false,
    webPreferences:{preload:path.join(__dirname,"preload.cjs"),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
+  // Apply the same native bounds path as dragging before the first frame.
+  // On Windows at fractional DPI, constructor sizing can be a few DIP wider.
+  if(process.platform==="win32")win.setBounds(pos);
   win.loadFile(path.join(__dirname,"../renderer/index.html"));
   clearTimeout(initialShowTimer);
   initialShowTimer=setTimeout(()=>{if(win&&!win.isDestroyed()&&!win.isVisible()){recoveryLog("renderer-ready-timeout");show();}},5000);
-  win.on("closed",()=>{clearTimeout(initialShowTimer);foreground.stop();win=null;if(!quitting)setTimeout(show,250);});
+  win.on("closed",()=>{clearTimeout(initialShowTimer);dragPlacement=null;foreground.stop();win=null;if(!quitting)setTimeout(show,250);});
   win.webContents.setWindowOpenHandler(()=>({action:"deny"}));win.webContents.on("will-navigate",e=>e.preventDefault());
   win.webContents.on("render-process-gone",()=>{if(!quitting&&win&&!win.isDestroyed())win.destroy();});
   win.webContents.on("did-finish-load",()=>{blankFrames=0;publish();});
@@ -469,7 +502,7 @@ else{
    const expression=command.split(":")[1]||"proud";
    if(["proud","shy","angry","nap"].includes(expression))send("widget:reaction",{source:"preview",expression});
   }
-  else if(command==="quota-refresh")quotaAdapter.openNativeQuota().catch(()=>{});
+  else if(command==="quota-refresh")quotaAdapter.openNativeQuota().then(confirmed=>{if(confirmed)send("widget:reaction",{source:"quota-refresh"});}).catch(()=>{});
   else if(byokGateway?.available&&command==="byok-ping-active"){const activeId=byokGateway.getSnapshot().activeProvider?.id;if(activeId){byokGateway.handleAction("ping",{providerId:activeId}).catch(()=>{});byokGateway.handleAction("fetchBalance",{providerId:activeId}).catch(()=>{});}}
   else if(byokGateway?.available&&command==="byok-cycle-prev")byokGateway.handleAction("cycleActiveModel",{delta:-1}).then(()=>{publish();updateMenu();}).catch(()=>{});
   else if(byokGateway?.available&&command==="byok-cycle-next")byokGateway.handleAction("cycleActiveModel",{delta:1}).then(()=>{publish();updateMenu();}).catch(()=>{});
@@ -484,12 +517,47 @@ else{
   win.setBounds(placement.bounds);artShift=placement.artShift;dockSide=side;facing=side;
   if(hostArea)settings.update({hostOffsetX:side==="left"?a.width-size:0,hostOffsetY:0,hostDock:side});else settings.update({x:placement.bounds.x,y:placement.bounds.y});publish();
  }
+ ipcMain.on("widget:drag",(e,phase,dx,dy)=>{
+  if(!win||win.isDestroyed()||e.sender!==win.webContents)return;
+  if(phase==="start"){
+   const bounds=win.getBounds(),scale=displayScale||settings.get("scale");
+   dragPlacement={bounds,scale,visualX:bounds.x+(bounds.width-scale)/2+artShift,artShift,dockSide,facing};
+   return;
+  }
+  const drag=dragPlacement;
+  if(!drag||!["move","end","cancel"].includes(phase))return;
+  if(phase==="cancel"){
+   dragPlacement=null;win.setBounds(drag.bounds);displayScale=drag.scale;artShift=drag.artShift;dockSide=drag.dockSide;facing=drag.facing;syncVisibility();publish();return;
+  }
+  if(!Number.isFinite(dx)||!Number.isFinite(dy)||Math.abs(dx)>100000||Math.abs(dy)>100000)return;
+  const left=drag.visualX+dx,top=drag.bounds.y+dy;
+  const area=hostArea||screen.getDisplayNearestPoint({x:Math.round(left+drag.scale/2),y:Math.round(top+drag.bounds.height/2)}).workArea;
+  const placement=placeDraggedWidget(area,settings.get("scale"),left,top,{following:!!hostArea,snap:phase==="end"});
+  const {scale,side}=placement;
+  const direction=side||facingAt(placement.visualX+scale/2,area,facing);
+  const changed=displayScale!==scale||artShift!==placement.artShift||dockSide!==side||facing!==direction;
+  displayScale=scale;artShift=placement.artShift;dockSide=side;facing=direction;
+  win.setBounds(placement.bounds);
+  if(phase==="end"){
+   dragPlacement=null;
+   try{
+    if(hostArea)settings.update({hostOffsetX:placement.hostOffsetX,hostOffsetY:placement.hostOffsetY,hostDock:side});
+    else settings.update({x:placement.bounds.x,y:placement.bounds.y});
+   }catch{recoveryLog("drag-position-save-failed");}
+  }
+  if(changed||phase==="end")publish();
+ });
  ipcMain.handle("widget:pointer",(e,action)=>{
   if(!trusted(e)||e.sender!==win?.webContents)return;
   if(action==="down")sm.handlePointerDown();
   else if(action==="up"&&sm.currentState==="pressed")sm.handlePointerUp();
   else if(action==="cancel"&&sm.currentState==="pressed")sm.clearTransient();
   else if(action==="pet")sm.handlePetting();
+  else if(action==="head-pat"){
+   headPatTotal=Math.min(headPatTotal+1,Number.MAX_SAFE_INTEGER);
+   clearTimeout(headPatSaveTimer);headPatSaveTimer=setTimeout(flushHeadPats,350);
+   return headPatTotal;
+  }
  });
  ipcMain.on("widget:hit",(e,interactive)=>{if(trusted(e)&&e.sender===win?.webContents)win.setIgnoreMouseEvents(settings.get("clickThrough")||interactive!==true,{forward:true});});
  ipcMain.handle("widget:audio",(e,type)=>trusted(e)&&["press","release"].includes(type)?audio.getAudioFile(type):null);
@@ -515,13 +583,22 @@ else{
  foreground.on("change",()=>{if(syncVisibility()!==false)publish();});
  adapter.on("turnDone",step=>{
   const recorded=ledger.recordStep(step);
-  running.delete(step.sessionId+":"+step.step_index);
+  const activityChanged=!step.historical&&running.end(step.sessionId+":"+step.step_index,step.step_index,"model-done",!!recorded&&!recorded.updated);
   if(!step.historical){sm.setPersistentState((running.size||byokBusy)?"thinking":"idle");syncQuotaState();}
   if(recorded){clearTimeout(saveTimer);saveTimer=setTimeout(()=>ledger.save(),1000);if(!step.historical&&!recorded.updated){sm.handleTurnSuccess();send("widget:step",recorded);}}
+  if(activityChanged)publish();
  });
- adapter.on("turnRunning",s=>{if(!s.historical){running.add(s.sessionId+":"+s.stepIndex);sm.setPersistentState("thinking");}});
- adapter.on("turnError",s=>{running.delete(s.sessionId+":"+s.stepIndex);if(!s.historical)sm.setPersistentState("error");});
- adapter.on("status",status=>{source=status;if(!status.online&&!byokBusy)sm.setPersistentState("offline");else if(sm.persistentState==="offline")sm.setPersistentState((running.size||byokBusy)?"thinking":"idle");syncQuotaState();publish();});
+ adapter.on("turnRunning",s=>{
+  if(s.historical||!running.begin(s.sessionId+":"+s.stepIndex,s.stepIndex))return;
+  sm.setPersistentState("thinking");publish();
+ });
+ adapter.on("turnError",s=>{
+  if(s.historical)return;
+  const changed=running.end(s.sessionId+":"+s.stepIndex,s.stepIndex,"model-error");
+  sm.setPersistentState(running.size?"thinking":"error");
+  if(changed)publish();
+ });
+ adapter.on("status",status=>{source=status;if(!status.online){running.clear();if(!byokBusy)sm.setPersistentState("offline");}else if(sm.persistentState==="offline")sm.setPersistentState((running.size||byokBusy)?"thinking":"idle");syncQuotaState();publish();});
  app.on("second-instance",(_event,args)=>{
   if(args.includes("--quit")){shutdownDaemonOnQuit=true;app.quit();return;}
   if(byokGateway?.available&&args.includes("--settings-byok")){openSettings("models");return;}
@@ -533,21 +610,23 @@ else{
   if(byokGateway?.available)await Promise.race([byokHandshake,new Promise(r=>setTimeout(r,450))]);
   await companionBridge.start().catch(err=>recoveryLog("companion-bridge-failed "+err.message));
   createWindow();
-  void online.check();
-  updateCheckTimer=setInterval(()=>void online.check(),60*60_000);
+  if(!isolatedDev){void online.check();updateCheckTimer=setInterval(()=>void online.check(),60*60_000);}
   if(byokGateway?.available&&process.argv.includes("--settings-byok"))openSettings("models");
   else if(process.argv.includes("--settings"))openSettings();
-  try{tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"../../assets/character-packs/gemini-star-v1/frames/idle.png")).resize({width:24,height:24}));
+  if(!isolatedDev)try{tray=new Tray(nativeImage.createFromPath(path.join(__dirname,"../../assets/character-packs/gemini-star-v1/frames/idle.png")).resize({width:24,height:24}));
   tray.setToolTip("Catstella");tray.on("double-click",recall);updateMenu();}catch(error){recoveryLog("tray-init-failed "+error.message);}
   migrateLegacyDreamSettings();
-  skinController.start(skinSettings.getAll());
+  if(!isolatedDev)skinController.start(skinSettings.getAll());
   if(byokPortal){syncByokPortal();byokPortal.start();}
-  localization.start();
+  if(!isolatedDev)localization.start();
   scheduleSlideshow();
-  globalShortcut.register("CommandOrControl+Alt+G",recall);globalShortcut.register("CommandOrControl+Alt+Shift+G",()=>{apply({clickThrough:false});recall();});
-  if(settings.get("hostWindowOnly"))foreground.start(win?.getNativeWindowHandle());
-  else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();
-  audio.setEnabled(settings.get("sound"));audio.setVolume(settings.get("volume"));audio.setPreset(settings.get("soundSet"));adapter.start();quotaAdapter.start();
+  if(!isolatedDev){
+   globalShortcut.register("CommandOrControl+Alt+G",recall);globalShortcut.register("CommandOrControl+Alt+Shift+G",()=>{apply({clickThrough:false});recall();});
+   if(settings.get("hostWindowOnly"))startForeground(win?.getNativeWindowHandle());
+   else if(settings.get("petDisplayMode")==="prefer-web")startForeground();
+  }
+  audio.setEnabled(settings.get("sound"));audio.setVolume(settings.get("volume"));audio.setPreset(settings.get("soundSet"));
+  if(!isolatedDev){adapter.start();quotaAdapter.start();}
   let lastWebOnline=false,lastWebActive=false;
   bridgeMonitorTimer=setInterval(()=>{
    const ws=companionBridge.getWebSnapshot();
@@ -556,7 +635,7 @@ else{
     syncVisibility();publish();
    }
   },3500);
-  recoveryTimer=setInterval(()=>{if(!win||win.isDestroyed()){show();return;}if(settings.get("hostWindowOnly"))foreground.start(win.getNativeWindowHandle());else if(settings.get("petDisplayMode")==="prefer-web")foreground.start();},2000);
+  recoveryTimer=setInterval(()=>{if(!win||win.isDestroyed()){show();return;}if(settings.get("hostWindowOnly"))startForeground(win.getNativeWindowHandle());else if(settings.get("petDisplayMode")==="prefer-web")startForeground();},2000);
   // Adaptive visual check interval based on uptime
   uptimeCheckTimer=setInterval(()=>{
    const uptime=process.uptime();

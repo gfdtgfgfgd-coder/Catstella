@@ -35,7 +35,12 @@
     if (name === "audio") name = "pet";
     if (name === "about" && !onlinePanel && api.online) onlinePanel = window.mountCatstellaOnline($("online-panel"), api.online, {themeOnly:true});
     if (!pages.some(p => p.dataset.page === name)) name = "overview";
-    navItems.forEach(b => b.classList.toggle("active", b.dataset.page === name));
+    navItems.forEach(b => {
+      const current = b.dataset.page === name;
+      b.classList.toggle("active", current);
+      if (current) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
     pages.forEach(p => p.classList.toggle("active", p.dataset.page === name));
     const scroller = $("content-scroll");
     if (scroller) scroller.scrollTop = 0;
@@ -111,17 +116,25 @@
   ];
   const original = Object.fromEntries(keys.map(key => [key, data.settings[key]]));
   const originalDreamSkin = data.dreamSkin ? { ...data.dreamSkin } : null;
+  const appearanceKeys = ["syncCharacter", "syncWallpaper"];
+  const savingAppearance = new Map();
   let pending = Promise.resolve();
 
   function save(partial, message = "已保存") {
+    const intent = {};
+    for (const key of appearanceKeys) {
+      if (typeof partial[key] === "boolean") savingAppearance.set(key, { intent, value: partial[key] });
+    }
     pending = pending.then(async () => {
       try {
         data = await api.save(partial);
         stop();
-        render();
         $("saved").textContent = message;
       } catch {
         $("saved").textContent = "保存失败，请重试";
+      } finally {
+        for (const key of appearanceKeys) if (savingAppearance.get(key)?.intent === intent) savingAppearance.delete(key);
+        render();
       }
     });
     return pending;
@@ -162,10 +175,11 @@
   setupViewToggle("char-view-toggle", "character-gallery", () => charViewMode, m => { charViewMode = m; localStorage.setItem("cat_char_view_mode", m); });
   setupViewToggle("wall-view-toggle", "wallpaper-gallery", () => wallViewMode, m => { wallViewMode = m; localStorage.setItem("cat_wall_view_mode", m); });
 
-  function galleryTile(gallery, {name, description, preview, active, kind, select}) {
+  function galleryTile(gallery, {id, name, description, preview, active, kind, select}) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "gallery-card" + (active ? " active" : "");
+    card.dataset.assetId = id;
     card.setAttribute("aria-pressed", String(active));
     card.title = "使用「" + name + "」";
     const append = (parent, tag, css, text = "") => {
@@ -180,7 +194,7 @@
     if (preview) {
       const image = append(thumb, "img", "");
       image.src = preview;
-      image.alt = name;
+      image.alt = "";
       image.loading = "lazy";
     } else append(thumb, "span", "card-wall-placeholder", kind === "character" ? "🐱" : "🖼️");
     const info = append(card, "span", "card-info");
@@ -190,17 +204,43 @@
     gallery.appendChild(card);
   }
 
+  const gallerySnapshots = new Map();
+  function renderGallery(gallery, items, fields, active, build) {
+    const previous = gallerySnapshots.get(gallery);
+    if (previous && previous.active === active && previous.items.length === items.length &&
+        previous.items.every((item, index) => fields.every(key => item[key] === items[index][key]))) return;
+    gallerySnapshots.set(gallery, { items, active });
+    const focused = gallery.contains(document.activeElement) ? document.activeElement.dataset.assetId : null;
+    const scrollLeft = gallery.scrollLeft;
+    gallery.replaceChildren();
+    for (const item of items) build(item);
+    gallery.scrollLeft = scrollLeft;
+    if (focused) [...gallery.children].find(card => card.dataset.assetId === focused)?.focus({preventScroll:true});
+  }
+
+  function describeAppearance(kind, name, syncKey, enabled = true) {
+    $("desktop-current-" + kind).textContent = "当前桌面：" + (name || "默认");
+    const follows = savingAppearance.get(syncKey)?.value ?? data.settings[syncKey] !== false;
+    let detail = follows
+      ? (data.webCompanion?.online ? "同步中 · 网页的独立选择会保留" : "同步待连接 · 网页暂用自己的选择")
+      : "独立设置 · 网页使用自己的选择";
+    if (!enabled) detail += " · 反重力外观已关闭";
+    $("desktop-" + kind + "-mode").textContent = detail;
+  }
+
   function renderCharacterGallery() {
     const gallery = $("character-gallery"), packs = data.characterPacks || [];
+    const selected = data.settings.characterPack;
+    describeAppearance("character", packs.find(pack => pack.id === selected)?.name, "syncCharacter");
     $("character-count").textContent = packs.length + " 款形态";
-    gallery.replaceChildren();
-    for (const pack of packs) {
-      const active = data.settings.characterPack === pack.id;
+    renderGallery(gallery, packs, ["id", "name", "description", "preview"], selected, pack => {
+      const active = selected === pack.id;
       galleryTile(gallery, {
+        id: pack.id,
         name: pack.name, description: pack.description || pack.id, preview: pack.preview, active, kind: "character",
         select: () => { if (!active) save({ characterPack: pack.id }, "已切换为「" + pack.name + "」"); }
       });
-    }
+    });
   }
 
   function renderWallpaperGallery() {
@@ -208,14 +248,17 @@
     $("wallpaper-count").textContent = walls.length + " 张";
     const normalizePath = value => (value || "").replace(/\\/g, "/").toLowerCase();
     const current = normalizePath(data.dreamSkin?.wallpaperFile);
-    gallery.replaceChildren();
-    for (const wall of walls) {
-      const active = current ? current === normalizePath(wall.filePath) : data.dreamSkin?.wallpaperId === wall.id;
+    const selected = (current && walls.find(wall => normalizePath(wall.filePath) === current)) ||
+      walls.find(wall => wall.id === data.dreamSkin?.wallpaperId) || walls[0];
+    describeAppearance("wallpaper", selected?.title, "syncWallpaper", data.dreamSkin?.enabled === true);
+    renderGallery(gallery, walls, ["id", "title", "fileName", "filePath", "preview"], selected?.id, wall => {
+      const active = selected?.id === wall.id;
       galleryTile(gallery, {
+        id: wall.id,
         name: wall.title, description: wall.fileName, preview: wall.preview, active, kind: "wallpaper",
-        select: () => save({ dreamSkin: { wallpaperFile: wall.filePath } }, "已切换至「" + wall.title + "」")
+        select: () => { if (!active) save({ dreamSkin: { wallpaperFile: wall.filePath } }, "已切换至「" + wall.title + "」"); }
       });
-    }
+    });
   }
 
   const onlineCounts = { character: 0, wallpaper: 0 };
@@ -1136,6 +1179,10 @@
     // 渲染常规表单控件
     for (const key of keys) {
       const el = $(key);
+      if (el && appearanceKeys.includes(key)) {
+        el.checked = savingAppearance.get(key)?.value ?? data.settings[key] !== false;
+        continue;
+      }
       if (el && document.activeElement !== el) {
         if (el.type === "checkbox") el.checked = data.settings[key];
         else el.value = key === "volume" ? Math.round(data.settings.volume * 100) : data.settings[key];

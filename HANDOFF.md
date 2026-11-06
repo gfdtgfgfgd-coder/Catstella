@@ -2,8 +2,10 @@
 
 > 更新时间：2026-11-05  
 > 状态：下文保留的是 20:41 那次构建的历史记录。发布以 GitHub Actions 的三端构建和验收结果为准。<br>
-> 工作区：`D:\Catstella`，分支 `feat/desktop-suite`  
+> 桌面工作区：`D:\Catstella`，分支 `main`，跟踪 `origin/main`<br>
 > Web 工作区：`D:\Catstella-web`，分支 `feat/browser-extension`
+
+2026-11-06：两个目录是同一仓库的工作树。原作 `upstream` 只用于取代码。重复的本地桌面分支已移除，未提交改动已保留；远端 `feat/desktop-suite` 等实时核验后再清理。Web 分支有独有提交，桌面发布按版本标签取 Web 源码。
 
 ## 0.6.0 发布流程
 

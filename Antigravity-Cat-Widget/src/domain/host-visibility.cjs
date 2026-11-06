@@ -26,6 +26,19 @@ function hostPlacement(state,scale,offsetX=18,offsetY=18,dock=""){
  if(effectiveScale<140||area.width<360)return null;
  return{scale:effectiveScale,...characterPlacement(area,effectiveScale,{width,height},dock==="left"?area.x:dock==="right"?area.x+area.width-effectiveScale:area.x+area.width-effectiveScale-offsetX,area.y+area.height-height-offsetY)};
 }
+function placeDraggedWidget(area,preferredScale,left,top,{following=false,snap=false}={}){
+ const {scale,width,height}=widgetLayout(area,preferredScale);
+ const gap=following?0:(width-scale)/2;
+ const first=area.x+gap,right=area.x+area.width-scale-gap,bottom=area.y+area.height-height;
+ const side=snap?(left<=first+20?"left":left>=right-20?"right":""):"";
+ const placement=characterPlacement(area,scale,{width,height},
+  side==="left"?first:side==="right"?right:Math.max(first,Math.min(right,left)),snap&&top>=bottom-20?bottom:top);
+ return {...placement,scale,side,hostOffsetX:Math.round(right-placement.visualX),hostOffsetY:bottom-placement.bounds.y};
+}
+function facingAt(centerX,area,previous="right",deadZone=12){
+ const offset=centerX-(area.x+area.width/2);
+ return offset < -deadZone ? "left" : offset > deadZone ? "right" : previous;
+}
 class ForegroundMonitor extends EventEmitter{
  constructor(){super();this.state={kind:"unknown",bounds:null};this.lastReport=0;}
  start(handle){
@@ -49,4 +62,4 @@ class ForegroundMonitor extends EventEmitter{
  }
  stop(){const child=this.child;this.child=null;if(child&&!this.bound){child.kill();return;}if(child){child.stdin.end("detach\n");const timer=setTimeout(()=>child.kill(),1000);timer.unref();}this.state={kind:"unknown",bounds:null};}
 }
-module.exports={ForegroundMonitor,hostPlacement,validBounds,characterPlacement,widgetLayout};
+module.exports={ForegroundMonitor,hostPlacement,validBounds,characterPlacement,widgetLayout,placeDraggedWidget,facingAt};

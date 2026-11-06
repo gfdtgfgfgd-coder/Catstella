@@ -102,14 +102,25 @@ async function installTheme(config){
  };
  let layer=document.createElement("div");layer.id="agy-dream-wallpaper-v2";layer.setAttribute("aria-hidden","true");
  Object.assign(layer.style,{position:"fixed",inset:"0",zIndex:"0",pointerEvents:"none",overflow:"hidden",backgroundRepeat:"no-repeat",backgroundPosition:"center",backgroundColor:"#f8f6ff",transition:"opacity 0.4s ease"});
- let wallpaperGen=0,incoming=null;
+ let wallpaperGen=0,incoming=null,committedImage=image,deferred=null,latest=config;
+ const foreground=()=>!document.hidden&&document.hasFocus();
+ function discardIncoming(){
+  if(!incoming)return;
+  for(const anim of incoming.getAnimations?.()||[]){anim.onfinish=null;anim.cancel();}
+  incoming.remove();incoming=null;
+ }
+ function deferWallpaper(next){
+  deferred=next;
+  discardIncoming();
+  image=committedImage;
+ }
  function commitIncoming(url,p,factor,cfg){
-  if(incoming){try{incoming.getAnimations?.().forEach(a=>a.cancel());}catch{}incoming.remove();incoming=null;}
+  discardIncoming();
   layer.style.backgroundImage='linear-gradient(rgba('+p.scrimRgb+','+cfg.scrim+'),rgba('+p.scrimRgb+','+cfg.scrim+')),url("'+url+'")';
   layer.style.backgroundSize="100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px";
   layer.style.backgroundPosition="center,"+(cfg.positionX??50)+"% "+(cfg.positionY??50)+"%";
   layer.style.backgroundColor=cfg.fit==="adaptive"?p.adaptiveBg:"transparent";
-  currentSrc=url;
+  currentSrc=url;committedImage=image;
  }
  const style=document.createElement("style");style.id="agy-dream-style-v2";style.textContent=`
  html.agy-dream-active-v2 body { background:var(--agy-dream-base-bg)!important; }
@@ -445,13 +456,14 @@ async function installTheme(config){
   if(r.width>0&&r.height>0){
    Object.assign(layer.style,{inset:"auto",left:r.left+"px",top:r.top+"px",width:r.width+"px",height:r.height+"px",borderRadius:pane?"22px":"0"});
    if(resize&&geometryTarget!==region){if(geometryTarget&&geometryTarget!==root)resize.unobserve(geometryTarget);resize.observe(region);geometryTarget=region;}
-   if(image&&image.naturalWidth>0&&image.naturalHeight>0){
-    const factor=(config.fit==="contain"?Math.min(r.width/image.naturalWidth,r.height/image.naturalHeight):Math.max(r.width/image.naturalWidth,r.height/image.naturalHeight))*(config.zoom??1);
-    const size="100% 100%,"+Math.round(image.naturalWidth*factor)+"px "+Math.round(image.naturalHeight*factor)+"px";
+   function resizeLayer(target,decoded){
+    if(!target||!decoded?.naturalWidth||!decoded.naturalHeight)return;
+    const factor=(config.fit==="contain"?Math.min(r.width/decoded.naturalWidth,r.height/decoded.naturalHeight):Math.max(r.width/decoded.naturalWidth,r.height/decoded.naturalHeight))*(config.zoom??1);
+    const size="100% 100%,"+Math.round(decoded.naturalWidth*factor)+"px "+Math.round(decoded.naturalHeight*factor)+"px";
     const pos="center,"+(config.positionX??50)+"% "+(config.positionY??50)+"%";
-    layer.style.backgroundSize=size;layer.style.backgroundPosition=pos;
-    if(incoming){incoming.style.backgroundSize=size;incoming.style.backgroundPosition=pos;}
+    target.style.backgroundSize=size;target.style.backgroundPosition=pos;
    }
+   resizeLayer(layer,committedImage);resizeLayer(incoming,image);
   }
   return{region,scope:pane||root,width:r.width,height:r.height};
  }
@@ -515,17 +527,27 @@ async function installTheme(config){
   }
  }
  function schedule(){clearTimeout(timer);timer=setTimeout(scan,120);}
- function onWindowLifecycle(){ensureMounted();schedule();}
+ function onWindowLifecycle(){
+  ensureMounted();schedule();
+  if(!foreground()){
+   if(incoming){++wallpaperGen;deferWallpaper(latest);}
+  }else if(deferred){void update(deferred);}
+ }
  async function update(next){
   const thisGen=++wallpaperGen;
+  latest=next;
+  const wantsFade=next.transition!=="none"&&Boolean(currentSrc)&&next.image!==currentSrc;
+  if(wantsFade&&!foreground()){deferWallpaper(next);return;}
+  deferred=null;
   let crossfade=false;
   if(next.image&&next.image!==currentSrc){
    const fresh=new Image();fresh.src=next.image;
-   try{await fresh.decode();}catch{}
+   try{await fresh.decode();}catch{if(thisGen===wallpaperGen){discardIncoming();image=committedImage;}return;}
    if(thisGen!==wallpaperGen||!active||!root.isConnected)return;
+   if(wantsFade&&!foreground()){deferWallpaper(next);return;}
    image=fresh;
    crossfade=next.transition!=="none"&&layer.isConnected&&Boolean(currentSrc);
-  }
+  }else image=committedImage;
   config=next;
   const p=applyPalette(config.themePreset);
   document.querySelectorAll("#agy-dream-wallpaper-v2").forEach(el=>{if(el!==layer)el.remove();});
@@ -537,7 +559,7 @@ async function installTheme(config){
   if(!crossfade){
    commitIncoming(config.image,p,factor,config);
   }else{
-   if(incoming){try{incoming.getAnimations?.().forEach(a=>a.cancel());}catch{}incoming.remove();incoming=null;}
+   discardIncoming();
    const inc=document.createElement("div");inc.className="agy-dream-wallpaper-incoming";
    Object.assign(inc.style,{
     position:"absolute",inset:"0",pointerEvents:"none",borderRadius:"inherit",
@@ -550,7 +572,11 @@ async function installTheme(config){
    layer.appendChild(inc);incoming=inc;
    try{
     const anim=inc.animate([{opacity:0},{opacity:1}],{duration:1200,easing:"cubic-bezier(.4,0,.2,1)",fill:"forwards"});
-    anim.onfinish=()=>{if(thisGen!==wallpaperGen||incoming!==inc)return;commitIncoming(config.image,p,factor,config);};
+    anim.onfinish=()=>{
+     if(thisGen!==wallpaperGen||incoming!==inc)return;
+     if(!foreground()){deferWallpaper(latest);return;}
+     commitIncoming(next.image,p,factor,next);
+    };
    }catch{commitIncoming(config.image,p,factor,config);}
   }
   scan();
@@ -558,7 +584,7 @@ async function installTheme(config){
  function destroy(){
   active=false;clearTimeout(timer);observer?.disconnect();attrObserver?.disconnect();resize?.disconnect();
   window.removeEventListener("focus",onWindowLifecycle);window.removeEventListener("blur",onWindowLifecycle);document.removeEventListener("visibilitychange",onWindowLifecycle);
-  if(incoming){try{incoming.remove();}catch{}incoming=null;}
+  deferred=null;discardIncoming();
   document.querySelectorAll('#agy-dream-style-v2, #agy-dream-wallpaper-v2').forEach(el => el.remove());
   document.documentElement.classList.remove("agy-dream-active-v2");
   for(const entry of saved.reverse())restore(entry);

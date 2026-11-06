@@ -29,7 +29,9 @@
     return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
   };
   function selectRelease(list, channel, current) {
-    if (!Array.isArray(list) || !version(current)) throw new Error('invalid release list');
+    const beta = typeof current === 'string' && /^(\d+\.\d+\.\d+)-beta\.\d+$/.exec(current);
+    const currentBase = beta ? beta[1] : current;
+    if (!Array.isArray(list) || !version(currentBase)) throw new Error('invalid release list');
     const candidates = [];
     for (const r of list) {
       if (r?.draft !== false || r.prerelease !== false || typeof r.tag_name !== 'string') continue;
@@ -42,8 +44,9 @@
     }
     candidates.sort((a, b) => compare(b.version, a.version));
     const latest = candidates[0];
+    const order = latest ? compare(latest.version, currentBase) : 0;
     return { current, latest: latest?.version || null, url: latest?.url || releases,
-      status: !latest ? 'unpublished' : compare(latest.version, current) > 0 ? 'available' : 'current' };
+      status: !latest ? 'unpublished' : order > 0 || (order === 0 && beta) ? 'available' : 'current' };
   }
   function catalog(data) {
     if (data?.schema !== 1 || !Array.isArray(data.items) || !Array.isArray(data.characters ?? []) ||
@@ -88,7 +91,7 @@
   }
   async function readBytes(response, limit) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    if (Number(response.headers.get('content-length')) > limit) throw new Error('file too large');
+    // Content-Length can be the compressed transfer size; cap the decoded stream.
     const reader = response.body.getReader();
     const chunks = [];
     let length = 0;

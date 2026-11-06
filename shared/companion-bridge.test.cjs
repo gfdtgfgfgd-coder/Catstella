@@ -17,7 +17,7 @@ test("CompanionBridgeServer syncs dual-end quota, serves desktop wallpaper bytes
 
   let state = {
     sync: { syncCharacter: true, syncWallpaper: true, syncInteraction: true, petDisplayMode: "both" },
-    desktop: { characterPack: "gemini-star-v1", wallpaperId: "star", wallpaperRev: "star:1" }
+    desktop: { characterPack: "gemini-star-v1", wallpaperId: "star", wallpaperRev: "star:1", agyQuota: { fiveHour: 75 } }
   };
   const patches = [];
   let webUpdates = 0;
@@ -100,9 +100,20 @@ test("CompanionBridgeServer syncs dual-end quota, serves desktop wallpaper bytes
   assert.equal(synced.web.visible, true);
   assert.equal(synced.web.quota.dailyTotal, 18);
   assert.equal(synced.desktop.characterPack, "lin-cat");
+  assert.deepEqual(synced.desktop.agyQuota, { fiveHour: 75 });
   assert.equal(synced.sync.syncWallpaper, false);
   assert.equal(patches.length, 1);
   assert.equal(webUpdates, 1);
+
+  const withoutQuota = await fetch(`http://127.0.0.1:${port}/companion/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Catstella-Client": "gemini-web-companion" },
+    body: JSON.stringify({ webActive: true, webVisible: true, includeAgyQuota: false })
+  }).then(response => response.json());
+  assert.equal(withoutQuota.desktop.agyQuota, undefined);
+  assert.equal(withoutQuota.desktop.wallpaperId, "star");
+  assert.equal(withoutQuota.web.quota.dailyTotal, 18);
+  assert.deepEqual(state.desktop.agyQuota, { fiveHour: 75 }, "a Web preference must not modify desktop quota");
 
   // 5. Serves raw desktop wallpaper bytes
   const imgRes = await fetch(`http://127.0.0.1:${port}/companion/wallpaper-image?id=star`);

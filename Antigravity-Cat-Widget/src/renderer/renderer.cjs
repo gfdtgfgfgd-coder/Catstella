@@ -3,6 +3,11 @@
  let snapshot,selected="quota",closed=true,temporary=null,timeout,pointer=null,gesture=0,currentSound=null,hit=null;
  let tapTimer=null,artRenderSequence=0,artReadyNotified=false;
  let personality,talkState,talkLine,autoHide,hideAnimation,lastBubbleOpen=null,lastBubbleView;
+ let modelTalkTimer;
+ let patReflection="",patReflectionTimer,lastPatReflection=-Infinity;
+ const headSpark=document.createElement("span");
+ headSpark.className="agy-head-spark";headSpark.textContent="✦";headSpark.setAttribute("aria-hidden","true");motion.append(headSpark);
+ let headMotion,headSparkMotion;
  let consecutiveClicks=0;
  function armBubble(){clearTimeout(autoHide);const focus=document.activeElement;if(!closed&&!($("bubble").contains(focus)&&focus.matches(":focus-visible")))autoHide=setTimeout(()=>{closed=true;consecutiveClicks=0;render();},6500);}
  function applyHonorific(line){if(!line||!snapshot?.settings)return line;const mode=snapshot.settings.userHonorificMode||"none";if(mode==="none")return line;const name=mode==="zayu"?"杂鱼君":(mode==="custom"&&snapshot.settings.customHonorific?snapshot.settings.customHonorific.trim():"");if(!name)return line;return line.includes("人类")?line.replaceAll("人类",name):line;}
@@ -30,6 +35,19 @@
   talkState=snapshot.persistentState||snapshot.state;
   talkLine=personality.say(talkState==="offline"?"idle":talkState);
   if(express)pet.show(personality.expressionFor(talkLine),"dialogue");
+ }
+ function modelTalk(){
+  const {kind,stepIndex,expiresAt}=snapshot?.modelActivity||{};
+  if(!Number.isSafeInteger(stepIndex)||expiresAt!==undefined&&expiresAt<=Date.now())return "";
+  if(kind==="model-running")return `AGY 正在处理模型步骤 #${stepIndex} 喵。`;
+  if(kind==="model-done")return `AGY 的模型步骤 #${stepIndex} 完成了喵～`;
+  if(kind==="model-error")return `AGY 的模型步骤 #${stepIndex} 遇到错误了喵。`;
+  return "";
+ }
+ function scheduleModelTalk(){
+  clearTimeout(modelTalkTimer);
+  const delay=snapshot?.modelActivity?.expiresAt-Date.now();
+  if(delay>0)modelTalkTimer=setTimeout(render,delay+5);
  }
  const hasWebData=()=>Boolean(snapshot?.webCompanion?.online||snapshot?.webCompanion?.quota);
  const getPages=()=>{
@@ -186,12 +204,14 @@
   }else if(selected==="latest"){
    const r=l.latest;$("title").textContent="最近模型步骤";$("value").hidden=false;$("value").textContent=format(r?.tokens.total);$("detail").hidden=false;$("detail").textContent=r?"输入 "+format(r.tokens.input)+" · 输出 "+format(r.tokens.output):"尚无数值记录";
    $("meta").textContent=r?"本机记录 · 费用 —（无价格来源）":"等待真实会话记录";
-  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state))chooseTalk();$("value").textContent=applyHonorific(talkLine);$("meta").textContent="点点本喵，再聊一句";}
+  }else{$("title").textContent="喵言喵语";$("value").hidden=false;$("value").classList.add("agy-phrase");if(talkState!==(snapshot.persistentState||snapshot.state))chooseTalk();const statusLine=modelTalk();$("value").textContent=statusLine||applyHonorific(patReflection||talkLine);$("meta").textContent=statusLine?"本机 Antigravity 日志":"点点本喵，再聊一句";}
   if(selected!=="talk")$("value").classList.remove("agy-phrase");
  }
  function message(title,body,detail="",ms=4500,meta=""){clearAmbient();clearTimeout(timeout);temporary={title,body,detail,meta};closed=false;render();if(ms>0)timeout=setTimeout(()=>{temporary=null;render();},ms);}
  function select(delta){const pages=getPages();armBubble();clearTimeout(timeout);temporary=null;closed=false;selected=pages[(pages.indexOf(selected)+delta+pages.length)%pages.length];if(selected==="talk")chooseTalk(true);api.save({bubblePage:selected});render();}
- $("prev").onclick=()=>select(-1);$("next").onclick=()=>select(1);$("close").onclick=()=>{clearTimeout(autoHide);closed=true;consecutiveClicks=0;render();};$("toggle").onclick=()=>{closed=!closed;if(!snapshot.settings.bubbleOn)api.save({bubbleOn:true});armBubble();render();};$("settings").onclick=()=>api.command("settings");$("quota").onclick=()=>api.command("quota-refresh");
+ $("prev").onclick=()=>select(-1);$("next").onclick=()=>select(1);$("close").onclick=()=>{clearTimeout(autoHide);closed=true;consecutiveClicks=0;render();};$("toggle").onclick=()=>{closed=!closed;if(!snapshot.settings.bubbleOn)api.save({bubbleOn:true});armBubble();render();};$("settings").onclick=()=>api.command("settings");
+ if($("bubble-settings"))$("bubble-settings").onclick=()=>api.command("settings");
+ if($("refresh-quota"))$("refresh-quota").onclick=()=>api.command("quota-refresh");
 /* @byok-dev-start */
  if($("byok-panel"))$("byok-panel").onclick=()=>api.command("byok-ping-active");
  if($("byok-model-prev"))$("byok-model-prev").onclick=e=>{e.stopPropagation();armBubble();api.command("byok-cycle-prev");};
@@ -207,6 +227,32 @@
   const area=sleepShell.getBoundingClientRect();
   const x=event.clientX-area.left,y=event.clientY-area.top;
   return x>=area.width*.07&&x<=area.width*.93&&y>=area.height*.035&&y<=area.height*.80;
+ }
+ function headPatFeedback(event){
+  const face=motion.querySelector(".agy-face"), bounds=motion.getBoundingClientRect();
+  const reduced=snapshot.settings.reducedMotion||matchMedia("(prefers-reduced-motion: reduce)").matches;
+  headMotion?.cancel();headSparkMotion?.cancel();
+  if(!reduced){
+   headMotion=face.animate([{scale:"1",translate:"0 0"},{scale:"1.05 .90",translate:"0 3px",offset:.20},
+    {scale:".99 1.055",translate:"0 -5px",offset:.53},{scale:"1.01 .99",translate:"0 1px",offset:.78},{scale:"1",translate:"0 0"}],
+    {duration:330,easing:"ease-out"});
+   headMotion.id="catstella-head-tap";
+  }
+  headSpark.style.left=Math.max(8,Math.min(92,(event.clientX-bounds.left)/bounds.width*100))+"%";
+  headSpark.style.top=Math.max(8,Math.min(82,(event.clientY-bounds.top)/bounds.height*100))+"%";
+  headSparkMotion=headSpark.animate(reduced?[{opacity:.9},{opacity:0}]:
+   [{opacity:1,scale:".62",translate:"0 0"},{opacity:1,scale:"1.05",translate:"0 -5px",offset:.28},{opacity:0,scale:"1.3",translate:"0 -16px"}],
+   {duration:reduced?240:450,easing:"ease-out"});
+  headSparkMotion.id="catstella-head-spark";
+ }
+ async function recordHeadPat(){
+  const total=await api.pointer("head-pat");
+  if(!snapshot?.dialogue?.petReflection?.length||!Number.isSafeInteger(total)||total<10||total%10!==0||
+     performance.now()-lastPatReflection<90000||modelTalk()||!["idle","offline"].includes(snapshot.persistentState||snapshot.state))return;
+  lastPatReflection=performance.now();
+  patReflection=personality.say("petReflection").replaceAll("{count}",String(total));
+  clearTimeout(patReflectionTimer);patReflectionTimer=setTimeout(()=>{patReflection="";render();},12000);
+  render();
  }
  function animatePress(pressed){motion.dataset.pressed=String(pressed);}
  const pointerDistance=event=>Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y);
@@ -265,7 +311,8 @@
   if(event.button!==0||!event.isPrimary||pointer)return;
   const head=hitsHead(event);
   const sleeping=pet.rest==="sleeping";
-  pointer={id:event.pointerId,startedAt:performance.now(),sleeping,head,x:event.clientX,y:event.clientY,distance:0,pressActive:!sleeping};
+  pointer={id:event.pointerId,startedAt:performance.now(),sleeping,head,x:event.clientX,y:event.clientY,
+   screenX:event.screenX,screenY:event.screenY,distance:0,pressActive:!sleeping,dragging:false};
   pet.activity();
   motion.setPointerCapture(event.pointerId);
   if(!sleeping){
@@ -281,23 +328,28 @@
  motion.addEventListener("pointermove",event=>{
   if(pointer?.id!==event.pointerId)return;
   pointer.distance=Math.max(pointer.distance,pointerDistance(event));
-  if(pointer.distance>PetBehavior.tapSlop)cancelPointerPress();
+  if(pointer.distance>PetBehavior.tapSlop||pointer.dragging){
+   cancelPointerPress();
+   if(!pointer.dragging){pointer.dragging=true;api.drag?.("start");}
+   api.drag?.("move",event.screenX-pointer.screenX,event.screenY-pointer.screenY);
+  }
  });
  function release(cancel=false,event){
   if(!pointer||(event&&event.pointerId!==pointer.id))return;
   clearTimeout(tapTimer);tapTimer=null;
-  const {sleeping,head,startedAt}=pointer;
+  const {sleeping,head,startedAt,dragging}=pointer;
   const distance=event?Math.max(pointer.distance,pointerDistance(event)):pointer.distance;
-  const isTap=!cancel&&PetBehavior.isTap(performance.now()-startedAt,distance);
+  const isTap=!cancel&&!dragging&&PetBehavior.isTap(performance.now()-startedAt,distance);
+  if(dragging)api.drag?.(cancel?"cancel":"end",event?event.screenX-pointer.screenX:0,event?event.screenY-pointer.screenY:0);
   pointer=null;
   animatePress(false);
   if(!sleeping)api.pointer(isTap?"up":"cancel");
   if(isTap)play("release");
   syncPet();
   if(isTap){
-   if(pet.activity(true)||sleeping)return;
+   if(pet.activity(true)||sleeping||pet.rest!=="awake")return;
    activate();
-   if(head&&pet.tap()==="proud")api.pointer("pet");
+   if(head){headPatFeedback(event);if(pet.tap()==="proud")api.pointer("pet");void recordHeadPat();}
   }
  }
  motion.addEventListener("pointerup",event=>release(false,event));
@@ -308,7 +360,7 @@
   if(event.key!==" "&&event.key!=="Enter")return;
   event.preventDefault();
   if(event.repeat)return;
-  if(!pet.activity(true))activate();
+  if(!pet.activity(true)&&pet.rest==="awake")activate();
  });
  window.addEventListener("mousemove",e=>{const active=!!e.target.closest(".interactive");if(hit!==active){hit=active;api.hit(active);}});
  window.addEventListener("mouseleave",()=>{hit=false;api.hit(false);});
@@ -329,9 +381,18 @@
     reloadImages();
     render();
   });
-  api.subscribe(data=>{if(snapshot&&(!data.settings.sound||data.settings.soundSet!==snapshot.settings.soundSet||data.settings.volume!==snapshot.settings.volume))stopSound();snapshot=data;render();});
+  api.subscribe(data=>{if(snapshot&&(!data.settings.sound||data.settings.soundSet!==snapshot.settings.soundSet||data.settings.volume!==snapshot.settings.volume))stopSound();snapshot=data;scheduleModelTalk();render();});
  api.onStep(step=>{if(!closed&&snapshot?.settings.turnCostOn){message("模型步骤完成",format(step.tokens.total)+" tokens","输入 "+format(step.tokens.input)+" · 输出 "+format(step.tokens.output),snapshot.settings.turnCostDurationMs,"真实本机记录 · 非整轮计费");play("release");}});
+ let quotaBounce;
  api.onReaction(payload=>{
+  if(payload?.source==="quota-refresh"){
+   if(pet.show("proud","system")&&snapshot&&!snapshot.settings.reducedMotion&&!window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    quotaBounce?.cancel();
+    quotaBounce=sleepShell.animate([{translate:"0 0"},{translate:"0 -9px",offset:.38},{translate:"0 0"}],{duration:340,easing:"ease-out"});
+    quotaBounce.id="catstella-quota-success";
+   }
+   return;
+  }
   if(payload?.source==="preview"){
    if(payload.expression==="nap")pet.previewNap();
    else pet.show(payload.expression,"preview");
@@ -363,7 +424,7 @@
   chatter.configure(data.settings.ambientChatter===true);
   if(!data.settings.ambientChatter||!data.settings.bubbleOn||!["idle","offline"].includes(data.state)||data.webCompanion?.active)clearAmbient();
  });
- snapshot=await api.get();personality=new window.StarPersonality(snapshot.dialogue,Math.random,snapshot.dialogueTags);selected=snapshot.settings.bubblePage;render();
+ snapshot=await api.get();personality=new window.StarPersonality(snapshot.dialogue,Math.random,snapshot.dialogueTags);selected=snapshot.settings.bubblePage;scheduleModelTalk();render();
  chatter.configure(snapshot.settings.ambientChatter===true);
- window.addEventListener("beforeunload",()=>{clearTimeout(timeout);clearTimeout(autoHide);clearTimeout(hideAnimation);pet.dispose();stopSound();});
+ window.addEventListener("beforeunload",()=>{clearTimeout(timeout);clearTimeout(autoHide);clearTimeout(hideAnimation);clearTimeout(modelTalkTimer);clearTimeout(patReflectionTimer);pet.dispose();stopSound();});
 })();
