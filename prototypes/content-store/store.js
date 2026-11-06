@@ -32,15 +32,15 @@ const starlightPack = {
 };
 
 const moriyamaFrames = [
-  { id: 'moriyama-01', kind: 'wallpaper', name: '元气初醒 · 异色星眸', description: '2432 × 1664 · 原作 @森山白月', size: 1246121, art: `${moriyamaRoot}/moriyama-catgirl-01.jpg` },
-  { id: 'moriyama-02', kind: 'wallpaper', name: '星芒跳跃 · 灿烂午后', description: '2432 × 1664 · 原作 @森山白月', size: 1141212, art: `${moriyamaRoot}/moriyama-catgirl-02.jpg` },
-  { id: 'moriyama-03', kind: 'wallpaper', name: '猫耳微动 · 懵懂凝视', description: '2432 × 1664 · 原作 @森山白月', size: 1223878, art: `${moriyamaRoot}/moriyama-catgirl-03.jpg` },
-  { id: 'moriyama-04', kind: 'wallpaper', name: '甜度超标 · 托腮浅笑', description: '2432 × 1664 · 原作 @森山白月', size: 1264046, art: `${moriyamaRoot}/moriyama-catgirl-04.jpg` },
-  { id: 'moriyama-05', kind: 'wallpaper', name: '阳光倾落 · 纯白毛绒', description: '1216 × 832 · 原作 @森山白月', size: 432299, art: `${moriyamaRoot}/moriyama-catgirl-05.jpg` },
-  { id: 'moriyama-06', kind: 'wallpaper', name: '元气出击 · 灵动飞扬', description: '1216 × 832 · 原作 @森山白月', size: 448164, art: `${moriyamaRoot}/moriyama-catgirl-06.jpg` },
-  { id: 'moriyama-07', kind: 'wallpaper', name: '星轨漫步 · 温柔依偎', description: '2432 × 1664 · 原作 @森山白月', size: 1161190, art: `${moriyamaRoot}/moriyama-catgirl-07.jpg` },
-  { id: 'moriyama-08', kind: 'wallpaper', name: '微风吹拂 · 俏皮眨眼', description: '1216 × 832 · 原作 @森山白月', size: 420738, art: `${moriyamaRoot}/moriyama-catgirl-08.jpg` },
-  { id: 'moriyama-09', kind: 'wallpaper', name: '星夜流光 · 谁能拒绝', description: '2432 × 1664 · 原作 @森山白月', size: 1113669, art: `${moriyamaRoot}/moriyama-catgirl-09.jpg` }
+  { id: 'moriyama-01', kind: 'wallpaper', name: '壁纸 01', description: '2432 × 1664 · 原作 @森山白月', size: 1246121, art: `${moriyamaRoot}/moriyama-catgirl-01.jpg` },
+  { id: 'moriyama-02', kind: 'wallpaper', name: '壁纸 02', description: '2432 × 1664 · 原作 @森山白月', size: 1141212, art: `${moriyamaRoot}/moriyama-catgirl-02.jpg` },
+  { id: 'moriyama-03', kind: 'wallpaper', name: '壁纸 03', description: '2432 × 1664 · 原作 @森山白月', size: 1223878, art: `${moriyamaRoot}/moriyama-catgirl-03.jpg` },
+  { id: 'moriyama-04', kind: 'wallpaper', name: '壁纸 04', description: '2432 × 1664 · 原作 @森山白月', size: 1264046, art: `${moriyamaRoot}/moriyama-catgirl-04.jpg` },
+  { id: 'moriyama-05', kind: 'wallpaper', name: '壁纸 05', description: '2432 × 1664 · 原作 @森山白月', size: 755220, art: `${moriyamaRoot}/moriyama-catgirl-05.jpg` },
+  { id: 'moriyama-06', kind: 'wallpaper', name: '壁纸 06', description: '2432 × 1664 · 原作 @森山白月', size: 735626, art: `${moriyamaRoot}/moriyama-catgirl-06.jpg` },
+  { id: 'moriyama-07', kind: 'wallpaper', name: '壁纸 07', description: '2432 × 1664 · 原作 @森山白月', size: 1161190, art: `${moriyamaRoot}/moriyama-catgirl-07.jpg` },
+  { id: 'moriyama-08', kind: 'wallpaper', name: '壁纸 08', description: '2432 × 1664 · 原作 @森山白月', size: 649401, art: `${moriyamaRoot}/moriyama-catgirl-08.jpg` },
+  { id: 'moriyama-09', kind: 'wallpaper', name: '壁纸 09', description: '2432 × 1664 · 原作 @森山白月', size: 1113669, art: `${moriyamaRoot}/moriyama-catgirl-09.jpg` }
 ];
 
 const moriyamaPack = {
