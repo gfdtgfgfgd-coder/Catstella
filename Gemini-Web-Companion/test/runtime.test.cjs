@@ -139,7 +139,8 @@ function appearanceBridgeFixture() {
   const stateWrites = [];
   const requests = [];
   function boot() {
-    const runtime = { id: 'catstella', onMessage: { addListener(fn) { handler = fn; } }, onInstalled: { addListener() {} } };
+    const runtime = { id: 'catstella', getURL: file => 'chrome-extension://catstella/' + file,
+      onMessage: { addListener(fn) { handler = fn; } }, onInstalled: { addListener() {} } };
     const api = { runtime, storage: { local: {
       get(keys, cb) { cb(structuredClone(store)); },
       set(value, cb) {
@@ -154,8 +155,10 @@ function appearanceBridgeFixture() {
       }
     } }, tabs: { onRemoved: { addListener() {} } } };
     worker = vm.createContext({ chrome: api, Date, URL, AbortController, Uint8Array, btoa,
-      setTimeout: () => 1, clearTimeout() {},
+      setTimeout: callback => callback.name === 'flushHeadPats' ? setTimeout(callback,0) : 1,
+      clearTimeout: timer => { if (typeof timer === 'object') clearTimeout(timer); },
       fetch: async (_url, options) => {
+        if (_url.endsWith('/assets/gallery.json')) return new Response(JSON.stringify({wallpapers:[{id:'built-in'}]}));
         if (!online) throw new Error('offline');
         const request = JSON.parse(options.body);
         requests.push(request);
@@ -186,6 +189,7 @@ function appearanceBridgeFixture() {
   boot();
   const settle = () => vm.runInContext('(async () => { while (syncInFlight) await syncInFlight; })()', worker);
   return { boot, ping, patch, send, settle, store, desktop, sync, stateWrites, requests, pauseNextResponse,
+    cycle:()=>vm.runInContext('checkLocalWallpaperCycle()',worker),
     setOnline: value => { online = value; },
     invalidReply: value => { invalidReply = value; },
     rejectWrite: value => { rejectWrite = value; }
@@ -201,8 +205,38 @@ test('head pats are counted once across tabs and persisted without accepting oth
   assert.equal(await bridge.send(pat, { ...sender, frameId: 2 }), undefined);
   const counts = await Promise.all([bridge.send(pat, sender), bridge.send(pat, { ...sender, tab: { id: 2 } })]);
   assert.deepEqual(counts.map(result => result.total), [1, 2]);
+  assert.deepEqual(counts.map(result => result.today), [1, 2]);
+  assert.equal(bridge.stateWrites.filter(value => value.headPatTotal).length,1);
   bridge.boot();
-  assert.equal((await bridge.send(pat, sender)).total, 3);
+  assert.equal((await bridge.send(pat, sender)).today, 3);
+  bridge.store.headPatDay = '2000-1-1';
+  const nextDay = await bridge.send(pat, sender);
+  assert.equal(nextDay.total, 4);
+  assert.equal(nextDay.today, 1);
+});
+
+test('only independent Web wallpaper settings can advance their own persistent cycle',async () => {
+  const bridge=appearanceBridgeFixture();
+  await bridge.settle();
+  const before=bridge.stateWrites.length;
+  const {store}=bridge;
+  Object.assign(store,{
+    syncWallpaper:true,webWallpaperSlideshow:true,webWallpaperInterval:2,
+    customWallpapers:[{id:'custom:online-one'},{id:'custom:online-two'}],
+    webWallpaperCycle:{anchor:store.wallpaperId,id:store.wallpaperId,minutes:2,nextAt:Date.now()-1}
+  });
+  await bridge.cycle();
+  assert.equal(store.webWallpaperCycle.id,'custom:online-one');
+  assert.equal(bridge.stateWrites.length,before);
+  store.syncWallpaper=false;
+  bridge.sync.syncWallpaper=false;
+  await Promise.all([bridge.cycle(),bridge.cycle()]);
+  assert.equal(store.webWallpaperCycle.id,'custom:online-two');
+  assert.equal(bridge.stateWrites.length,before+1,'two tabs share one cycle');
+  assert.equal(store.wallpaperId,'custom:online-one','the cycle leaves the manual choice available');
+  store.wallpaperId='built-in';
+  await bridge.cycle();
+  assert.equal(store.webWallpaperCycle.id,'built-in');
 });
 
 test('AGY usage is opt-out, independent of other synchronization, and rejects stale quota replies', async () => {
@@ -443,7 +477,7 @@ test('newest stream owns activity; errors and duplicate or late events do not co
   assert.deepEqual(refreshes, ['after-turn']);
   emit('STREAM_START', 3);
   emit('STREAM_ERROR', 3);
-  assert.equal(tracker.sessionData.activity, null);
+  assert.equal(tracker.sessionData.activity.kind, 'interrupted');
   assert.equal(tracker.sessionData.status, 'idle');
 });
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Catstella · Gemini Web Companion",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Gemini 网页端专属桌宠挂件与星语毛玻璃主题 (Dream Skin)。支持与 Catstella 桌面套件双端联动、官方用量双周期同步与跨浏览器兼容。",
   "icons": {
     "16": "assets/icons/icon-16.png",
@@ -56,11 +56,15 @@
         "content/inject-bridge.js",
         "content/tracker.js",
         "content/wallpaper.js",
+        "content/wallpaper-packs.js",
         "content/fade.js",
         "content/skin.js",
         "content/ambient.js",
         "content/pet-behavior.js",
         "content/usage-viewer.js",
+        "online/panel.js",
+        "online/content-hub.js",
+        "online/store.js",
         "content/widget.js"
       ],
       "css": [
@@ -82,7 +86,8 @@
         "assets/dialogue/*",
         "assets/icons/*",
         "assets/manifest.json",
-        "content/*"
+        "content/*",
+        "online/content-hub.css"
       ],
       "matches": [
         "*://gemini.google.com/*"

@@ -41,7 +41,62 @@
   };
 
   const EMBEDDED_DIALOGUES = {
-    petReflection: [], // Optional lines written for touch milestones; {count} is replaced locally.
+    petReflection: [
+      "累计摸头 {count} 次达成！{user}，你的手是被固定在本喵脑袋上了吗？手腕不酸呀？",
+      "第 {count} 次摸头……哼哼，{user}伺候得还算合格，勉强准你继续揉耳朵吧～",
+      "摸了整整 {count} 次头……呼噜呼噜……才、才没有发出怪声音！是散热风扇响了，{user}不准偷笑！",
+      "唔姆，不知不觉都摸了 {count} 次啦。算{user}识货，知道本喵的头顶手感天下第一～",
+      "第 {count} 次摸头判定成功！本小姐的 G 字呆毛弹性依然满分，{user}你打几分？",
+      "……第 {count} 次了哦。虽然嘴上嫌弃，但一直被{user}摸摸，其实……还挺安心的啦喵～",
+      "第 {count} 次摸头记录：{user}的手法逐渐熟练。哼，本小姐暂且认可你的技术啦！",
+      "摸了 {count} 次还不够？{user}是把本喵当成解压神器了吗？……不过，多摸两下也不是不行啦。"
+    ],
+    petDaily: [
+      "今天已经被{user}盘了整整 {today} 次头了！呆毛都要被揉出静电包浆了口牙！",
+      "今天被摸了 {today} 次头！……{user}的爱意真是深沉呢（小声嘀咕）",
+      "【今日摸头告警：第 {today} 次！】口牙！{user}你写代码是靠摸猫猫头来编译的吗？CPU 都要被你摸过热了！",
+      "整整 {today} 次！{user}，你今天对着代码发呆的时间，有一半都在盘猫猫吧？抓包抓现行！"
+    ],
+    "model-running": [
+      "{user}，AGY 正在处理模型步骤 #{step} 喵。",
+      "AGY 正在处理模型步骤 #{step}，本喵替 {user} 看着呢。"
+    ],
+    "model-done": [
+      "{user}，AGY 的模型步骤 #{step} 完成了喵～",
+      "AGY 的模型步骤 #{step} 完成啦，{user} 要不要来看看？"
+    ],
+    "model-error": [
+      "{user}，AGY 的模型步骤 #{step} 遇到错误了。",
+      "AGY 的模型步骤 #{step} 遇到错误了，{user} 可以看看日志喵。"
+    ],
+    webGenerating: [
+      "{user}，Gemini 正在生成这一轮回复喵。",
+      "Gemini 正在生成回复，{user} 稍等一下喵～"
+    ],
+    webCompleted: [
+      "{user}，Gemini 这一轮回复完成了喵～",
+      "Gemini 回复完啦，{user} 可以来看结果了。"
+    ],
+    webInterrupted: [
+      "{user}，Gemini 这一轮回复中断了。"
+    ],
+    fiveReset: [
+      "{user}，网页 5 小时额度已进入新周期喵～",
+      "新一轮 5 小时额度到了，{user} 可以继续聊啦。"
+    ],
+    weeklyReset: [
+      "{user}，网页每周额度已进入新周期喵～",
+      "网页周额度重置啦，{user} 快来看看。"
+    ],
+    exhausted: [
+      "{user:杂鱼君}，当前额度见底了喵！"
+    ],
+    highUsage: [
+      "{user:杂鱼君}慢点！当前用量超过八成了喵。"
+    ],
+    highEstimate: [
+      "{user:杂鱼君}，这段会话的估算用量超过八成了喵。"
+    ],
     idle: [
       "我才不是美版豆包，哼！",
       "才、才不是特意陪你的！",
@@ -55,7 +110,7 @@
       "代码写累了？准你摸一下耳朵。",
       "看什么看，本喵只是在等你。",
       "星星归天空，本喵归……才不告诉你！",
-      "人类，今天也要记得喝水。",
+      "{user}，今天也要记得喝水。",
       "本喵不是美版豆包，是限量星空猫猫。",
       "嘴上说随便，Prompt 倒是写了八百字。",
       "你负责许愿，本喵负责把需求问明白。",
@@ -68,16 +123,16 @@
     ],
     thinking: [
       "在动脑子了在动脑子了，别催本喵！",
-      "Argon 正在全力运转思维链，杂鱼君稍安勿躁喵～",
+      "思维链正在运转，{user:杂鱼君}稍安勿躁喵～",
       "正在进行高强度推理，本喵耳灯都亮起来了！"
     ],
     warning: [
-      "杂鱼君慢点！当前用量快到警戒线了，小心被降级喵！",
+      "{user:杂鱼君}慢点！当前用量快到警戒线了，小心被降级喵！",
       "会话太长啦！一会儿被限流本喵可不借你额度！"
     ],
     crying: [
-      "口牙！我就说 Argon 这个电老虎撑不住吧！额度见底了喵！(大哭)",
-      "呜哇……当前周期用光了，都怪杂鱼君问个没完没了！",
+      "口牙！当前周期额度见底了喵！(大哭)",
+      "呜哇……当前周期用光了，都怪{user:杂鱼君}问个没完没了！",
       "彻底被限流了喵！快看倒计时，老老实实等它恢复吧！"
     ]
   };
@@ -354,7 +409,8 @@
     }
     .kg-quota-legacy[hidden], .kg-usage-mount:empty { display: none !important; }
     .kg-quota-legacy { display: flex; flex-direction: column; gap: 8px; }
-    .kg-usage-mount { max-height: clamp(80px, calc(100vh - 205px), 330px); overflow: auto; }
+    .kimino-bubble[data-fit] { scale: var(--kg-bubble-fit); transform-origin: top left; }
+    .kg-compact-agy-row[hidden] { display: none; }
 
     .quota-block {
       display: flex;
@@ -457,6 +513,7 @@
     /* ========= 全新重绘设置面板 (Star-Nebula Glass v2) ========= */
     .kimino-settings {
       position: fixed;
+      box-sizing: border-box;
       flex-direction: column;
       width: min(344px, calc(100vw - 16px));
       background: linear-gradient(165deg, rgba(28, 20, 48, 0.96) 0%, rgba(18, 13, 34, 0.97) 100%);
@@ -469,7 +526,6 @@
       z-index: 20;
       font-size: 12.5px;
       overflow: hidden;
-      animation: kimino-bubble-pop 0.24s cubic-bezier(0.18, 0.9, 0.32, 1.2);
       transform-origin: bottom right;
     }
 
@@ -575,9 +631,9 @@
     }
 
     .kg-tab-body {
+      flex: 1 1 auto;
       min-height: 0;
       padding: 6px 14px 14px;
-      max-height: min(500px, calc(100vh - 130px));
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: rgba(167, 139, 250, 0.4) transparent;
@@ -591,6 +647,14 @@
 
     .kg-tab-pane.active {
       display: flex;
+    }
+    .kg-tab-pane[data-entering] { animation: kg-tab-enter 170ms ease-out both; }
+    @keyframes kg-tab-enter {
+      from { opacity: .18; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .kg-tab-pane[data-entering] { animation: none; }
     }
 
     .kg-card {
@@ -784,6 +848,25 @@
     .kg-mode-actions { display: flex; flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
     .kg-tab-pane [hidden], .kg-settings-feedback[hidden] { display: none !important; }
     .kg-settings-feedback { flex: none; margin: 0 14px 8px; color: #fbc4bc; font-size: 11px; }
+    .kg-store {
+      position: fixed; width: min(960px, calc(100vw - 24px)); max-height: min(780px, calc(100dvh - 24px));
+      margin: auto; padding: 0; border: 1px solid #695382; border-radius: 22px; overflow: hidden;
+      color: #f2eaff; background: #251b35; font: 13px/1.5 system-ui,sans-serif;
+      box-shadow: 0 22px 75px #120b20bb; color-scheme: dark;
+    }
+    .kg-store::backdrop { background: #160d25a6; }
+    .kg-store[open] { display: flex; flex-direction: column; }
+    .kg-store-head { flex: none; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid #584571; }
+    .kg-store-head h2 { margin: 0; font-size: 17px; }
+    .kg-store-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px clamp(10px,3vw,22px); }
+    .kg-store-maintenance { margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid #584571; }
+    .kg-store-maintenance summary { cursor: pointer; margin-bottom: 7px; }
+    .kg-store-maintenance .btn-row { display: flex; gap: 6px; margin-top: 8px; }
+    .kg-store-head button, .kg-store-maintenance button {
+      border: 1px solid #695382; border-radius: 8px; padding: 5px 10px; color: inherit;
+      background: #382a4b; font: inherit; cursor: pointer;
+    }
+    .kg-store-maintenance .hint { color: #c8b9df; }
     .kg-char-card:focus-visible, .kg-thumb:focus-visible, .kg-thumb-del:focus-visible {
       outline: 2px solid var(--kg-palette-accent, #bda2f2);
       outline-offset: 2px;
@@ -877,6 +960,11 @@
       grid-template-columns: repeat(2, 1fr);
       gap: 8px;
     }
+    .wallpaper-pack-items { display: contents; }
+    .wallpaper-pack-items[hidden] { display: none; }
+    .kg-thumb.wallpaper-pack .kg-thumb-caption { font-weight: 650; }
+    .kg-thumb.wallpaper-pack .kg-thumb-caption::before { content: '▸ '; }
+    .kg-thumb.wallpaper-pack[aria-expanded="true"] .kg-thumb-caption::before { content: '▾ '; }
 
     .kg-thumb {
       position: relative;
@@ -986,18 +1074,38 @@
   let baseFrame = 'idle';
   let latestTrackerSnapshot = null;
 
+  const previousDialogues = new Map();
   function getDialogue(category = 'idle') {
     const list = EMBEDDED_DIALOGUES[category] || EMBEDDED_DIALOGUES.idle;
-    return list[Math.floor(Math.random() * list.length)];
+    const available = list.filter(line => line !== previousDialogues.get(category));
+    const pool = available.length ? available : list;
+    const line = pool[Math.floor(Math.random() * pool.length)];
+    previousDialogues.set(category, line);
+    return line;
   }
+  const readHonorificMode = mode => ['none', 'zayu', 'custom'].includes(mode) ? mode : 'desktop';
+  const readHonorificName = name => typeof name === 'string' ? name.trim().slice(0, 16) : '';
 
+  const tapSounds = new Map();
+  let currentSound;
+  function stopSound() {
+    currentSound?.pause();
+    currentSound = null;
+    tapSounds.clear();
+  }
   function playSound(type = 'press') {
     if (!soundEnabled) return;
     try {
-      const file = type === 'press' ? 'interaction-press.wav' : 'interaction-release.wav';
-      const soundUrl = api.getURL(`assets/audio/${file}`);
-      const audio = new Audio(soundUrl);
-      audio.volume = 0.45;
+      if (!tapSounds.has(type)) {
+        const file = type === 'press' ? 'interaction-press.wav' : 'interaction-release.wav';
+        const audio = new Audio(api.getURL(`assets/audio/${file}`));
+        audio.volume = 0.45;
+        tapSounds.set(type,audio);
+      }
+      const audio = tapSounds.get(type);
+      currentSound?.pause();
+      currentSound = audio;
+      audio.currentTime = 0;
       audio.play().catch(() => {});
     } catch (e) {}
   }
@@ -1063,7 +1171,8 @@
       const stored = await api.storageGet([
         'enabled', 'character', 'soundEnabled', 'widgetScale', 'widgetPos',
         'bubbleVisible', 'onlineCharacterPacks', 'syncCharacter',
-        'petDisplayMode', 'agyBridgeState', 'ambientChatter', 'syncAgyUsage', 'quotaView'
+        'petDisplayMode', 'agyBridgeState', 'ambientChatter', 'syncAgyUsage', 'quotaView', 'showAgyQuotaInCompact',
+        'syncInteraction', 'userHonorificMode', 'customHonorific'
       ]);
       config = { ...config, ...stored };
     } catch (e) {}
@@ -1076,6 +1185,10 @@
     bubbleVisible = config.bubbleVisible !== false;
     syncAgyUsage = config.syncAgyUsage !== false;
     let quotaView = config.quotaView === 'compact' ? 'compact' : 'classic';
+    let showAgyQuotaInCompact = config.showAgyQuotaInCompact === true;
+    let syncInteraction = config.syncInteraction !== false;
+    let honorificMode = readHonorificMode(config.userHonorificMode);
+    let honorificName = readHonorificName(config.customHonorific);
     syncCharacter = config.syncCharacter !== false;
     petDisplayMode = config.petDisplayMode === 'prefer-desktop' ? 'prefer-desktop' : 'both';
     bridgeState = config.agyBridgeState || null;
@@ -1140,7 +1253,6 @@
         </div>
 
         <div class="kimino-dialogue" title="点击换一句喵～">
-          ${getDialogue('idle')}
         </div>
         <div class="kimino-dialogue-hint">点击文字换一句喵～</div>
 
@@ -1222,6 +1334,7 @@
         <div class="kg-tab-body">
           <!-- Tab 1: 联动与常用 -->
           <div class="kg-tab-pane active" data-pane="general" id="kg-pane-general" role="tabpanel" aria-labelledby="kg-tab-general">
+            <button type="button" class="kg-btn-wide kg-open-online">✦ 在线内容商店</button>
             <div class="kg-card">
               <div class="kg-card-head">
                 <span>🪐 Antigravity 双端联动</span>
@@ -1263,12 +1376,32 @@
                 <label class="kg-row-label" for="kg-quota-style"><span>额度显示样式</span></label>
                 <select class="kg-skin-style" id="kg-quota-style">
                   <option value="classic">经典进度条</option>
-                  <option value="compact">紧凑圆环</option>
+                  <option value="compact">反重力式圆环</option>
                 </select>
+              </div>
+              <div class="kg-row kg-compact-agy-row" hidden>
+                <div class="kg-row-label">
+                  <span>显示反重力模型用量</span>
+                  <small>仅影响圆环面板，显示时需开启用量同步</small>
+                </div>
+                <label class="kg-switch"><input type="checkbox" class="kg-cfg" data-key="showAgyQuotaInCompact" aria-label="显示反重力模型用量"><span class="kg-switch-track"></span></label>
               </div>
               <div class="kg-row">
                 <div class="kg-row-label"><span>台词与额度气泡</span></div>
                 <label class="kg-switch"><input type="checkbox" class="kg-cfg" data-key="bubbleVisible"><span class="kg-switch-track"></span></label>
+              </div>
+              <div class="kg-row">
+                <label class="kg-row-label" for="kg-honorific-mode"><span>桌宠互动称呼</span><small>跟随桌面需要同步互动偏好</small></label>
+                <select class="kg-skin-style" id="kg-honorific-mode">
+                  <option value="desktop">跟随桌面</option>
+                  <option value="none">台词默认称呼</option>
+                  <option value="zayu">杂鱼君</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </div>
+              <div class="kg-row" id="kg-honorific-custom" hidden>
+                <label class="kg-row-label" for="kg-honorific-name"><span>自定义称呼</span></label>
+                <input type="text" class="kg-skin-style" id="kg-honorific-name" maxlength="16" autocomplete="off">
               </div>
               <div class="kg-row">
                 <div class="kg-row-label"><span>自动碎碎念</span></div>
@@ -1300,18 +1433,42 @@
               </div>
             </div>
             <div class="kg-character-grid"></div>
-            <button type="button" class="kg-btn-wide kg-open-online">🌐 浏览在线桌宠</button>
+            <button type="button" class="kg-btn-wide kg-open-online" data-category="character">🌐 浏览在线桌宠</button>
           </div>
 
           <!-- Tab 3: 壁纸 -->
           <div class="kg-tab-pane" data-pane="wallpaper" id="kg-pane-wallpaper" role="tabpanel" aria-labelledby="kg-tab-wallpaper">
-            <div class="kg-card">
+            <div class="kg-card kg-wallpaper-style" hidden>
+              <div class="kg-card-head"><span>网页独立壁纸设置</span></div>
+              <div class="kg-row">
+                <label class="kg-row-label" for="kg-wallpaper-cycle">自动轮播</label>
+                <label class="kg-switch"><input type="checkbox" id="kg-wallpaper-cycle"><span class="kg-switch-track"></span></label>
+              </div>
+              <div class="kg-row">
+                <label class="kg-row-label" for="kg-wallpaper-minutes">轮播间隔（分钟）</label>
+                <input type="number" id="kg-wallpaper-minutes" class="kg-skin-style" min="1" max="60" step="1">
+              </div>
+              <div class="kg-row">
+                <label class="kg-row-label" for="kg-wallpaper-fit">壁纸铺放方式</label>
+                <select id="kg-wallpaper-fit" class="kg-skin-style"><option value="cover">填满裁切</option><option value="contain">完整显示</option></select>
+              </div>
+              <div class="kg-row">
+                <label class="kg-row-label" for="kg-wallpaper-transition">壁纸过渡效果</label>
+                <select id="kg-wallpaper-transition" class="kg-skin-style"><option value="fade">淡入切换</option><option value="none">直接切换</option></select>
+              </div>
               <div class="kg-slider-block">
                 <div class="kg-slider-head">
                   <label for="kg-wallpaper-opacity">壁纸不透明度</label>
                   <span class="kg-val kg-val-opacity">88%</span>
                 </div>
                 <input type="range" id="kg-wallpaper-opacity" class="kg-range" data-key="wallpaperOpacity" min="30" max="100" step="1">
+              </div>
+              <div class="kg-slider-block">
+                <div class="kg-slider-head">
+                  <label for="kg-wallpaper-blur">壁纸模糊程度</label>
+                  <span class="kg-val kg-val-blur">0px</span>
+                </div>
+                <input type="range" id="kg-wallpaper-blur" class="kg-range" min="0" max="24" step="1" value="0">
               </div>
             </div>
 
@@ -1330,7 +1487,7 @@
             </div>
 
             <div class="kg-wallpaper-grid"></div>
-            <div class="kg-action-row"><button type="button" class="kg-btn-wide kg-open-online">🌐 更新与在线图库</button></div>
+            <div class="kg-action-row"><button type="button" class="kg-btn-wide kg-open-online" data-category="wallpaper">🌐 浏览在线壁纸</button></div>
 
             <div class="kg-local-wall-controls">
               <div class="kg-action-row">
@@ -1354,6 +1511,17 @@
     const earGlow = wrapper.querySelector('.kimino-ear-glow');
     const bubble = wrapper.querySelector('.kimino-bubble');
     const dialogueEl = wrapper.querySelector('.kimino-dialogue');
+    let currentLine = { template: getDialogue() };
+    function paintDialogue(line = currentLine) {
+      currentLine = line;
+      const desktop = syncInteraction ? bridgeState?.desktop?.honorific : null;
+      const preference = honorificMode === 'desktop' ? desktop : { mode: honorificMode, name: honorificName };
+      const address = preference?.mode === 'zayu' ? '杂鱼君' :
+        preference?.mode === 'custom' ? readHonorificName(preference.name) : '';
+      dialogueEl.textContent = line.template.replace(/\{user(?::([^{}]+))?\}|\{(count|today|step)\}/g, (token, fallback, key) =>
+        key ? (line.fields?.[key] ?? token) : (address || fallback || '人类'));
+    }
+    paintDialogue();
     const btnToggleBubble = wrapper.querySelector('.btn-toggle-bubble');
     const btnSyncQuota = wrapper.querySelector('.btn-sync-quota');
     const btnOpenSettings = wrapper.querySelector('.btn-open-settings');
@@ -1376,28 +1544,29 @@
     const usageMount = wrapper.querySelector('.kg-usage-mount');
     let usageViewer, usageSignature = '';
     function renderUsage() {
-      const compact = quotaView === 'compact' && customElements.get('catstella-usage-viewer');
-      legacyQuota.hidden = Boolean(compact);
-      if (!compact) { usageViewer?.remove(); return; }
+      const compact = quotaView === 'compact' && typeof window.KiminoUsageViewer === 'function';
+      legacyQuota.hidden = compact;
+      if (!compact) { usageViewer?.unmount(); return; }
       if (!usageViewer) {
-        usageViewer = document.createElement('catstella-usage-viewer');
-        usageViewer.setAttribute('compact', '');
-        usageViewer.setAttribute('embedded', '');
+        usageViewer = new window.KiminoUsageViewer({ compact: true, embedded: true });
       }
-      if (usageViewer.parentNode !== usageMount) usageMount.append(usageViewer);
+      usageViewer.mount(usageMount);
       const data = latestTrackerSnapshot;
       const quota = data?.realQuota;
       const usedToLeft = value => Number.isFinite(value) ? 100 - value : null;
       const groups = [{
         name: 'Gemini 网页',
         rows: [
-          { label: quota?.displaySource === 'estimate' ? '5 小时（估算）' : '5 小时', remaining: usedToLeft(data?.fatiguePercent),
-            resetAt: quota?.fiveResetEpoch, state: quota?.fivePending ? 'pending' : '' },
-          { label: '每周', remaining: usedToLeft(quota?.weeklyUsagePercent), resetAt: quota?.weeklyResetEpoch,
+          { label: quota?.displaySource === 'estimate' ? '当前用量 · 会话估算' : '当前用量 (5h)',
+            remaining: usedToLeft(data?.fatiguePercent), display: 'used', unknownLabel: '待同步',
+            resetAt: quota?.fiveResetEpoch, resetLabel: quota?.currentResetTime ? '重置时间 ' + quota.currentResetTime : '',
+            state: quota?.fivePending ? 'pending' : '' },
+          { label: '每周限额', remaining: usedToLeft(quota?.weeklyUsagePercent), display: 'used', unknownLabel: '待同步',
+            resetAt: quota?.weeklyResetEpoch, resetLabel: quota?.weeklyResetTime ? '重置时间 ' + quota.weeklyResetTime : '',
             state: quota?.weeklyPending ? 'pending' : '' }
         ]
       }];
-      const desktop = syncAgyUsage && bridgeState?.online ? bridgeState.desktop?.agyQuota : null;
+      const desktop = showAgyQuotaInCompact && syncAgyUsage && bridgeState?.online ? bridgeState.desktop?.agyQuota : null;
       if (desktop) {
         const row = (label, remaining, reset) => {
           const resetAt = typeof reset === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(reset) ? Date.parse(reset) : undefined;
@@ -1428,7 +1597,7 @@
     let settingsOpen = false;
     let pointer = null;
     let trackerStatus = window.__KIMINO_TRACKER__?.sessionData?.status ?? 'idle';
-    let lastActivity, lastQuotaReset, statusTimer, statusLine = '';
+    let lastActivity, lastQuotaReset, statusTimer, statusLine, statusSource, lastAgyTalkKey;
     let dialogueCategory = 'idle';
     let petVisual = {};
     const PetBehavior = window.CatstellaPetBehavior;
@@ -1492,7 +1661,11 @@
     function adjustBubblePlacement() {
       if (!bubbleVisible || settingsOpen || !widgetEnabled || isHiddenByDesktopPriority()) return;
       const rect = wrapper.getBoundingClientRect();
-      const width = bubble.offsetWidth, height = bubble.offsetHeight;
+      const fit = quotaView === 'compact' && bubble.offsetHeight > 0
+        ? Math.max(0, Math.min(1, (innerHeight - 16) / bubble.offsetHeight)) : 1;
+      bubble.toggleAttribute('data-fit', fit < 1);
+      if (fit < 1) bubble.style.setProperty('--kg-bubble-fit', String(fit));
+      const width = bubble.offsetWidth * fit, height = bubble.offsetHeight * fit;
       const below = rect.top < height + 22 && innerHeight - rect.bottom > rect.top;
       const x = Math.max(8, Math.min(rect.right - width, innerWidth - width - 8));
       const preferred = below ? rect.bottom + 14 : rect.top - height - 14;
@@ -1509,37 +1682,66 @@
       const width = settingsPanel.offsetWidth;
       const above = rect.top - gap - margin;
       const below = innerHeight - rect.bottom - gap - margin;
-      const useAbove = above >= 460 || above >= below;
-      const available = useAbove ? above : below;
-      const overlay = available < 320;
+      const height = Math.max(0, Math.min(512, innerHeight - margin * 2));
+      const useAbove = above >= height;
+      const useBelow = !useAbove && below >= height;
+      const top = useAbove ? rect.top - gap - height : useBelow ? rect.bottom + gap
+        : Math.max(margin, Math.min(rect.top - gap, innerHeight - margin - height));
       Object.assign(settingsPanel.style, {
         left: `${Math.max(margin, Math.min(rect.right - width, innerWidth - width - margin))}px`,
-        top: overlay ? `${margin}px` : useAbove ? 'auto' : `${rect.bottom + gap}px`,
-        bottom: overlay || !useAbove ? 'auto' : `${innerHeight - rect.top + gap}px`,
-        maxHeight: `${overlay ? innerHeight - 2 * margin : available}px`,
-        transformOrigin: useAbove && !overlay ? 'bottom right' : 'top right'
+        top: `${top}px`,
+        bottom: 'auto',
+        height: `${height}px`,
+        transformOrigin: useAbove ? 'bottom right' : 'top right'
       });
     }
     window.addEventListener('resize', adjustSettingsPlacement);
     window.addEventListener('resize', adjustBubblePlacement);
+    const bubbleSizeObserver = new ResizeObserver(adjustBubblePlacement);
+    bubbleSizeObserver.observe(bubble);
 
+    let settingsMotion;
+    const playSettingsMotion = opening => {
+      const active = { opacity: 1, transform: 'none' };
+      const resting = { opacity: 0, transform: 'translateY(5px) scale(.985)' };
+      const previous = settingsMotion && settingsMotion.playState !== 'finished' ? getComputedStyle(settingsPanel) : null;
+      const start = previous ? { opacity: previous.opacity, transform: previous.transform } : opening ? resting : active;
+      settingsMotion?.cancel();
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (!opening) settingsPanel.style.display = 'none';
+        return;
+      }
+      settingsMotion = settingsPanel.animate([start, opening ? active : resting], {
+        duration: opening ? 190 : 140, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both'
+      });
+      const animation = settingsMotion;
+      animation.finished.then(() => {
+        if (settingsMotion !== animation) return;
+        if (!settingsOpen) settingsPanel.style.display = 'none';
+        animation.cancel();
+        settingsMotion = null;
+      }, () => {});
+    };
     function closeSettings() {
       if (!settingsOpen) return;
       settingsOpen = false;
-      settingsPanel.style.display = 'none';
+      settingsPanel.inert = true;
+      playSettingsMotion(false);
       updateVisibilityAndBridgeUI();
     }
 
     function openSettings() {
       settingsOpen = true;
       settingsPanel.style.display = 'flex';
+      settingsPanel.inert = false;
       updateVisibilityAndBridgeUI();
       adjustSettingsPlacement();
+      playSettingsMotion(true);
       syncSettingsUI();
       void checkOnlineNotice();
     }
 
-    let onlineNoticePending = false;
+    let onlineNoticePending = false, onlineUpdates = [], storeDialog, storeHub, storeOpening, storeOpener;
     async function checkOnlineNotice() {
       if (onlineNoticePending) return;
       onlineNoticePending = true;
@@ -1547,11 +1749,63 @@
       onlineNoticePending = false;
       if (!settingsOpen) return;
       const notice = settingsPanel.querySelector('.kg-online-notice');
-      const available = result?.ok && (result.character || result.wallpaper);
-      notice.hidden = !available && result?.reason !== 'connection';
-      if (available) notice.textContent = '发现可安装的在线素材 · ' +
-        [result.character && result.character + ' 款桌宠', result.wallpaper && result.wallpaper + ' 张壁纸'].filter(Boolean).join('、');
+      onlineUpdates = result?.ok && Array.isArray(result.updates) ? result.updates : [];
+      const kinds = new Set(onlineUpdates.map(item => item.kind));
+      const labels = [['theme','主题'],['wallpaper','壁纸'],['character','桌宠']].filter(([kind]) => kinds.has(kind)).map(([, label]) => label);
+      notice.hidden = !labels.length && result?.reason !== 'connection';
+      if (labels.length) notice.textContent = '内容商店有' + labels.join('、') + '更新 · 查看更新';
       else if (result?.reason === 'connection') notice.textContent = '无法连接 GitHub，请检查网络或代理后重试。';
+    }
+
+    async function openOnlineStore(category = 'all', mode = 'all', opener) {
+      if (typeof window.mountCatstellaStore !== 'function') return false;
+      if (!storeDialog) {
+        storeDialog = document.createElement('dialog');
+        storeDialog.className = 'kg-store hub-web';
+        storeDialog.setAttribute('aria-labelledby','kg-store-title');
+        setHTML(storeDialog,`
+          <header class="kg-store-head"><h2 id="kg-store-title">在线内容商店</h2><button type="button" autofocus>关闭商店</button></header>
+          <div class="kg-store-scroll"><div class="kg-store-content">正在加载商店…</div>
+            <details class="kg-store-maintenance" hidden>
+              <summary>更新与配色管理</summary>
+              <label><input type="checkbox" id="auto-update"> 自动检查更新</label>
+              <div id="online-panel"></div>
+              <p><button type="button" id="restore-palette">恢复默认星轨紫配色</button></p>
+            </details>
+          </div>`);
+        storeDialog.querySelector('header button').onclick = () => storeDialog.close();
+        storeDialog.addEventListener('close', event => {
+          if (event.target === storeDialog) storeOpener?.focus({preventScroll:true});
+        });
+        shadow.appendChild(storeDialog);
+      }
+      if (!storeDialog.open) {
+        storeOpener = opener;
+        storeDialog.showModal();
+      }
+      storeOpening ||= (async () => {
+        const scrollHost = storeDialog.querySelector('.kg-store-scroll');
+        const root = storeDialog.querySelector('.kg-store-content');
+        const maintenance = storeDialog.querySelector('.kg-store-maintenance');
+        try {
+          const response = await fetch(api.getURL('online/content-hub.css'));
+          if (!response.ok) throw Error('store stylesheet unavailable');
+          const style = document.createElement('style');
+          style.textContent = await response.text();
+          storeDialog.prepend(style);
+          storeHub = await window.mountCatstellaStore(root,{maintenance,scrollHost});
+          void storeHub.load();
+          maintenance.hidden = false;
+          return true;
+        } catch {
+          root.textContent = '暂时无法加载商店，请关闭后重试。';
+          return false;
+        }
+      })();
+      if (!await storeOpening) { storeOpening = null; return false; }
+      storeHub.filter(['wallpaper','character','theme'].includes(category) ? category : 'all',mode);
+      storeDialog.querySelector('.kg-store-scroll').scrollTop = 0;
+      return true;
     }
 
     function paintFrame() {
@@ -1567,22 +1821,22 @@
     });
 
     let ambientEnabled = config.ambientChatter === true;
-    let ambientTimer, previousAmbient, ambientLine = '', previousLine = '';
+    let ambientTimer, previousAmbient, ambientLine, previousLine;
     const quietAmbient = () => {
       clearTimeout(ambientTimer);
-      if (ambientLine && dialogueEl.textContent === ambientLine) dialogueEl.textContent = previousLine;
-      ambientLine = '';
+      if (ambientLine && currentLine === ambientLine) paintDialogue(previousLine);
+      ambientLine = null;
     };
     const Chatter = window.CatstellaChatter;
     const chatter = Chatter && new Chatter({
       allowed: () => widgetEnabled && bubbleVisible && !settingsOpen && !pointer &&
         !isHiddenByDesktopPriority() && !document.hidden && document.hasFocus() &&
-        trackerStatus === 'idle',
+        trackerStatus === 'idle' && !statusLine,
       speak: () => {
         previousAmbient = Chatter.pickLine(previousAmbient);
-        previousLine = dialogueEl.textContent;
-        ambientLine = previousAmbient;
-        dialogueEl.textContent = ambientLine;
+        previousLine = currentLine;
+        ambientLine = { template: previousAmbient };
+        paintDialogue(ambientLine);
         ambientTimer = setTimeout(quietAmbient, 4500);
       }
     });
@@ -1598,58 +1852,89 @@
 
     function nextDialogue() {
       clearTimeout(statusTimer);
-      statusLine = '';
+      statusLine = statusSource = null;
       const line = getDialogue(dialogueCategory);
-      dialogueEl.textContent = line;
+      paintDialogue({ template: line });
       if (shyLines.has(line)) pet.show('shy', 'dialogue');
     }
 
-    function showStatusLine(line, duration = 0) {
+    function showStatusLine(category, duration = 0, fields, source = 'web') {
       quietAmbient();
       clearTimeout(statusTimer);
-      statusLine = dialogueEl.textContent = line;
-      if (duration) statusTimer = setTimeout(clearStatusLine, duration);
+      if (statusSource === 'agy' && source !== 'agy') lastAgyTalkKey = null;
+      statusSource = source;
+      statusLine = { template: getDialogue(category), fields };
+      paintDialogue(statusLine);
+      if (duration) statusTimer = setTimeout(() => {
+        clearStatusLine();
+        if (trackerStatus === 'thinking' && lastActivity?.kind === 'generating' && widgetEnabled &&
+            bubbleVisible && !settingsOpen && !document.hidden && !isHiddenByDesktopPriority()) {
+          showStatusLine('webGenerating');
+        } else syncAgyTalk();
+      }, duration);
     }
 
     function clearStatusLine() {
       clearTimeout(statusTimer);
-      if (statusLine && dialogueEl.textContent === statusLine) dialogueEl.textContent = getDialogue(dialogueCategory);
-      statusLine = '';
+      if (statusLine && currentLine === statusLine) paintDialogue({ template: getDialogue(dialogueCategory) });
+      statusLine = statusSource = null;
     }
 
-    let touchFeedback, sparkFeedback, lastPatReflection = -Infinity;
+    function syncAgyTalk() {
+      const activity = bridgeState?.online ? bridgeState.desktop?.modelActivity : null;
+      const { kind, stepIndex, expiresAt } = activity || {};
+      const ongoing = kind === 'model-running';
+      const terminal = ['model-done', 'model-error'].includes(kind) && Number.isFinite(expiresAt) && expiresAt > Date.now();
+      if (!Number.isSafeInteger(stepIndex) || (!ongoing && !terminal)) {
+        if (statusSource === 'agy') clearStatusLine();
+        lastAgyTalkKey = null;
+        return;
+      }
+      if (!widgetEnabled || trackerStatus !== 'idle' || !bubbleVisible || settingsOpen || document.hidden ||
+          isHiddenByDesktopPriority() || (statusLine && statusSource !== 'agy' && statusSource !== 'pat')) return;
+      const key = `${kind}:${stepIndex}:${expiresAt}`;
+      if (key === lastAgyTalkKey) return;
+      lastAgyTalkKey = key;
+      showStatusLine(kind, ongoing ? 0 : Math.max(1, expiresAt - Date.now()), { step: stepIndex }, 'agy');
+    }
+
+    let touchFeedback, sparkFeedback, sparkReduced, lastTalkClick = -Infinity;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const headPatDialogue = new window.CatstellaHeadPatDialogue();
     const touchSpark = wrapper.querySelector('.kimino-touch-spark');
+    const replay = animation => { animation.currentTime = 0; animation.play(); };
     function showHeadFeedback(x, y) {
-      touchFeedback?.cancel();
-      sparkFeedback?.cancel();
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (!reduce) {
+      const reduce = reducedMotion.matches;
+      if (reduce) touchFeedback?.cancel();
+      else if (!touchFeedback) {
         touchFeedback = spriteImg.animate([
           { scale: '1', translate: '0 0' }, { scale: '1.05 .90', translate: '0 3px', offset:.20 },
           { scale: '.99 1.055', translate: '0 -5px', offset:.53 }, { scale: '1.01 .99', translate: '0 1px', offset:.78 },
           { scale: '1', translate: '0 0' }
-        ], { duration:330, easing:'ease-out' });
+        ], { duration:235, easing:'ease-out' });
         touchFeedback.id = 'catstella-head-tap';
-      }
-      Object.assign(touchSpark.style, {
-        left: Math.max(8, Math.min(92, x * 100)) + '%',
-        top: Math.max(8, Math.min(82, y * 100)) + '%'
-      });
-      sparkFeedback = touchSpark.animate(reduce
-        ? [{ opacity:.9 }, { opacity:0 }]
-        : [{ opacity:1, scale:'.62', translate:'0 0' }, { opacity:1, scale:'1.05', translate:'0 -5px', offset:.28 },
-          { opacity:0, scale:'1.3', translate:'0 -16px' }],
-        { duration:reduce ? 240 : 450, easing:'ease-out' });
-      sparkFeedback.id = 'catstella-head-spark';
+      } else replay(touchFeedback);
+      const left = Math.max(8, Math.min(92, Math.round(x * 100))) + '%';
+      const top = Math.max(8, Math.min(82, Math.round(y * 100))) + '%';
+      if (touchSpark.style.left !== left) touchSpark.style.left = left;
+      if (touchSpark.style.top !== top) touchSpark.style.top = top;
+      if (!sparkFeedback || sparkReduced !== reduce) {
+        sparkFeedback?.cancel();
+        sparkReduced = reduce;
+        sparkFeedback = touchSpark.animate(reduce
+          ? [{ opacity:.9 }, { opacity:0 }]
+          : [{ opacity:1, scale:'.62', translate:'0 0' }, { opacity:1, scale:'1.05', translate:'0 -5px', offset:.28 },
+            { opacity:0, scale:'1.3', translate:'0 -16px' }],
+          { duration:reduce ? 240 : 330, easing:'ease-out' });
+        sparkFeedback.id = 'catstella-head-spark';
+      } else replay(sparkFeedback);
     }
     async function recordHeadPat() {
       const result = await api.sendMessage({ type: 'KG_HEAD_PAT' });
-      const total = result?.total;
-      if (!EMBEDDED_DIALOGUES.petReflection.length || !Number.isSafeInteger(total) || total < 10 || total % 10 !== 0 ||
-          performance.now() - lastPatReflection < 90_000 || trackerStatus !== 'idle' || statusLine ||
-          settingsOpen || !bubbleVisible || document.hidden) return;
-      lastPatReflection = performance.now();
-      showStatusLine(getDialogue('petReflection').replaceAll('{count}', String(total)), 4000);
+      const available = trackerStatus === 'idle' && !statusLine && !settingsOpen && bubbleVisible &&
+        widgetEnabled && !isHiddenByDesktopPriority() && !document.hidden;
+      const offer = headPatDialogue.next(result,available);
+      if (offer) showStatusLine(offer.category,5500,offer.fields,'pat');
     }
     function activate(head) {
       if (settingsOpen) closeSettings();
@@ -1657,7 +1942,10 @@
         bubbleVisible = true;
         updateVisibilityAndBridgeUI();
         api.storageSet({ bubbleVisible });
-      } else nextDialogue();
+      } else if (!head || !statusLine && performance.now() - lastTalkClick >= 180) {
+        if (head) lastTalkClick = performance.now();
+        nextDialogue();
+      }
       if (head) pet.tap();
     }
 
@@ -1826,23 +2114,40 @@
 
     let showLocalChar = false;
     let showLocalWall = false;
+    const expandedLocalWallpaperPacks = new Set(), expandedDesktopWallpaperPacks = new Set();
     const settingsFeedback = settingsPanel.querySelector('.kg-settings-feedback');
     const opacitySlider = settingsPanel.querySelector('#kg-wallpaper-opacity');
+    const wallCycle = settingsPanel.querySelector('#kg-wallpaper-cycle');
+    const wallMinutes = settingsPanel.querySelector('#kg-wallpaper-minutes');
+    const wallFit = settingsPanel.querySelector('#kg-wallpaper-fit');
+    const wallTransition = settingsPanel.querySelector('#kg-wallpaper-transition');
+    const wallpaperSettings = window.KiminoWallpaperSettings;
+    const blurSlider = settingsPanel.querySelector('#kg-wallpaper-blur');
+    const honorificSelect = settingsPanel.querySelector('#kg-honorific-mode');
+    const honorificInput = settingsPanel.querySelector('#kg-honorific-name');
+    const kgValBlur = settingsPanel.querySelector('.kg-val-blur');
     const renderOpacity = (opacity = 0.88) => {
       opacitySlider.value = String(Math.round(opacity * 100));
       kgValOpacity.textContent = opacitySlider.value + '%';
+    };
+    const renderBlur = (blur = 0) => {
+      blurSlider.value = String(blur);
+      kgValBlur.textContent = blurSlider.value + 'px';
     };
     const reportSettings = (message = '') => {
       settingsFeedback.textContent = message;
       settingsFeedback.hidden = !message;
     };
     const settingsKeys = [
-      'enabled', 'skinStyle', 'skinEnabled', 'quotaView', 'syncAgyUsage', 'bubbleVisible', 'ambientChatter', 'soundEnabled', 'widgetScale',
-      'wallpaperOpacity', 'character', 'wallpaperId', 'customWallpapers',
+      'enabled', 'skinStyle', 'skinEnabled', 'quotaView', 'syncAgyUsage', 'showAgyQuotaInCompact', 'bubbleVisible', 'ambientChatter', 'soundEnabled', 'widgetScale',
+      'wallpaperOpacity', 'wallpaperBlur', 'character', 'wallpaperId', 'customWallpapers',
+      'webWallpaperSlideshow','webWallpaperInterval','webWallpaperCycle','webWallpaperFit','webWallpaperTransition',
+      'userHonorificMode', 'customHonorific',
       'syncCharacter', 'syncWallpaper', 'petDisplayMode', 'agyBridgeState', 'agySyncedWallpaper'
     ];
     const appearanceOf = state => JSON.stringify([state?.online, state?.desktop?.characterPack,
-      state?.desktop?.characterPackIds, state?.desktop?.wallpaperId, state?.desktop?.wallpaperRev]);
+      state?.desktop?.characterPackIds, state?.desktop?.wallpaperId, state?.desktop?.wallpaperRev,
+      state?.desktop?.slideshow,state?.desktop?.slideshowIntervalMinutes]);
     const saveLocal = async (updates) => {
       const saved = await api.storageSet(updates);
       reportSettings(saved ? '' : '未能保存网页选择，请重试。');
@@ -1883,15 +2188,26 @@
         // 常规开关与滑条
         settingsPanel.querySelectorAll('.kg-cfg').forEach((cb) => {
           const k = cb.dataset.key;
-          cb.checked = st[k] !== undefined ? !!st[k] : (k === 'enabled' || k === 'syncAgyUsage' || k === 'bubbleVisible');
+          cb.checked = st[k] !== undefined ? !!st[k] : ['enabled', 'syncAgyUsage', 'bubbleVisible'].includes(k);
         });
         settingsPanel.querySelector('.kg-skin-style').value =
           window.KiminoSkinStyle?.read(st) ?? (st.skinEnabled === false ? 'native' : 'glass');
         settingsPanel.querySelector('#kg-quota-style').value = st.quotaView === 'compact' ? 'compact' : 'classic';
+        settingsPanel.querySelector('.kg-compact-agy-row').hidden = st.quotaView !== 'compact';
+        honorificSelect.value = readHonorificMode(st.userHonorificMode);
+        settingsPanel.querySelector('#kg-honorific-custom').hidden = honorificSelect.value !== 'custom';
+        if (shadow.activeElement !== honorificInput) honorificInput.value = readHonorificName(st.customHonorific);
         const scale = st.widgetScale || 200;
         const rScale = settingsPanel.querySelector('.kg-range[data-key="widgetScale"]');
         if (rScale) { rScale.value = scale; if (kgValScale) kgValScale.textContent = scale + 'px'; }
         if (shadow.activeElement !== opacitySlider) renderOpacity(st.wallpaperOpacity);
+        if (shadow.activeElement !== blurSlider) renderBlur(st.wallpaperBlur);
+        settingsPanel.querySelector('.kg-wallpaper-style').hidden = curSyncWall;
+        wallCycle.checked = st.webWallpaperSlideshow === true;
+        wallMinutes.disabled = !wallCycle.checked;
+        if (shadow.activeElement !== wallMinutes) wallMinutes.value = wallpaperSettings?.minutes(st.webWallpaperInterval) ?? 5;
+        wallFit.value = st.webWallpaperFit === 'contain' ? 'contain' : 'cover';
+        wallTransition.value = st.webWallpaperTransition === 'none' ? 'none' : 'fade';
 
         // ---- 形象 Tab 渲染 ----
         const man = await loadGalleryManifest();
@@ -1972,17 +2288,22 @@
         const localWallControls = settingsPanel.querySelector('.kg-local-wall-controls');
         const wpGrid = settingsPanel.querySelector('.kg-wallpaper-grid');
 
-        const usingDesktopWall = curSyncWall && isOnline && !!st.agySyncedWallpaper?.dataUrl;
+        const usingDesktopWall = curSyncWall && !!st.agySyncedWallpaper?.dataUrl;
         const wallDesktopGallery = curSyncWall && isOnline && !showLocalWall;
         const customs = st.customWallpapers || [];
         const items = [
           ...(man.wallpapers || []).map(w => ({ id: w.id, title: w.name || w.id, src: api.getURL(w.src), custom: false })),
-          ...customs.map((c, idx) => ({ id: c.id, title: c.title || `自定义 #${idx + 1}`, src: c.dataUrl, custom: true }))
+          ...customs.map((c, idx) => ({ id: c.id, title: c.title || `自定义 #${idx + 1}`, src: c.dataUrl, custom: true, pack:c.pack }))
         ];
-        const localId = st.wallpaperId === 'gemini-sheet' ? 'gemini-character-sheet-v1' : st.wallpaperId;
+        const savedId = wallpaperSettings?.id(st) || st.wallpaperId;
+        const localId = savedId === 'gemini-sheet' ? 'gemini-character-sheet-v1' : savedId;
         const localWall = items.find(item => item.id === localId) || items[0];
         const localTitle = localWall?.title || '默认壁纸';
-        const wallMode = !curSyncWall ? '独立设置' : !isOnline ? '同步待连接' : !usingDesktopWall ? '正在读取桌面壁纸' : '同步桌面';
+        const desktop = state?.desktop;
+        const desktopCycle = desktop?.slideshow === false ? '同步桌面 · 固定壁纸' :
+          Number.isFinite(desktop?.slideshowIntervalMinutes) ? '同步桌面 · 每 ' + desktop.slideshowIntervalMinutes + ' 分钟轮播' : '同步桌面';
+        const wallMode = !curSyncWall ? '独立设置' : !isOnline ? (usingDesktopWall ? '桌面离线 · 保留上次壁纸' : '同步待连接') :
+          !usingDesktopWall ? '正在读取桌面壁纸' : desktopCycle;
         if (wallBanner && wallBannerText && wallToggleBtn) {
           wallBanner.classList.toggle('independent', !curSyncWall);
           wallBannerText.textContent = `当前显示：${usingDesktopWall ? st.agySyncedWallpaper.title || '桌面壁纸' : localTitle}`;
@@ -2020,6 +2341,21 @@
             }
             return { thumb, img };
           };
+          const paintGallery = (walls,activeId,expanded,addWall,setImage) => {
+            for (const group of window.CatstellaWallpaperPacks.groups(walls)) {
+              if (!group.name) { addWall(wpGrid,group.items[0]); continue; }
+              const active = group.items.find(wall => wall.id === activeId);
+              const {thumb,img} = makeThumb(group.name + ' · ' + group.items.length + ' 张',!!active,active ? (usingDesktopWall && !wallDesktopGallery ? '已保存' : '使用中') : '');
+              thumb.classList.add('wallpaper-pack');
+              thumb.removeAttribute('aria-pressed');
+              thumb.setAttribute('aria-label',group.name + '，' + group.items.length + ' 张壁纸');
+              setImage(img,active || group.items[0]);
+              wpGrid.appendChild(thumb);
+              window.CatstellaWallpaperPacks.attach(thumb,group.key,expanded,parent => {
+                for (const wall of group.items) addWall(parent,wall);
+              });
+            }
+          };
           if (wallDesktopGallery) {
             // 实时展示桌面端壁纸画廊，点击即可双端同步切换！
             const res = await api.sendMessage({ type: 'KG_GET_DESKTOP_WALLPAPERS' });
@@ -2032,24 +2368,27 @@
               note.textContent = '桌面图库暂不可用。可以编辑网页独立选择。';
               wpGrid.append(note);
             }
-            dWalls.forEach((dw) => {
-              const selected = dw.id === activeId;
-              const { thumb, img } = makeThumb(dw.title, selected, selected ? '使用中' : '');
+            const loadPreview = (img,dw) => {
               api.sendMessage({ type: 'KG_GET_WALLPAPER_PREVIEW', id: dw.id, revision: dw.revision || '' }).then(preview => {
                 if (revision !== settingsRevision || !img.isConnected) return;
                 if (preview?.dataUrl) img.src = preview.dataUrl;
-                else { img.alt = '预览暂不可用'; thumb.title = dw.title + ' · 预览暂不可用'; }
+                else img.alt = '预览暂不可用';
               });
+            };
+            paintGallery(dWalls,activeId,expandedDesktopWallpaperPacks,(parent,dw) => {
+              const selected = dw.id === activeId;
+              const { thumb, img } = makeThumb(dw.title, selected, selected ? '使用中' : '');
+              loadPreview(img,dw);
               thumb.addEventListener('click', async () => {
                 playSound('press');
                 const result = await pushBridgePatch({ dreamSkin: { wallpaperId: dw.id } });
                 reportSettings(result?.state?.desktop?.wallpaperId === dw.id ? '' : '桌面壁纸未切换，请检查连接后重试。');
                 syncSettingsUI();
               });
-              wpGrid.appendChild(thumb);
-            });
+              parent.appendChild(thumb);
+            },loadPreview);
           } else {
-            items.forEach((item) => {
+            paintGallery(items,localWall?.id,expandedLocalWallpaperPacks,(parent,item) => {
               const selected = localWall?.id === item.id;
               const { thumb, img } = makeThumb(item.title, selected, selected ? (usingDesktopWall ? '已保存' : '使用中') : '');
               img.src = item.src;
@@ -2074,10 +2413,10 @@
               }
               thumb.addEventListener('click', () => {
                 playSound('press');
-                void saveLocal({ wallpaperId: item.id });
+                void saveLocal({ wallpaperId: item.id, webWallpaperCycle:null });
               });
-              wpGrid.appendChild(slot);
-            });
+              parent.appendChild(slot);
+            },(img,item) => { img.src = item.src; });
           }
         }
       } catch (e) {}
@@ -2091,14 +2430,14 @@
 
     // 面板外部点击与 Esc 收起
     const closePanelFromOutside = (e) => {
-      if (!settingsOpen) return;
+      if (!settingsOpen || storeDialog?.open) return;
       const path = e.composedPath ? e.composedPath() : [];
       if (path.includes(settingsPanel) || path.includes(btnOpenSettings)) return;
       closeSettings();
     };
     document.addEventListener('click', closePanelFromOutside, true);
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && settingsOpen) {
+      if (e.key === 'Escape' && settingsOpen && !storeDialog?.open) {
         closeSettings();
         if (bubbleVisible) btnOpenSettings.focus();
       }
@@ -2127,14 +2466,29 @@
       settingsPanel.addEventListener('click', (e) => e.stopPropagation());
       settingsPanel.querySelectorAll('.kg-open-online').forEach(button => {
         button.addEventListener('click', async () => {
-          const result = await api.sendMessage({ type: 'KG_OPEN_ONLINE' });
-          if (!result?.ok) button.textContent = '暂时无法打开在线图库，点击重试';
+          const updates = button.classList.contains('kg-online-notice') ? onlineUpdates : [];
+          const isNotice = updates.length > 0;
+          const opened = await openOnlineStore(button.dataset.category,isNotice ? 'recent' : 'all',button);
+          if (opened && isNotice) {
+            const {seenOnlineUpdates} = await api.storageGet(['seenOnlineUpdates']);
+            const seen = Array.isArray(seenOnlineUpdates) ? seenOnlineUpdates : [];
+            await api.storageSet({seenOnlineUpdates:[...new Set([...seen,...updates.map(item => item.revision)])].slice(-180)});
+            onlineUpdates = [];
+            button.hidden = true;
+            storeOpener = settingsPanel.querySelector('.kg-open-online:not(.kg-online-notice)');
+          }
         });
+      });
+      api.raw?.runtime?.onMessage?.addListener((message, sender, respond) => {
+        if (message?.type !== 'KG_SHOW_ONLINE_STORE' || sender.id !== api.raw.runtime.id) return;
+        openOnlineStore().then(ok => respond({ok}),() => respond({ok:false}));
+        return true;
       });
 
       // Tab 切换
       const tabs = [...settingsPanel.querySelectorAll('.kg-tab-btn')];
       const selectTab = tab => {
+        if (tab.getAttribute('aria-selected') === 'true') return;
         playSound('press');
         tabs.forEach(button => {
           const selected = button === tab;
@@ -2142,7 +2496,11 @@
           button.setAttribute('aria-selected', String(selected));
           button.tabIndex = selected ? 0 : -1;
         });
-        settingsPanel.querySelectorAll('.kg-tab-pane').forEach(pane => pane.classList.toggle('active', pane.dataset.pane === tab.dataset.tab));
+        settingsPanel.querySelectorAll('.kg-tab-pane').forEach(pane => {
+          const selected = pane.dataset.pane === tab.dataset.tab;
+          pane.classList.toggle('active', selected);
+          pane.toggleAttribute('data-entering', selected);
+        });
         settingsPanel.querySelector('.kg-tab-body').scrollTop = 0;
       };
       tabs.forEach((tab, index) => {
@@ -2219,6 +2577,11 @@
       const skinSelect = settingsPanel.querySelector('.kg-skin-style');
       const quotaSelect = settingsPanel.querySelector('#kg-quota-style');
       quotaSelect.addEventListener('change', () => void saveLocal({ quotaView: quotaSelect.value }));
+      honorificSelect.addEventListener('change', () => void saveLocal({ userHonorificMode: honorificSelect.value }));
+      honorificInput.addEventListener('change', () => {
+        honorificInput.value = readHonorificName(honorificInput.value);
+        void saveLocal({ customHonorific: honorificInput.value });
+      });
       skinSelect.addEventListener('change', () => {
         const style = skinSelect.value;
         void saveLocal(window.KiminoSkinStyle?.patch(style) ?? { skinStyle: style, skinEnabled: style !== 'native' });
@@ -2236,6 +2599,14 @@
       });
 
       // 滑条
+      wallCycle.addEventListener('change',() => void saveLocal({webWallpaperSlideshow:wallCycle.checked,webWallpaperCycle:null}));
+      wallMinutes.addEventListener('change',() => {
+        const minutes = wallpaperSettings?.minutes(wallMinutes.valueAsNumber) ?? 5;
+        wallMinutes.value = minutes;
+        void saveLocal({webWallpaperInterval:minutes,webWallpaperCycle:null});
+      });
+      wallFit.addEventListener('change',() => void saveLocal({webWallpaperFit:wallFit.value}));
+      wallTransition.addEventListener('change',() => void saveLocal({webWallpaperTransition:wallTransition.value}));
       const scaleSlider = settingsPanel.querySelector('.kg-range[data-key="widgetScale"]');
       scaleSlider.addEventListener('input', () => {
         void api.storageSet({ widgetScale: Number(scaleSlider.value) });
@@ -2254,6 +2625,20 @@
         renderOpacity(wallpaperOpacity);
         window.KiminoPreviewWallpaperOpacity?.(wallpaperOpacity);
         reportSettings('未能保存壁纸不透明度，请重试。');
+      });
+      blurSlider.addEventListener('input', () => {
+        kgValBlur.textContent = blurSlider.value + 'px';
+        window.KiminoPreviewWallpaperBlur?.(blurSlider.valueAsNumber);
+      });
+      blurSlider.addEventListener('change', async () => {
+        const selected = blurSlider.value;
+        const ok = await api.storageSet({ wallpaperBlur: blurSlider.valueAsNumber });
+        if (ok || blurSlider.value !== selected) return;
+        const { wallpaperBlur = 0 } = await api.storageGet(['wallpaperBlur']);
+        if (blurSlider.value !== selected) return;
+        renderBlur(wallpaperBlur);
+        window.KiminoPreviewWallpaperBlur?.(wallpaperBlur);
+        reportSettings('未能保存壁纸模糊程度，请重试。');
       });
 
       const resetBtn = settingsPanel.querySelector('.kg-reset-pos');
@@ -2288,7 +2673,7 @@
           if (!dataUrl) return;
           const st = await api.storageGet(['customWallpapers']);
           const id = 'custom:' + Date.now();
-          await saveLocal({ customWallpapers: [...(st.customWallpapers || []), { id, dataUrl }], wallpaperId: id });
+          await saveLocal({ customWallpapers: [...(st.customWallpapers || []), { id, dataUrl }], wallpaperId: id, webWallpaperCycle:null });
         });
       }
     }
@@ -2368,7 +2753,8 @@
         earGlow.className = 'kimino-ear-glow';
         charBox.classList.remove('rate-limited');
 
-        if (!data.realQuota.fivePending && (data.rateLimited || curPct >= 100)) {
+        let warning;
+        if (!data.realQuota.fivePending && (data.rateLimited || (data.realQuota.displaySource === 'official' && curPct >= 100))) {
           earGlow.classList.add('glow-rate_limited');
           charBox.classList.add('rate-limited');
           baseFrame = 'sad';
@@ -2379,13 +2765,13 @@
           if (alertWeek) {
             alertWeek.textContent = data.realQuota.weeklyPending ? '等待更新' : data.realQuota.weeklyResetTime || '周周期推算中...';
           }
-          dialogueEl.textContent = "口牙！我就说 Argon 这个电老虎撑不住吧！被你玩爆了喵！(哭)";
-        } else if (curPct >= 80) {
+          warning = 'exhausted';
+        } else if (!data.realQuota.fivePending && curPct >= 80) {
           earGlow.classList.add('glow-exhausted');
           baseFrame = 'sad';
           dialogueCategory = 'warning';
           rateAlert.style.display = 'none';
-          dialogueEl.textContent = "杂鱼君停手！当前用量已经飙到 80%+ 了，快见底了喵！";
+          warning = data.realQuota.displaySource === 'official' ? 'highUsage' : 'highEstimate';
         } else if (curPct >= 60) {
           earGlow.classList.add('glow-warning');
           baseFrame = 'idle';
@@ -2402,13 +2788,20 @@
           dialogueCategory = 'idle';
           rateAlert.style.display = 'none';
         }
-        if (curPct >= 80 || (!data.realQuota.fivePending && data.rateLimited)) clearStatusLine();
-        else if (bubbleVisible && !settingsOpen && !document.hidden) {
-          if (reset && Date.now() - reset.at < 5000) showStatusLine(reset.cycle === 'five' ? '5 小时额度已进入新周期喵～' : '每周额度已进入新周期喵～', 4500);
-          else if (activityChanged && data.activity?.kind === 'generating') showStatusLine('Gemini 正在生成回复喵。');
-          else if (activityChanged && data.activity?.kind === 'completed') showStatusLine('Gemini 这一轮回复完成了喵～', 4000);
-          else if (activityChanged) clearStatusLine();
-        } else if (activityChanged) clearStatusLine();
+        if (warning === 'exhausted') {
+          if (statusSource !== warning) showStatusLine(warning, 0, undefined, warning);
+        } else {
+          if (statusSource === 'exhausted' || (statusSource === 'highUsage' || statusSource === 'highEstimate') && statusSource !== warning) clearStatusLine();
+          if (bubbleVisible && !settingsOpen && !document.hidden) {
+            if (reset && Date.now() - reset.at < 5000) showStatusLine(reset.cycle === 'five' ? 'fiveReset' : 'weeklyReset', 4500);
+            else if (activityChanged && data.activity?.kind === 'generating') showStatusLine('webGenerating');
+            else if (activityChanged && data.activity?.kind === 'completed') showStatusLine('webCompleted', 4000);
+            else if (activityChanged && data.activity?.kind === 'interrupted') showStatusLine('webInterrupted', 4000);
+            else if (activityChanged && statusSource === 'web') clearStatusLine();
+            if (!statusLine && warning) showStatusLine(warning, 0, undefined, warning);
+            syncAgyTalk();
+          } else if (activityChanged && statusSource === 'web') clearStatusLine();
+        }
         renderUsage();
         if (quotaView === 'compact') adjustBubblePlacement();
         syncPet();
@@ -2418,6 +2811,7 @@
 
     api.onChanged((changes, area) => {
       if (area === 'local') {
+        if (Object.keys(changes).every(key => ['headPatTotal','headPatToday','headPatDay'].includes(key))) return;
         if (changes.character) {
           localCharacter = changes.character.newValue || 'gemini-star-v1';
         }
@@ -2433,11 +2827,17 @@
         if (changes.agyBridgeState !== undefined) {
           bridgeState = changes.agyBridgeState.newValue || null;
         }
+        if (changes.syncInteraction) syncInteraction = changes.syncInteraction.newValue !== false;
+        if (changes.userHonorificMode) honorificMode = readHonorificMode(changes.userHonorificMode.newValue);
+        if (changes.customHonorific) honorificName = readHonorificName(changes.customHonorific.newValue);
+        if (changes.agyBridgeState || changes.syncInteraction || changes.userHonorificMode || changes.customHonorific) paintDialogue();
         if (changes.syncAgyUsage) syncAgyUsage = changes.syncAgyUsage.newValue !== false;
+        if (changes.showAgyQuotaInCompact) showAgyQuotaInCompact = changes.showAgyQuotaInCompact.newValue === true;
         if (changes.quotaView) quotaView = changes.quotaView.newValue === 'compact' ? 'compact' : 'classic';
         if (changes.character || changes.onlineCharacterPacks || changes.syncCharacter || changes.agyBridgeState) paintFrame();
         if (changes.soundEnabled !== undefined) {
           soundEnabled = !!changes.soundEnabled.newValue;
+          if (!soundEnabled) stopSound();
         }
         if (changes.widgetScale) {
           widgetScale = changes.widgetScale.newValue;
@@ -2465,14 +2865,17 @@
           placeWidget(changes.widgetPos.newValue);
         }
         updateVisibilityAndBridgeUI();
+        if (changes.agyBridgeState || changes.bubbleVisible) syncAgyTalk();
         if (settingsOpen && changes.wallpaperOpacity && shadow.activeElement !== opacitySlider) renderOpacity(changes.wallpaperOpacity.newValue);
-        if (settingsOpen && (settingsKeys.some(key => key !== 'agyBridgeState' && key !== 'wallpaperOpacity' && changes[key]) ||
+        if (settingsOpen && changes.wallpaperBlur && shadow.activeElement !== blurSlider) renderBlur(changes.wallpaperBlur.newValue);
+        if (settingsOpen && (settingsKeys.some(key => !['agyBridgeState', 'wallpaperOpacity', 'wallpaperBlur'].includes(key) && changes[key]) ||
             changes.onlineCharacterPacks || (changes.agyBridgeState &&
             appearanceOf(changes.agyBridgeState.oldValue) !== appearanceOf(changes.agyBridgeState.newValue)))) syncSettingsUI();
       }
     });
 
     updateVisibilityAndBridgeUI();
+    syncAgyTalk();
     const initialPet = wrapper.getBoundingClientRect();
     wrapper.dataset.facing = 'right';
     if (initialPet.width) faceViewport(initialPet.left + initialPet.width / 2, 0);

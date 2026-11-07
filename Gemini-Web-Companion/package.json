@@ -1,6 +1,6 @@
 {
   "name": "kimino-gemini-companion",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Catstella · Gemini 网页端专属桌宠与毛玻璃皮肤扩展 (支持 Edge / Chrome / Firefox)",
   "scripts": {
     "build": "node scripts/build.js",

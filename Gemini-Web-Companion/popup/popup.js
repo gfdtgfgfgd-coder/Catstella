@@ -15,6 +15,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   const compat = window.KIMINO_API;
   const sendBridgePatch = patch => compat.sendMessage({ type: 'KG_BRIDGE_PATCH', patch });
+  const storeButton = document.getElementById('btn-online-store');
+  storeButton.onclick = async () => {
+    try {
+      const [tab] = await api.tabs.query({active:true,currentWindow:true});
+      if ((await api.tabs.sendMessage(tab.id,{type:'KG_SHOW_ONLINE_STORE'}))?.ok) {
+        window.close();
+        return;
+      }
+    } catch {}
+    storeButton.textContent = '请在 Gemini 页面打开商店';
+  };
 
   const bridgePill = document.getElementById('bridge-pill');
   const chkSyncChar = document.getElementById('chk-sync-char');

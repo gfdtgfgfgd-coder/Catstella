@@ -42,6 +42,10 @@ const safeStorageSet = value => new Promise(resolve => {
 });
 
 const online = globalThis.CatstellaOnline?.create({
+  bundled: {
+    catalog: async () => (await fetch(extApi.runtime.getURL('online/seed/catalog.json'))).json(),
+    file: relative => fetch(extApi.runtime.getURL('online/seed/' + relative))
+  },
   loadCheck: async () => (await safeStorageGet(['onlineUpdate'])).onlineUpdate,
   saveCheck: onlineUpdate => safeStorageSet({ onlineUpdate })
 });
@@ -70,14 +74,25 @@ async function onlineAvailability() {
   try {
     bundledGallery ||= fetch(extApi.runtime.getURL('assets/gallery.json')).then(response => response.json()).catch(() => ({}));
     const [items, bundled, local] = await Promise.all([
-      online.list(), bundledGallery, safeStorageGet(['onlineCharacterPacks', 'customWallpapers'])
+      online.list(), bundledGallery, safeStorageGet(['onlineCharacterPacks', 'customWallpapers','onlinePalette','onlineThemeId','seenOnlineUpdates','agyBridgeState'])
     ]);
-    return { ok: true,
-      character: items.filter(item => item.kind === 'character' && !bundled.characters?.some(x => x.id === item.id)
-        && !local.onlineCharacterPacks?.['online-' + item.id]).length,
-      wallpaper: items.filter(item => item.kind === 'wallpaper' && !bundled.wallpapers?.some(x => x.id === item.id)
-        && !local.customWallpapers?.some(x => x.id === 'custom:online-' + item.id)).length
-    };
+    if (online.catalogOffline()) return { ok:false, reason:'connection' };
+    const seen = new Set(Array.isArray(local.seenOnlineUpdates) ? local.seenOnlineUpdates : []);
+    const desktop = local.agyBridgeState?.desktop;
+    const updates = [];
+    for (const item of items) {
+      const palette = {'violet-default':'violet','midnight-blue':'ocean'}[item.id];
+      const installed = item.kind === 'theme' ? (palette ? palette === (local.onlinePalette || 'violet') : local.onlineThemeId === item.id)
+        : item.kind === 'character' ? bundled.characters?.some(x => x.id === item.id) || local.onlineCharacterPacks?.['online-' + item.id]
+        : bundled.wallpapers?.some(x => x.id === item.id) || local.customWallpapers?.some(x => x.id === 'custom:online-' + item.id);
+      const revision = item.id + ':' + item.sha256;
+      const desktopIds = item.kind === 'wallpaper' ? desktop?.wallpaperIds || [desktop?.wallpaperId]
+        : item.kind === 'character' ? desktop?.characterPackIds || [desktop?.characterPack] : [];
+      if (!installed && !desktopIds.includes(item.id) && !desktopIds.includes('online-' + item.id) && !seen.has(revision)) {
+        updates.push({kind:item.kind,revision});
+      }
+    }
+    return { ok:true, updates };
   } catch (error) {
     return { ok: false, reason: globalThis.CatstellaOnline.failureReason(error) };
   }
@@ -85,7 +100,7 @@ async function onlineAvailability() {
 async function installOnlineAsset(id, applyAfterwards) {
   const asset = await online.download(id);
   if (asset.theme) {
-    return { ok: await safeStorageSet({ onlinePalette: asset.theme.palette, wallpaperOpacity: asset.theme.opacity / 100 }) };
+    return { ok: await safeStorageSet({ onlinePalette: asset.theme.palette, onlineThemeId: id, wallpaperOpacity: asset.theme.opacity / 100 }) };
   }
   if (asset.character) {
     // Decode every frame before changing the saved gallery.
@@ -121,8 +136,8 @@ async function installOnlineAsset(id, applyAfterwards) {
   const ok = await serializeAppearance(async () => {
     const { customWallpapers = [] } = await safeStorageGet(['customWallpapers']);
     const wallpapers = (Array.isArray(customWallpapers) ? customWallpapers : []).filter(w => w?.id !== wallpaperId);
-    wallpapers.push({ id: wallpaperId, title: asset.item.name, dataUrl });
-    const selection = applyAfterwards ? { wallpaperId, ...appearanceIntent({ syncWallpaper: false }) } : {};
+    wallpapers.push({ id: wallpaperId, title: asset.item.name, dataUrl, ...(asset.item.pack && {pack:asset.item.pack}) });
+    const selection = applyAfterwards ? { wallpaperId, webWallpaperCycle:null, ...appearanceIntent({ syncWallpaper: false }) } : {};
     return safeStorageSet({ customWallpapers: wallpapers, ...selection });
   });
   if (ok && applyAfterwards) void syncWithDesktop();
@@ -136,7 +151,16 @@ async function onlineAction({ action, value }) {
       await extApi.tabs.create({ url: globalThis.CatstellaOnline.releaseUrl(result.url) });
       return { ok: true };
     }
-    if (action === 'catalog') return { ok: true, items: await online.list(value === true) };
+    if (action === 'catalog') {
+      const items = await online.list(value === true);
+      return { ok: true, items, offline: online.catalogOffline() };
+    }
+    if (action === 'preview-theme' && typeof value === 'string') {
+      const item = (await online.list()).find(item => item.id === value && item.kind === 'theme');
+      if (!item) return { ok: false };
+      const { theme } = await online.download(item.id);
+      return theme ? { ok: true, ...theme } : { ok: false };
+    }
     if ((action === 'install' || action === 'download') && typeof value === 'string') {
       const task = installQueue.then(() => installOnlineAsset(value, action === 'install'));
       installQueue = task.catch(() => {});
@@ -332,6 +356,7 @@ function appearanceIntent(patch) {
   for (const [key, pending] of Object.entries(pendingSyncKeys)) {
     if (typeof patch[key] !== 'boolean') continue;
     updates[key] = patch[key];
+    if (key === 'syncWallpaper') updates.webWallpaperCycle = null;
     updates[pending] = { enabled: patch[key], token: appearanceEpoch + ':' + ++appearanceSequence };
   }
   return updates;
@@ -406,7 +431,10 @@ async function performDesktopSync(patch = null) {
         const sent = pendingAppearance(pendingBefore[pending]);
         const current = pendingAppearance(stored[pending]);
         if (current && sent?.token === current.token && syncCfg[key] === current.enabled) updates[pending] = false;
-        if (!current && typeof syncCfg[key] === 'boolean' && stored[key] !== syncCfg[key]) updates[key] = syncCfg[key];
+        if (!current && typeof syncCfg[key] === 'boolean' && stored[key] !== syncCfg[key]) {
+          updates[key] = syncCfg[key];
+          if (key === 'syncWallpaper') updates.webWallpaperCycle = null;
+        }
       }
       if (typeof syncCfg.syncInteraction === 'boolean' && stored.syncInteraction !== syncCfg.syncInteraction) updates.syncInteraction = syncCfg.syncInteraction;
       if (typeof syncCfg.petDisplayMode === 'string' && stored.petDisplayMode !== webDisplayMode(syncCfg.petDisplayMode)) {
@@ -444,6 +472,59 @@ const closeUsageTab = id => {
 };
 
 let headPatWrites = Promise.resolve();
+let localWallpaperCheck;
+function checkLocalWallpaperCycle() {
+  if (localWallpaperCheck) return localWallpaperCheck;
+  const keys = ['syncWallpaper','webWallpaperSlideshow','webWallpaperInterval','webWallpaperCycle','wallpaperId'];
+  const fingerprint = state => JSON.stringify(keys.map(key => state[key]));
+  localWallpaperCheck = (async () => {
+    const state = await safeStorageGet(keys);
+    if (state.syncWallpaper !== false || state.webWallpaperSlideshow !== true) return;
+    const anchor = state.wallpaperId || '';
+    const minutes = Number.isFinite(state.webWallpaperInterval) ? Math.min(60,Math.max(1,Math.round(state.webWallpaperInterval))) : 5;
+    const interval = minutes * 60_000;
+    const previous = state.webWallpaperCycle;
+    const now = Date.now();
+    const matches = previous?.anchor === anchor && previous.minutes === minutes && Number.isFinite(previous.nextAt);
+    let cycle = {anchor,minutes,id:anchor,nextAt:now + interval};
+    if (matches) {
+      if (now < previous.nextAt) return;
+      bundledGallery ||= fetch(extApi.runtime.getURL('assets/gallery.json')).then(response => response.json()).catch(() => ({}));
+      const [gallery,{customWallpapers}] = await Promise.all([bundledGallery,safeStorageGet(['customWallpapers'])]);
+      const ids = [...new Set([...(gallery.wallpapers || []),...(customWallpapers || [])].map(item => item.id).filter(Boolean))];
+      const index = Math.max(0,ids.indexOf(previous.id || anchor));
+      const steps = Math.floor((now - previous.nextAt) / interval) + 1;
+      cycle = {anchor,minutes,id:ids[(index + steps) % ids.length] || anchor,nextAt:previous.nextAt + steps * interval};
+    }
+    await serializeAppearance(async () => {
+      if (fingerprint(await safeStorageGet(keys)) === fingerprint(state)) await safeStorageSet({webWallpaperCycle:cycle});
+    });
+  })().finally(() => { localWallpaperCheck = null; });
+  return localWallpaperCheck;
+}
+let pendingHeadPats = [], headPatTimer;
+function flushHeadPats() {
+  clearTimeout(headPatTimer);
+  headPatTimer = null;
+  const batch = pendingHeadPats;
+  pendingHeadPats = [];
+  const record = headPatWrites.then(async () => {
+    const {headPatTotal,headPatToday,headPatDay} = await safeStorageGet(['headPatTotal','headPatToday','headPatDay']);
+    const increment = value => Number.isSafeInteger(value) && value >= 0 ? Math.min(value + 1,Number.MAX_SAFE_INTEGER) : 1;
+    let total = headPatTotal, today = headPatToday, day = headPatDay;
+    const counts = batch.map(tap => {
+      total = increment(total);
+      today = tap.day === day ? increment(today) : 1;
+      day = tap.day;
+      return {total,today};
+    });
+    return await safeStorageSet({headPatTotal:total,headPatToday:today,headPatDay:day}) ? counts : null;
+  });
+  headPatWrites = record.catch(() => null);
+  headPatWrites.then(counts => batch.forEach((tap,index) => {
+    try { tap.reply(counts?.[index] || null); } catch {}
+  }));
+}
 extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message.type !== 'string') return;
 
@@ -451,23 +532,17 @@ extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
     let valid = false;
     try { valid = sender.id === extApi.runtime.id && sender.frameId === 0 && new URL(sender.url).origin === 'https://gemini.google.com'; } catch {}
     if (!valid) return;
-    const record = headPatWrites.then(async () => {
-      const { headPatTotal } = await safeStorageGet(['headPatTotal']);
-      const total = Number.isSafeInteger(headPatTotal) && headPatTotal >= 0 && headPatTotal < Number.MAX_SAFE_INTEGER
-        ? headPatTotal + 1 : 1;
-      return await safeStorageSet({ headPatTotal: total }) ? { total } : null;
-    });
-    headPatWrites = record.catch(() => null);
-    record.then(sendResponse, () => sendResponse(null));
+    const now = new Date();
+    pendingHeadPats.push({day:[now.getFullYear(),now.getMonth() + 1,now.getDate()].join('-'),reply:sendResponse});
+    if (pendingHeadPats.length >= 32) flushHeadPats();
+    else headPatTimer ??= setTimeout(flushHeadPats,140);
     return true;
   }
 
-  if (message.type === 'KG_ONLINE' && online && sender.url === onlinePage()) {
+  if (message.type === 'KG_ONLINE' && online) {
+    const fromGemini = sender.frameId === 0 && /^https:\/\/gemini\.google\.com(?:[/?#]|$)/.test(sender.url || '');
+    if (sender.id !== extApi.runtime.id || (!fromGemini && sender.url?.split('#')[0] !== onlinePage())) return;
     onlineAction(message).then(sendResponse);
-    return true;
-  }
-  if (message.type === 'KG_OPEN_ONLINE' && online && sender.id === extApi.runtime.id) {
-    Promise.resolve(extApi.tabs.create({ url: onlinePage() })).then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
     return true;
   }
   if (message.type === 'KG_ONLINE_AVAILABILITY' && online && sender.id === extApi.runtime.id) {
@@ -506,6 +581,7 @@ extApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'KG_TAB_HEARTBEAT') {
     maybeCheckUpdate();
+    void checkLocalWallpaperCycle().catch(() => {});
     const tabId = sender?.tab?.id ?? 'default';
     tabFocusMap.set(tabId, { active: !!message.active, visible: typeof message.visible === 'boolean' ? message.visible : !!message.active, ts: Date.now() });
     if (message.webQuota && typeof message.webQuota === 'object') {
@@ -592,6 +668,8 @@ extApi.runtime.onInstalled.addListener(async () => {
 extApi.runtime.onStartup?.addListener(maybeCheckUpdate);
 extApi.storage.onChanged?.addListener((changes, area) => {
   if (area === 'local' && changes.syncAgyUsage) void syncWithDesktop();
+  if (area === 'local' && (changes.syncWallpaper || changes.webWallpaperSlideshow || changes.webWallpaperInterval || changes.wallpaperId))
+    void checkLocalWallpaperCycle().catch(() => {});
 });
 
 // 启动时探测一次本地 AGY 套件

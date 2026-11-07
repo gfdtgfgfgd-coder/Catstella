@@ -10,6 +10,16 @@
       : config?.skinEnabled === false ? 'native' : 'glass',
     patch: style => ({ skinStyle: style, skinEnabled: style !== 'native' })
   };
+  window.KiminoWallpaperSettings = {
+    minutes: value => Number.isFinite(value) ? Math.min(60,Math.max(1,Math.round(value))) : 5,
+    id(config) {
+      const saved = config?.wallpaperId || '';
+      const cycle = config?.webWallpaperCycle;
+      return config?.syncWallpaper === false && config.webWallpaperSlideshow === true &&
+        cycle?.anchor === saved && cycle.minutes === this.minutes(config.webWallpaperInterval) && typeof cycle.id === 'string'
+        ? cycle.id : saved;
+    }
+  };
 
   const pickApi = () => {
     try {

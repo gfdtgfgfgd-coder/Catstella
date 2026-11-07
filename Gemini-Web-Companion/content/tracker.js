@@ -197,7 +197,7 @@
           } else if (type === 'STREAM_ERROR') {
             this._activeStreamId = null;
             this.sessionData.status = 'idle';
-            this.sessionData.activity = null;
+            this.sessionData.activity = this.sessionData.activity?.kind === 'generating' ? { kind: 'interrupted' } : null;
             this.notify();
           }
         } catch (e) {}

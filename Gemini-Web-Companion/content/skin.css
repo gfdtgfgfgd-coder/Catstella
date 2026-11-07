@@ -44,7 +44,7 @@ html[data-kimino-palette="onyx"] {
   z-index: -99999 !important;
   pointer-events: none !important;
   background-color: var(--kg-palette-base, #211e2d) !important;
-  background-size: cover !important;
+  background-size: var(--kg-wallpaper-fit, cover) !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   transition: opacity 0.6s ease !important;
@@ -56,9 +56,14 @@ html[data-kimino-palette="onyx"] {
   border-radius: inherit !important;
   pointer-events: none !important;
   background-color: var(--kg-palette-base, #211e2d) !important;
-  background-size: cover !important;
+  background-size: var(--kg-wallpaper-fit, cover) !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
+}
+
+html[data-kg-wallpaper-blurred] :is(#kimino-dream-wallpaper, #kimino-static-fade > .kimino-fade-wallpaper) {
+  filter: var(--kg-wallpaper-filter);
+  clip-path: inset(0 round 22px);
 }
 
 /* 基底层：全窗基底色（z -100000，垫在壁纸 -99999 之下）
@@ -99,7 +104,12 @@ html.kimino-dream-active .aurora-outer-container::after {
   backdrop-filter: none !important;
 }
 
-html.kimino-dream-active :is(.welcome-grow-container, chat-window:not(:has(user-query, model-response))) :is(.aurora, .aurora-bg) {
+/* A host variant can put composer controls inside a wrapper that also paints
+   the welcome effect. Hide decorative leaves only, including after an SPA swap. */
+html.kimino-dream-active :is(.welcome-grow-container, chat-window:not(:has(user-query, model-response))) :is(.aurora, .aurora-bg):not(
+  :is(button, a[href], input, select, textarea, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex]),
+  :has(:is(button, a[href], input, select, textarea, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex]))
+) {
   visibility: hidden !important;
 }
 
@@ -111,6 +121,11 @@ html.kimino-dream-active :is(.welcome-grow-container, chat-window:not(:has(user-
   mix-blend-mode: normal !important;
   box-shadow: none !important;
   animation: none !important;
+}
+
+html.kimino-dream-active :is(.welcome-grow-container, chat-window:not(:has(user-query, model-response))) .aurora-outer-container:not(
+  :has(:is(button, a[href], input, select, textarea, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex]))
+) {
   pointer-events: none !important;
 }
 
@@ -419,7 +434,7 @@ html.kimino-dream-active [data-kg-fade-host] {
   inset: 0 !important;
   pointer-events: none !important;
   background-color: var(--kg-palette-base, #211e2d) !important;
-  background-size: cover !important;
+  background-size: var(--kg-wallpaper-fit, cover) !important;
   background-position: center center !important;
   background-repeat: no-repeat !important;
   transition: opacity 0.6s ease !important;
@@ -751,7 +766,10 @@ html.kimino-dream-active[data-kg-usage-page] :is(section.x9f619,[data-kg-usage-s
   -webkit-backdrop-filter: none !important;
 }
 
-html.kimino-dream-active .gradient-strip {
+html.kimino-dream-active .gradient-strip:not(
+  :is(button, a[href], input, select, textarea, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex]),
+  :has(:is(button, a[href], input, select, textarea, [role="button"], [role="tab"], [role="radio"], [role="switch"], [tabindex]))
+) {
   display: none !important;
 }
 

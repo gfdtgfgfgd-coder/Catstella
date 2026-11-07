@@ -18,15 +18,18 @@
   let wallpaperEl = null;
   let wallpaperController = null;
   let wallpaperTransition = 'fade';
+  let usingDesktopWallpaper = false;
   let baseLayer = null;
   let wallpaperSrc = null; // 自定义或同步壁纸 dataURL，或 null（用默认）
   let skinCurrentlyEnabled = true;
   let currentSkinOpacity = 0.88;
   let opacityRevision = 0;
+  let blurRevision = 0;
   const fixedFade = window.KiminoFixedFade ? new window.KiminoFixedFade(() => scheduleGeometry()) : null;
 
   const getWallpaperUrl = () => wallpaperSrc || api.getURL('assets/wallpapers/gemini-sheet.png');
   const setWallpaperOpacity = opacity => {
+    if (usingDesktopWallpaper) return;
     ++opacityRevision;
     currentSkinOpacity = typeof opacity === 'number' ? opacity : 0.88;
     if (!wallpaperEl || !skinCurrentlyEnabled) return;
@@ -34,6 +37,19 @@
     fixedFade?.syncWallpaper(wallpaperEl, currentSkinOpacity);
   };
   window.KiminoPreviewWallpaperOpacity = setWallpaperOpacity;
+  const setWallpaperBlur = blur => {
+    ++blurRevision;
+    const radius = Number.isFinite(blur) ? Math.max(0, Math.min(24, blur)) : 0;
+    const root = document.documentElement;
+    if (radius > 0) {
+      root.style.setProperty('--kg-wallpaper-filter', `blur(${radius}px)`);
+      root.setAttribute('data-kg-wallpaper-blurred', '');
+    } else {
+      root.style.removeProperty('--kg-wallpaper-filter');
+      root.removeAttribute('data-kg-wallpaper-blurred');
+    }
+  };
+  window.KiminoPreviewWallpaperBlur = setWallpaperBlur;
 
   const applySkin = (enabled = true, opacity = 0.88) => {
     skinCurrentlyEnabled = !!enabled;
@@ -106,9 +122,11 @@
   const loadAndApply = async () => {
     const revision = ++configRevision;
     const previousOpacityRevision = opacityRevision;
+    const previousBlurRevision = blurRevision;
     const res = await api.storageGet([
-      'skinStyle', 'skinEnabled', 'wallpaperOpacity', 'wallpaperId', 'customWallpapers', 'customWallpaper',
-      'syncWallpaper', 'agyBridgeState', 'agySyncedWallpaper', 'onlinePalette'
+      'skinStyle', 'skinEnabled', 'wallpaperOpacity', 'wallpaperBlur', 'wallpaperId', 'customWallpapers', 'customWallpaper',
+      'syncWallpaper', 'agyBridgeState', 'agySyncedWallpaper', 'onlinePalette',
+      'webWallpaperSlideshow','webWallpaperInterval','webWallpaperCycle','webWallpaperFit','webWallpaperTransition'
     ]);
     const style = window.KiminoSkinStyle?.read(res) ?? (res?.skinEnabled === false ? 'native' : 'glass');
     const isEnabled = style !== 'native';
@@ -116,14 +134,14 @@
 
     let src = null;
     // 双端壁纸同步模式：启用同步且存在桌面端同步壁纸时优先应用桌面壁纸（支持轮播自动跟进）
-    const usingDesktop = res?.syncWallpaper !== false && res?.agyBridgeState?.online === true && !!res.agySyncedWallpaper?.dataUrl;
+    const usingDesktop = res?.syncWallpaper !== false && !!res?.agySyncedWallpaper?.dataUrl;
     if (usingDesktop) {
       src = res.agySyncedWallpaper.dataUrl;
     }
 
     // 独立模式或尚未与桌面端首次握手：解析 Web 本地画廊壁纸
     if (!src) {
-      const configured = (res && res.wallpaperId) || '';
+      const configured = window.KiminoWallpaperSettings?.id(res) || res?.wallpaperId || '';
       const wid = configured === 'gemini-sheet' ? 'gemini-character-sheet-v1' : configured;
       if (wid.startsWith('custom:')) {
         const c = ((res && res.customWallpapers) || []).find((x) => x.id === wid);
@@ -145,9 +163,15 @@
     else delete root.dataset.kiminoStyle;
     if (isEnabled && ['pink', 'ocean', 'onyx'].includes(palette)) root.dataset.kiminoPalette = palette;
     else delete root.dataset.kiminoPalette;
-    wallpaperTransition = usingDesktop && res.agyBridgeState.desktop?.wallpaperTransition === 'none' ? 'none' : 'fade';
+    const desktop = usingDesktop ? res.agyBridgeState?.desktop : null;
+    usingDesktopWallpaper = usingDesktop;
+    wallpaperTransition = (usingDesktop ? desktop?.wallpaperTransition : res?.webWallpaperTransition) === 'none' ? 'none' : 'fade';
+    const fit = (usingDesktop ? desktop?.wallpaperFit : res?.webWallpaperFit) === 'contain' ? 'contain' : 'cover';
+    root.style.setProperty('--kg-wallpaper-fit',fit);
     wallpaperSrc = src; // null → getWallpaperUrl 回落默认
-    applySkin(isEnabled, previousOpacityRevision === opacityRevision ? opacity : currentSkinOpacity);
+    if (usingDesktop || previousBlurRevision === blurRevision) setWallpaperBlur(usingDesktop ? 0 : res?.wallpaperBlur);
+    const desktopOpacity = Number.isFinite(desktop?.opacity) ? Math.max(0,Math.min(1,desktop.opacity / 100)) : null;
+    applySkin(isEnabled, desktopOpacity ?? (previousOpacityRevision === opacityRevision ? opacity : currentSkinOpacity));
     if (isEnabled) schedule();
   };
 
@@ -367,14 +391,18 @@
       api.onChanged((changes, area) => {
         if (area !== 'local') return;
         if (changes.wallpaperOpacity) setWallpaperOpacity(changes.wallpaperOpacity.newValue);
+        if (changes.wallpaperBlur && !usingDesktopWallpaper) setWallpaperBlur(changes.wallpaperBlur.newValue);
         const before = changes.agyBridgeState?.oldValue;
         const after = changes.agyBridgeState?.newValue;
         const bridgeAffectsWallpaper = before?.online !== after?.online ||
-          before?.desktop?.wallpaperTransition !== after?.desktop?.wallpaperTransition;
+          before?.desktop?.wallpaperTransition !== after?.desktop?.wallpaperTransition ||
+          before?.desktop?.wallpaperFit !== after?.desktop?.wallpaperFit || before?.desktop?.opacity !== after?.desktop?.opacity;
         if (
           changes.skinStyle || changes.skinEnabled || changes.onlinePalette || changes.customWallpaper ||
           changes.wallpaperId || changes.customWallpapers || changes.syncWallpaper ||
-          changes.agySyncedWallpaper || bridgeAffectsWallpaper
+          changes.agySyncedWallpaper || bridgeAffectsWallpaper ||
+          changes.webWallpaperSlideshow || changes.webWallpaperCycle || changes.webWallpaperInterval ||
+          changes.webWallpaperFit || changes.webWallpaperTransition
         ) {
           loadAndApply();
         }

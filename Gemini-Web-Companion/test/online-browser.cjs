@@ -3,7 +3,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { chromium } = require('playwright');
-const root = path.resolve(__dirname, process.argv.includes('--built') ? '../dist/chromium' : '..');
+const packMode = process.argv.includes('--seed');
+const root = process.argv.includes('--built')
+  ? path.resolve(process.env.CATSTELLA_WEB_DIST || path.join(__dirname, '../dist'), 'chromium')
+  : path.resolve(__dirname, '..');
 const base = 'https://online-fixture.test';
 const assetBase = 'https://raw.githubusercontent.com/lynnfei/Catstella/main/online-assets/';
 const wall = fs.readFileSync(path.join(root, 'assets/icons/icon-128.png'));
@@ -15,7 +18,8 @@ const catalog = { schema: 1, items: [record('wallpaper', 'sample', 'png', wall, 
   record('theme', 'night', 'json', theme, '示例主题')],
   characters: [record('character', 'sample-cat', 'json', character, '示例桌宠')] };
 const fixture = `
-  window.store = { syncWallpaper: true, wallpaperId: 'old' };
+  window.store = { syncWallpaper: true, wallpaperId: 'old',
+    agyBridgeState:{online:true,desktop:{characterPackIds:['online-sample-cat'],wallpaperIds:[]}} };
   window.openedTabs = [];
   window.chrome = {
     runtime: {
@@ -54,6 +58,7 @@ const fixture = `
     await page.route(base + '/**', route => {
       const name = new URL(route.request().url()).pathname.slice(1);
       if (name === 'fixture.js') return fulfill(route, fixture, 'text/javascript');
+      if (!fs.existsSync(path.join(root, name))) return route.fulfill({status:404,body:''});
       const data = fs.readFileSync(path.join(root, name));
       if (name === 'online/index.html') return fulfill(route, data.toString().replace(
         '<script src="../content/shim.js">',
@@ -68,7 +73,7 @@ const fixture = `
         { draft: false, prerelease: false, tag_name: 'web-v1.5.1', assets: [{ state: 'uploaded', name: 'kimino-gemini-companion.xpi' }] }
       ]), 'application/json');
     });
-    let corrupt = false, disconnected = false;
+    let corrupt = false, disconnected = packMode;
     await page.route(assetBase + '**', route => {
       const file = route.request().url().slice(assetBase.length);
       if (file === 'catalog.json') return disconnected ? route.abort() : fulfill(route, JSON.stringify(catalog), 'application/json');
@@ -77,22 +82,75 @@ const fixture = `
       return fulfill(route, corrupt ? Buffer.alloc(wall.length) : wall, 'image/png');
     });
     await page.goto(base + '/online/index.html');
+    if (packMode) {
+      await page.getByText(/无法连接 GitHub/).waitFor();
+      await page.waitForFunction(() => document.querySelector('.hub-hero-caption')?.textContent.startsWith('2 / 9'),{},{timeout:8500});
+      await page.getByRole('button',{name:'上一张推荐壁纸'}).click();
+      await page.getByRole('button',{ name:'查看壁纸包' }).click();
+      const detail = page.getByRole('dialog');
+      assert.equal(await detail.locator('.hub-strip button').count(),9);
+      await page.mouse.move(1,1);
+      await page.waitForFunction(() => document.querySelector('.hub-preview-count')?.textContent === '2 / 9',{},{timeout:8500});
+      await detail.getByRole('button',{name:'上一张'}).click();
+      await detail.getByRole('button',{name:'下一张'}).click();
+      assert.equal(await detail.locator('.hub-preview-count').innerText(),'2 / 9');
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await detail.locator('.hub-preview-count').innerText(),'1 / 9');
+      await detail.getByRole('button',{ name:'安装整套（9 张）' }).click();
+      await detail.getByText('已安装 9 项，可从本地图库切换。').waitFor({timeout:40000});
+      assert.equal(await page.evaluate(() => store.customWallpapers.length),9);
+      assert.equal(await page.evaluate(() => store.customWallpapers.every(wall => wall.pack?.id === 'moriyama-catgirl-pack')),true);
+      assert.equal(await page.evaluate(() => store.wallpaperId),'old');
+      await detail.locator('.hub-strip button').last().click();
+      await detail.getByRole('button',{ name:'使用这项素材' }).click();
+      await detail.getByRole('button',{ name:'正在使用' }).waitFor();
+      assert.equal(await page.evaluate(() => store.wallpaperId),'custom:online-moriyama-catgirl-09');
+      assert.deepEqual(errors,[]);
+      console.log('PASS: built Web Hub installs all nine seeded wallpapers offline and applies the selected image separately.');
+      return;
+    }
+    await page.getByText('更新与配色管理').click();
     await page.getByText(/发现新版本 1.5.1/).waitFor();
     assert.equal(await page.evaluate(() => window.badge), 'NEW');
     await page.getByRole('button', { name: '查看发行页' }).click();
     await page.waitForFunction(() => openedTabs.length === 1);
     assert.match(await page.evaluate(() => openedTabs[0].url), /\/web-v1\.5\.1$/);
     assert.equal(updateRequests, 1);
-    await page.getByText(/发现可安装的在线素材/).waitFor();
-    await page.getByRole('button', { name: '浏览在线配色' }).click();
-    await page.getByRole('button', { name: '下载并应用配色' }).click();
-    await page.getByText('已应用「示例主题」。').waitFor();
+    await page.getByRole('button', { name: '预览 示例主题' }).click();
+    const detail = page.getByRole('dialog');
+    await detail.getByText('壁纸不透明度 75%').waitFor();
+    assert.equal(await detail.locator('.hub-detail-art').getAttribute('data-palette'), 'ocean');
+    assert.equal(await page.evaluate(() => store.wallpaperOpacity), undefined, 'theme preview must not apply anything');
+    await detail.getByRole('button',{name:'阅读区',exact:true}).click();
+    assert.equal(await detail.locator('.hub-theme-reading').isVisible(),true);
+    await detail.getByRole('button', { name: '应用配色' }).click();
+    await detail.getByText('已应用 示例主题').waitFor();
+    await detail.getByRole('button', { name: '关闭' }).click();
+    await detail.waitFor({state:'hidden'});
     assert.deepEqual(await page.evaluate(() => [store.onlinePalette, store.wallpaperOpacity, store.wallpaperId]), ['ocean', .75, 'old']);
-    await page.getByRole('button', { name: '安装 示例桌宠' }).click();
-    await page.getByText('「示例桌宠」已加入本地图库。').waitFor();
+    await page.getByRole('button', { name: '预览 示例桌宠' }).click();
+    await detail.getByText('桌面端已安装',{exact:true}).waitFor();
+    assert.equal(await detail.getByRole('button',{name:'仅桌面端可用'}).getAttribute('aria-disabled'),'true');
+    assert.equal(await page.evaluate(() => !!store.onlineCharacterPacks),false);
+    await detail.getByRole('button', { name: '另存到网页' }).click();
+    await detail.getByRole('button', { name: '使用这项素材' }).waitFor();
+    await detail.getByRole('button', { name: '关闭' }).click();
+    await detail.waitFor({state:'hidden'});
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '预览 示例桌宠');
     assert.ok(await page.evaluate(() => store.onlineCharacterPacks['online-sample-cat'].frames.idle));
-    await page.getByRole('button', { name: '安装 示例壁纸' }).click();
-    await page.getByText('「示例壁纸」已加入本地图库。').waitFor();
+    await page.setViewportSize({width:480,height:560});
+    const opener = page.getByRole('button', { name: '预览 示例壁纸' });
+    await opener.scrollIntoViewIfNeeded();
+    await opener.evaluate(button => {
+      button.addEventListener('click', () => {
+        window.savedHubPosition = document.scrollingElement.scrollTop;
+        window.savedHubOpener = button;
+      }, {capture:true,once:true});
+    });
+    await opener.click();
+    assert.ok(await page.evaluate(() => savedHubPosition > 0));
+    await detail.getByRole('button', { name: '安装这项素材' }).click();
+    await detail.getByRole('button', { name: '使用这项素材' }).waitFor();
     const saved = await page.evaluate(async () => {
       const asset = store.customWallpapers[0];
       const img = new Image();
@@ -101,10 +159,13 @@ const fixture = `
       return { id: store.wallpaperId, sync: store.syncWallpaper, width: img.naturalWidth, url: asset.dataUrl };
     });
     assert.deepEqual([saved.id, saved.sync, saved.width], ['old', true, 128]);
-    await page.evaluate(async () => {
-      await window.KIMINO_API.storageSet({ wallpaperId: 'custom:online-sample' });
-      await window.KIMINO_API.sendMessage({ type: 'KG_BRIDGE_PATCH', patch: { syncWallpaper: false } });
-    });
+    await detail.getByRole('button', { name: '使用这项素材' }).click();
+    await detail.getByRole('button', { name: '正在使用' }).waitFor();
+    assert.equal(await detail.getByRole('button', { name: '正在使用' }).evaluate(button => document.activeElement === button), true);
+    await detail.getByRole('button', { name: '关闭' }).click();
+    await detail.waitFor({state:'hidden'});
+    await page.waitForFunction(() => document.activeElement === savedHubOpener);
+    assert.equal(await page.evaluate(() => document.scrollingElement.scrollTop), await page.evaluate(() => savedHubPosition));
     assert.equal(await page.evaluate(() => store.pendingOnlineWallpaper?.enabled), false);
     bridgeUp = true;
     await page.evaluate(async () => {
@@ -119,7 +180,7 @@ const fixture = `
     assert.equal(await page.evaluate(async () => (await window.KIMINO_API.sendMessage({ type: 'KG_ONLINE', action: 'download', value: 'sample' })).ok), false);
     assert.equal(await page.evaluate(() => store.customWallpapers[0].dataUrl), saved.url);
     disconnected = true;
-    await page.locator('#online-wallpapers').getByRole('button', { name: '刷新' }).click();
+    await page.getByRole('button', { name: '刷新目录' }).click();
     await page.getByText(/无法连接 GitHub/).waitFor();
     await page.getByRole('checkbox', { name: '自动检查更新' }).uncheck();
     await page.getByText(/自动检查已关闭/).waitFor();

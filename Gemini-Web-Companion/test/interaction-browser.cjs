@@ -6,7 +6,8 @@ const root = path.resolve(__dirname, '..');
 const source = path.join(root, process.argv.includes('--built') ? 'dist/chromium/content' : 'content');
 
 async function main() {
-  const browser = await chromium.launch({ headless: true, channel: process.env.SKIN_BROWSER_CHANNEL || 'msedge' });
+  const browser = await chromium.launch({ headless: true, channel: process.env.SKIN_BROWSER_CHANNEL || 'msedge',
+    args:['--js-flags=--max-old-space-size=96'] });
   try {
     const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
     const errors = [];
@@ -20,6 +21,12 @@ async function main() {
       Math.random = () => .99; // A tap must animate even when no expression is drawn.
       window.storageWrites = [];
       window.headPatTotal = 0;
+      window.audioInstances = 0;
+      window.Audio = class {
+        constructor() { window.audioInstances++; }
+        pause() {}
+        play() { return Promise.resolve(); }
+      };
       window.startedAnimations = [];
       const animate = Element.prototype.animate;
       Element.prototype.animate = function (...args) {
@@ -39,6 +46,7 @@ async function main() {
         enabled: true,
         bubbleVisible: false,
         ambientChatter: false,
+        soundEnabled: true,
         syncCharacter: false,
         syncWallpaper: false,
         petDisplayMode: 'prefer-web', // A legacy setting still maps to a visible Web choice.
@@ -51,7 +59,7 @@ async function main() {
         storageGet: async () => window.state,
         storageSet: async value => { window.storageWrites.push(value); return true; },
         onChanged: () => {},
-        sendMessage: async message => message.type === 'KG_HEAD_PAT' ? { total: ++window.headPatTotal } : null
+        sendMessage: async message => message.type === 'KG_HEAD_PAT' ? { total: ++window.headPatTotal,today:window.headPatTotal } : null
       };
     });
     await page.addScriptTag({ path: path.join(source, 'ambient.js') });
@@ -102,6 +110,16 @@ async function main() {
     assert.equal(await page.evaluate(() => startedAnimations.filter(a => a.id === 'catstella-head-tap').length), 1);
     assert.equal(await page.evaluate(() => startedAnimations.filter(a => a.id === 'catstella-head-spark').length), 2);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const targetX=moved.x+moved.width/2,targetY=moved.y+65;
+    await page.mouse.click(targetX,targetY);
+    const quip=await page.locator('.kimino-dialogue').innerText();
+    assert.match(quip,/3 次/);
+    for(let i=0;i<12;i++)await page.mouse.click(targetX,targetY);
+    assert.equal(await page.locator('.kimino-dialogue').innerText(),quip);
+    assert.deepEqual(await page.evaluate(() => [
+      headPatTotal,audioInstances,startedAnimations.filter(a => a.id === 'catstella-head-tap').length,
+      startedAnimations.filter(a => a.id === 'catstella-head-spark').length
+    ]),[15,2,1,3]);
     assert.match(await page.locator('.kimino-sprite').evaluate(el => getComputedStyle(el).filter), /drop-shadow\(rgba\(189, 162, 242/);
     const sync = page.locator('.btn-sync-quota');
     await sync.click();
@@ -115,9 +133,9 @@ async function main() {
     assert.equal(await page.evaluate(() => startedAnimations.filter(a => a.id === 'catstella-quota-success').length), 1);
     assert.equal(await page.evaluate(() => window.quotaRequests), 2, 'one refresh per manual click');
     await page.evaluate(() => window.emitTracker({ status: 'thinking', activity: { kind: 'generating' } }));
-    await page.getByText('Gemini 正在生成回复喵。').waitFor();
+    await page.getByText(/Gemini 正在生成/).waitFor();
     await page.evaluate(() => window.emitTracker({ quotaReset: { cycle: 'weekly', at: Date.now() } }));
-    await page.getByText('每周额度已进入新周期喵～').waitFor();
+    await page.getByText(/每周额度已进入新周期|周额度重置啦/).waitFor();
     const petBox = await character.boundingBox();
     await page.mouse.move(petBox.x + petBox.width / 2, petBox.y + 60);
     await page.mouse.down();

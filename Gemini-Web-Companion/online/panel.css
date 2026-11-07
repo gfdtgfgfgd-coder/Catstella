@@ -1,6 +1,13 @@
 :root { color-scheme: dark; font: 15px/1.6 system-ui, sans-serif; color: #eee6ff; background: #1a1526; }
 body { margin: 0; padding: 24px; }
 main { max-width: 660px; margin: 24px auto; background: #251d35; border: 1px solid #5f4d7d; border-radius: 18px; padding: 24px; }
+.hub-web { background:radial-gradient(ellipse at 17% 0,#3c245e80,transparent 62%); padding:clamp(12px,4vw,34px) }
+.hub-web main { max-width:1030px; margin:0 auto; border-color:#795ca33d; background:#251c34de; padding:clamp(14px,3vw,30px); border-radius:24px }
+.hub-web-heading { margin-bottom:18px }
+.hub-web-heading h1 { font-size:clamp(23px,4vw,34px); letter-spacing:.02em }
+.hub-web-heading p { margin:2px 0 0; color:#c8b9df }
+.hub-web-maintenance { margin-top:18px; border-top:1px solid #5d4873; padding-top:12px }
+.hub-web-maintenance summary { cursor:pointer; margin-bottom:8px; color:#d6beef }
 h1 { margin: 0; font-size: 1.6rem; }
 .hint { color: #c6b8da; }
 .btn-row { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }

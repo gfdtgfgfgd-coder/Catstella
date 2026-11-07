@@ -9,7 +9,7 @@ const zlib = require('node:zlib');
 const { createHash } = require('node:crypto');
 
 const rootDir = path.resolve(__dirname, '..');
-const distDir = path.join(rootDir, 'dist');
+const distDir = path.resolve(process.env.CATSTELLA_WEB_DIST || path.join(rootDir, 'dist'));
 const firefoxDir = path.join(distDir, 'firefox');
 const chromiumDir = path.join(distDir, 'chromium');
 
@@ -28,6 +28,9 @@ function copyRecursive(src, dest) {
   } else {
     fs.copyFileSync(src, dest);
   }
+}
+function copyStoreSeed(target) {
+  if (process.env.CATSTELLA_ONLINE_SEED) copyRecursive(path.resolve(process.env.CATSTELLA_ONLINE_SEED), path.join(target, 'online', 'seed'));
 }
 
 // ---------- 规范 ZIP 写入器 (正斜杠条目名，Firefox/Chrome 双兼容) ----------
@@ -176,6 +179,7 @@ crManifest.background = {
 delete crManifest.browser_specific_settings;
 fs.writeFileSync(crManifestPath, JSON.stringify(crManifest, null, 2), 'utf8');
 const galleryCr = generateGalleryManifest(chromiumDir);
+copyStoreSeed(chromiumDir);
 console.log(`🖼️ 画廊清单：壁纸 ${galleryCr.wallpapers.length} 张 / 形象 ${galleryCr.characters.length} 套`);
 
 // 2. 构建 Firefox 专版
@@ -211,13 +215,15 @@ ffManifest.web_accessible_resources = [
       "assets/audio/*",
       "assets/dialogue/*",
       "assets/icons/*",
-      "content/*"
+      "content/*",
+      "online/content-hub.css"
     ],
     matches: ["*://gemini.google.com/*"]
   }
 ];
 fs.writeFileSync(ffManifestPath, JSON.stringify(ffManifest, null, 2), 'utf8');
 generateGalleryManifest(firefoxDir);
+copyStoreSeed(firefoxDir);
 
 // web_accessible_resources 需要放行画廊清单
 ffManifest.web_accessible_resources[0].resources.push('assets/manifest.json');

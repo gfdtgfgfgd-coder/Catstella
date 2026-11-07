@@ -14,7 +14,8 @@
   const imageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
   const maxImage = 5 * 1024 * 1024;
   const maxCharacter = 2 * 1024 * 1024;
-  const maxCatalog = 256 * 1024;
+  const maxCatalog = 1024 * 1024;
+  const maxPreview = 64 * 1024;
   const frameNames = ['idle', 'blink', 'proud', 'sad', 'shy', 'angry'];
   const imageData = (value, format, limit) => {
     if (typeof value !== 'string' || value.length > limit) return false;
@@ -50,7 +51,7 @@
         data.items.length + (data.characters?.length || 0) > 60) throw new Error('invalid catalog');
     const ids = new Set();
     return [...data.items, ...(data.characters || [])].map(item => {
-      const { id, kind, path, sha256, size, name, credit, description = '', preview } = item || {};
+      const { id, kind, path, sha256, size, name, credit, description = '', preview, pack, updatedAt } = item || {};
       if (typeof id !== 'string' || !/^[a-z][a-z0-9-]{0,47}$/.test(id) || ids.has(id) ||
           typeof name !== 'string' || !name.trim() || name.length > 80 || typeof credit !== 'string' ||
           !credit.trim() || credit.length > 160 || typeof description !== 'string' || description.length > 200 ||
@@ -62,7 +63,15 @@
       const limit = { wallpaper: maxImage, theme: 4096, character: maxCharacter }[kind];
       if (!mime || path !== `${kind}s/${id}.${ext}` || size > limit) throw new Error('invalid asset path or size');
       ids.add(id);
-      return { id, kind, path, sha256, size, name, credit, description, mime, preview: imageData(preview, 'webp', 16 * 1024) ? preview : '' };
+      const group = kind === 'wallpaper' && pack && /^[a-z][a-z0-9-]{0,47}$/.test(pack.id || '') &&
+        typeof pack.name === 'string' && pack.name.length > 0 && pack.name.length <= 80 &&
+        Number.isInteger(pack.position) && pack.position > 0 && pack.position <= 60
+        ? { id: pack.id, name: pack.name, position: pack.position,
+          source: typeof pack.source === 'string' && /^https:\/\/www\.bilibili\.com\/video\/BV[a-zA-Z0-9]+\/?$/.test(pack.source) ? pack.source : '' } : undefined;
+      const day = typeof updatedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(updatedAt) ? new Date(updatedAt) : null;
+      const date = day && Number.isFinite(day.getTime()) && day.toISOString().slice(0,10) === updatedAt ? updatedAt : '';
+      return { id, kind, path, sha256, size, name, credit, description, mime, pack: group, updatedAt: date,
+        preview: imageData(preview, 'webp', maxPreview) ? preview : '' };
     });
   }
   function theme(value) {
@@ -111,15 +120,27 @@
   }
   const decode = bytes => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
   const requestOptions = () => ({ credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(9000) });
-  function create({ fetcher = globalThis.fetch, crypto = globalThis.crypto, now = Date.now, loadCheck, saveCheck }) {
+  function create({ fetcher = globalThis.fetch, crypto = globalThis.crypto, now = Date.now, loadCheck, saveCheck, bundled }) {
     let catalogCache, catalogFlight, updateFlight, lastAttempt;
+    let localItems, catalogOffline = false;
     const filesInFlight = new Map();
     async function list(force = false) {
       if (catalogFlight) return catalogFlight;
-      if (!force && catalogCache && now() - catalogCache.at < 15 * 60_000) return catalogCache.items;
+      if (!force && catalogCache && now() - catalogCache.at < (catalogOffline ? 30_000 : 15 * 60_000)) return catalogCache.items;
       catalogFlight = (async () => {
-        const res = await fetcher(assetBase + 'catalog.json', requestOptions());
-        const items = catalog(decode(await readBytes(res, maxCatalog)));
+        localItems ||= bundled ? Promise.resolve().then(bundled.catalog).then(catalog).catch(() => []) : Promise.resolve([]);
+        const local = await localItems;
+        let remote;
+        try { remote = catalog(decode(await readBytes(await fetcher(assetBase + 'catalog.json', requestOptions()), maxCatalog))); }
+        catch (error) {
+          catalogOffline = true;
+          const items = [...new Map([...(catalogCache?.items || []), ...local].map(item => [item.id, item])).values()];
+          if (!items.length) throw error;
+          catalogCache = { items, at: now() };
+          return items;
+        }
+        catalogOffline = false;
+        const items = [...new Map([...local, ...remote].map(item => [item.id, item])).values()];
         catalogCache = { items, at: now() };
         return items;
       })();
@@ -130,7 +151,9 @@
       if (!item) throw new Error('unknown asset');
       if (!filesInFlight.has(id)) {
         const task = (async () => {
-          const bytes = await readBytes(await fetcher(assetBase + item.path, requestOptions()), item.size);
+          const local = (await localItems).find(entry => entry.id === id && entry.sha256 === item.sha256);
+          const response = local ? await bundled.file(local.path) : await fetcher(assetBase + item.path, requestOptions());
+          const bytes = await readBytes(response, item.size);
           if (bytes.length !== item.size) throw new Error('unexpected asset size');
           const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('');
           if (hash !== item.sha256) throw new Error('asset digest mismatch');
@@ -162,7 +185,7 @@
       })().finally(() => { updateFlight = null; });
       return updateFlight;
     }
-    return { list, download, check };
+    return { list, download, check, catalogOffline: () => catalogOffline };
   }
   return { create, catalog, theme, failureReason, selectRelease, assetBase, releases, releaseUrl };
 });

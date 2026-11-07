@@ -1,6 +1,5 @@
 (() => {
-  const tag = 'catstella-usage-viewer';
-  if (customElements.get(tag)) return;
+  if (window.KiminoUsageViewer) return;
 
   const css = `
     :host {
@@ -59,6 +58,12 @@
     :host([compact]) .reset { font-size:10px; margin-top:0 }
     :host([compact]) footer { font-size:10px; margin-top:5px; padding-top:5px }
     :host([embedded]) header { display:none }
+    :host([embedded]) { color:inherit; --muted:var(--usage-secondary,#bdb1d2) }
+    :host([embedded]) .panel { padding:0; border:0; border-radius:0; background:none; box-shadow:none }
+    :host([embedded]) h3 { color:var(--kg-palette-accent,#d9c7fa) }
+    :host([embedded]) .row { padding:4px 0 }
+    :host([embedded]) dt, :host([embedded]) .reset, :host([embedded]) .reading.is-muted { color:var(--usage-secondary,#bdb1d2) }
+    :host([embedded]) .meter[data-scale=used]:not([data-tone=warning]):not([data-tone=critical]) { color:var(--kg-palette-accent,#bda2f2) }
   `;
 
   const node = (tagName, className, text) => {
@@ -90,14 +95,18 @@
     return `${days ? `${days} 天 ` : ''}${hours ? `${hours} 小时 ` : ''}${!days && rest ? `${rest} 分钟` : ''}`.trim() + '后重置';
   }
 
-  class UsageViewer extends HTMLElement {
+  // Content scripts in Chromium's isolated world have no customElements
+  // registry. Own the shadow host and its lifetime directly.
+  class UsageViewer {
     #data = {};
     #rows = [];
     #timer;
 
-    constructor() {
-      super();
-      this.attachShadow({ mode: 'open' });
+    constructor({ compact = false, embedded = false } = {}) {
+      this.element = node('div', 'catstella-usage-viewer');
+      if (compact) this.element.setAttribute('compact', '');
+      if (embedded) this.element.setAttribute('embedded', '');
+      const shadow = this.element.attachShadow({ mode: 'open' });
       const style = node('style', '', css);
       this.panel = node('div', 'panel');
       this.panel.setAttribute('role', 'region');
@@ -114,21 +123,28 @@
         'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
       icon.append(svg('path', { d: 'M20 11a8 8 0 1 0-2.3 6M20 5v6h-6' }));
       this.refresh.append(icon);
-      this.refresh.addEventListener('click', () => this.dispatchEvent(new CustomEvent('usage-refresh', { bubbles: true, composed: true })));
+      this.refresh.addEventListener('click', () => this.element.dispatchEvent(new CustomEvent('usage-refresh', { bubbles: true, composed: true })));
       header.append(this.heading, this.refresh);
       this.body = node('div');
       this.status = node('footer');
       this.status.setAttribute('role', 'status');
       this.panel.append(header, this.body, this.status);
-      this.shadowRoot.append(style, this.panel);
+      shadow.append(style, this.panel);
+      this.#render();
     }
 
-    connectedCallback() {
-      this.#render();
+    mount(parent) {
+      if (this.element.parentNode === parent) return;
+      this.unmount();
+      parent.append(this.element);
+      this.#update();
       this.#timer = setInterval(() => this.#update(), 1000);
     }
 
-    disconnectedCallback() { clearInterval(this.#timer); }
+    unmount() {
+      clearInterval(this.#timer);
+      this.element.remove();
+    }
 
     set data(value) {
       this.#data = value || {};
@@ -174,17 +190,21 @@
         const waiting = row.state === 'pending' || (hasReset && row.resetAt <= now);
         const value = !waiting && Number.isFinite(row.remaining)
           ? Math.round(Math.max(0, Math.min(100, row.remaining))) : null;
-        const label = waiting ? '等待更新' : value === null ? '—' : `余 ${value}%`;
+        const isUsed = row.display === 'used';
+        const displayed = value === null ? null : isUsed ? 100 - value : value;
+        const label = waiting ? '等待更新' : value === null ? (row.unknownLabel || '—')
+          : isUsed ? `已使用 ${displayed}%` : `余 ${displayed}%`;
         if (amount.textContent !== label) amount.textContent = label;
         reading.classList.toggle('is-muted', value === null);
         meter.style.display = value === null ? 'none' : '';
         if (value !== null) {
+          meter.dataset.scale = isUsed ? 'used' : 'remaining';
           meter.dataset.tone = value <= 10 ? 'critical' : value <= 25 ? 'warning' : 'normal';
           const arc = meter.lastElementChild;
-          arc.style.visibility = value === 0 ? 'hidden' : '';
-          arc.setAttribute('stroke-dasharray', `${value} 100`);
+          arc.style.visibility = displayed === 0 ? 'hidden' : '';
+          arc.setAttribute('stroke-dasharray', `${displayed} 100`);
         }
-        const time = waiting ? '已到重置时间' : hasReset ? formatReset(row.resetAt - now) : row.resetLabel || '';
+        const time = waiting ? '已到重置时间' : row.resetLabel || (hasReset ? formatReset(row.resetAt - now) : '');
         reset.hidden = !time;
         if (reset.textContent !== time) reset.textContent = time;
         if (hasReset) {
@@ -198,5 +218,5 @@
     }
   }
 
-  customElements.define(tag, UsageViewer);
+  window.KiminoUsageViewer = UsageViewer;
 })();

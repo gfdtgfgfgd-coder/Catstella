@@ -78,6 +78,7 @@ async function main() {
       ? route.fulfill({ json: { wallpapers: [{ id: 'local', name: '网页壁纸', src: 'local.jpg' }] } })
       : route.fulfill({ contentType: 'text/html', headers: { 'Content-Security-Policy': "default-src 'self' data:; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'" }, body: '<html><body></body></html>' }));
     await gallery.goto('https://gallery.test/app/fixture');
+    await gallery.addStyleTag({ path: path.join(source, 'skin.css') });
     await gallery.addScriptTag({ path: path.join(source, 'shim.js') });
     await gallery.evaluate(({ image, customChar }) => {
       window.handlers = [];
@@ -90,6 +91,12 @@ async function main() {
         agyBridgeState: { online: true, port: 3921, desktop: { wallpaperId: 'one', characterPack: 'gemini-star-v1', agyQuota: { fiveHour: 75 } } }
       };
       window.storageWrites = [];
+      window.__KIMINO_TRACKER__ = { subscribe(callback) {
+        const base = { status:'idle', turns:3, totalTokensEst:1200, fatiguePercent:38,
+          realQuota:{ displaySource:'official', currentResetTime:'15:32', weeklyUsagePercent:17, weeklyResetTime:'11月12日 10:10' } };
+        window.emitTracker = patch => callback({ ...base, ...patch });
+        window.emitTracker({});
+      } };
       window.write = values => {
         const changes = {};
         for (const [key, value] of Object.entries(values)) {
@@ -120,6 +127,8 @@ async function main() {
       };
     }, { image, customChar: svg('#e58f9b') });
     await gallery.addScriptTag({ path: path.join(source, 'wallpaper.js') });
+    await gallery.addScriptTag({ path: path.join(source, 'wallpaper-packs.js') });
+    await gallery.addScriptTag({ path: path.join(source, 'fade.js') });
     await gallery.addScriptTag({ path: path.join(source, 'skin.js') });
     await gallery.addScriptTag({ path: path.join(source, 'ambient.js') });
     await gallery.addScriptTag({ path: path.join(source, 'pet-behavior.js') });
@@ -151,19 +160,57 @@ async function main() {
     await quotaToggle.click();
     assert.equal(await gallery.locator('.agy-companion-row').evaluate(row => row.style.display), 'flex');
     await gallery.evaluate(() => window.write({ agyBridgeState: { ...state.agyBridgeState, desktop: {
-      ...state.agyBridgeState.desktop, agyQuota: { fiveHour: 75, weekly: 9, geminiWeekly: 55, argonWeekly: 9, modelName: 'Argon' }
+      ...state.agyBridgeState.desktop, agyQuota: {
+        fiveHour: 75, weekly: 9, geminiWeekly: 55, argonWeekly: 9, modelName: 'Argon',
+        claudeGpt: { fiveHour: 92, weekly: 3, weeklyReset: '3 天后重置' }
+      }
     } } }));
     await gallery.getByLabel('额度显示样式').selectOption('compact');
-    const viewer = gallery.locator('catstella-usage-viewer');
+    const viewer = gallery.locator('.catstella-usage-viewer');
+    const compactToggle = gallery.locator('.kg-switch').filter({ has: gallery.getByLabel('显示反重力模型用量') });
+    assert.equal(await gallery.getByLabel('显示反重力模型用量').isChecked(), false);
+    assert.equal(await viewer.locator('section').count(), 1);
+    await compactToggle.click();
     await viewer.getByText('Argon · 每周', { exact: true }).waitFor({ state: 'attached' });
     assert.deepEqual(await viewer.locator('section').nth(1).locator('dt').allTextContents(), ['5 小时', '每周', 'Argon · 每周']);
     assert.match(await viewer.locator('section').nth(1).innerText(), /余 55%/);
+    const webMeter = viewer.locator('section').first();
+    assert.match(await webMeter.innerText(), /已使用 38%/);
+    assert.match(await webMeter.innerText(), /已使用 17%/);
+    assert.match(await webMeter.innerText(), /重置时间 15:32/);
+    assert.equal(await viewer.locator('.panel').evaluate(el => getComputedStyle(el).borderTopWidth), '0px');
+    await compactToggle.click();
+    assert.equal(await viewer.locator('section').count(), 1);
+    assert.equal(await gallery.evaluate(() => state.syncAgyUsage), true);
+    await compactToggle.click();
+    assert.equal(await viewer.locator('section').count(), 3);
     await quotaToggle.click();
     assert.equal(await viewer.locator('section').count(), 1);
     await quotaToggle.click();
+    await gallery.keyboard.press('Escape');
+    await gallery.locator('.kimino-bubble').waitFor();
+    assert.equal(await gallery.locator('.kg-usage-mount').evaluate(el => el.clientHeight === el.scrollHeight && getComputedStyle(el).overflowY === 'visible'), true);
+    await gallery.setViewportSize({ width: 320, height: 390 });
+    await gallery.waitForFunction(() => {
+      const bubble = document.getElementById('kimino-companion-root').shadowRoot.querySelector('.kimino-bubble');
+      const box = bubble.getBoundingClientRect();
+      return box.height > 0 && box.top >= 7 && box.bottom <= innerHeight - 7;
+    });
+    await gallery.setViewportSize({ width: 1200, height: 900 });
+    await gallery.locator('.btn-open-settings').click();
     await gallery.getByLabel('额度显示样式').selectOption('classic');
     assert.equal(await viewer.count(), 0);
+    assert.equal(await compactToggle.isVisible(), false);
+    const honorific = gallery.getByLabel('桌宠互动称呼');
+    await honorific.selectOption('custom');
+    await gallery.getByLabel('自定义称呼').fill('  <队长>  ');
+    await gallery.getByLabel('自定义称呼').dispatchEvent('change');
+    await gallery.waitForFunction(() => state.customHonorific === '<队长>');
+    await gallery.locator('.kimino-settings').evaluate(panel => Promise.all(panel.getAnimations().map(animation => animation.finished)));
+    const settingsRect = () => gallery.locator('.kimino-settings').boundingBox();
+    const beforeTabs = await settingsRect();
     await gallery.locator('.kg-tab-btn[data-tab="wallpaper"]').click();
+    assert.deepEqual(await settingsRect(), beforeTabs, 'tab content must not resize the settings window');
     await gallery.evaluate(() => window.handlers.forEach(fn => fn({ agyBridgeState: { newValue: window.state.agyBridgeState } }, 'local')));
     await gallery.waitForTimeout(450);
     assert.equal(await gallery.locator('.kg-wallpaper-grid .kg-thumb').count(), 4, 'overlapping settings refreshes must not append duplicate cards');
@@ -192,7 +239,29 @@ async function main() {
           listCalls === opacitySnapshot.calls && storageWrites.length === opacitySnapshot.writes + 1;
       }), true, 'opacity must not move the panel, replace gallery cards, or request them again');
     };
+    assert.equal(await gallery.locator('.kg-wallpaper-style').isVisible(),false);
+    await gallery.evaluate(() => window.write({syncWallpaper:false}));
+    await gallery.locator('.kg-wallpaper-style').waitFor();
     await assertOpacity();
+    const blurSnapshot = await gallery.evaluate(() => {
+      const root = document.getElementById('kimino-companion-root').shadowRoot;
+      const slider = root.querySelector('#kg-wallpaper-blur');
+      window.blurSnapshot = { writes: storageWrites.length, thumb: root.querySelector('.kg-wallpaper-grid .kg-thumb'), calls: listCalls };
+      for (const value of [4, 9, 12]) {
+        slider.value = value;
+        slider.dispatchEvent(new Event('input'));
+      }
+      return [getComputedStyle(document.querySelector('#kimino-dream-wallpaper')).filter, storageWrites.length - blurSnapshot.writes];
+    });
+    assert.deepEqual(blurSnapshot, ['blur(12px)', 0]);
+    await gallery.locator('#kg-wallpaper-blur').dispatchEvent('change');
+    await gallery.waitForFunction(() => state.wallpaperBlur === 12);
+    assert.equal(await gallery.evaluate(() => {
+      const root = document.getElementById('kimino-companion-root').shadowRoot;
+      return storageWrites.length === blurSnapshot.writes + 1 && listCalls === blurSnapshot.calls &&
+        root.querySelector('.kg-wallpaper-grid .kg-thumb') === blurSnapshot.thumb;
+    }), true, 'blur must preview without writing or rebuilding the gallery, then save once');
+    await gallery.evaluate(() => window.write({syncWallpaper:true}));
     await gallery.locator('.kg-wallpaper-grid button[title="two"]').click();
     await gallery.getByRole('status').filter({hasText:'桌面壁纸未切换'}).waitFor();
     assert.equal(await gallery.evaluate(() => state.wallpaperId), 'local');
@@ -217,8 +286,8 @@ async function main() {
     await gallery.getByText('当前显示：霓音').waitFor();
     assert.notEqual(await gallery.locator('.kimino-sprite').getAttribute('src'), await gallery.evaluate(() => state.customCharacter));
     await gallery.locator('.kg-tab-btn[data-tab="wallpaper"]').click();
-    await gallery.getByText('当前显示：已安装在线壁纸').waitFor();
-    await gallery.waitForFunction(() => document.querySelector('#kimino-dream-wallpaper').__kgSrc === state.customWallpapers[0].dataUrl);
+    await gallery.getByText('桌面离线 · 保留上次壁纸').waitFor();
+    await gallery.waitForFunction(() => document.querySelector('#kimino-dream-wallpaper').__kgSrc === state.agySyncedWallpaper.dataUrl);
     await gallery.locator('.kg-btn-wallpaper').waitFor();
     assert.equal(await gallery.locator('.kg-wallpaper-grid button[title="已安装在线壁纸"]').getAttribute('aria-pressed'), 'true');
     const badge = await gallery.locator('.kg-wallpaper-grid .kg-active-badge').boundingBox();
@@ -227,7 +296,61 @@ async function main() {
     await gallery.locator('.kg-toggle-wall-sync').click();
     await gallery.locator('.kg-wall-mode').filter({ hasText: '独立设置' }).waitFor();
     assert.equal(await gallery.evaluate(() => state.syncWallpaper), false);
+    await gallery.getByText('当前显示：已安装在线壁纸').waitFor();
+    await gallery.waitForFunction(() => document.querySelector('#kimino-dream-wallpaper').__kgSrc === state.customWallpapers[0].dataUrl);
+    await gallery.getByLabel('壁纸铺放方式').selectOption('contain');
+    await gallery.waitForFunction(() => getComputedStyle(document.querySelector('#kimino-dream-wallpaper')).backgroundSize.includes('contain'));
+    await gallery.getByLabel('自动轮播',{exact:true}).evaluate(input => input.click());
+    await gallery.getByLabel('轮播间隔（分钟）').fill('7');
+    await gallery.getByLabel('轮播间隔（分钟）').dispatchEvent('change');
+    await gallery.waitForFunction(() => state.webWallpaperSlideshow === true && state.webWallpaperInterval === 7);
+    await gallery.evaluate(() => window.write({webWallpaperCycle:{anchor:state.wallpaperId,minutes:7,id:'local',nextAt:Date.now()+420000}}));
+    await gallery.getByText('当前显示：网页壁纸').waitFor();
+    await gallery.getByLabel('自动轮播',{exact:true}).evaluate(input => input.click());
+    await gallery.getByText('当前显示：已安装在线壁纸').waitFor();
     await assertOpacity();
+    await gallery.keyboard.press('Escape');
+    const dialogue = gallery.locator('.kimino-dialogue');
+    await dialogue.waitFor();
+    await gallery.evaluate(() => window.emitTracker({ status: 'thinking', activity: { kind: 'generating' } }));
+    assert.match(await dialogue.innerText(), /<队长>/);
+    assert.equal(await dialogue.locator('*').count(), 0, 'the honorific remains plain text');
+    await gallery.evaluate(() => {
+      write({ userHonorificMode: 'desktop', agyBridgeState: { online: true, desktop: {
+        honorific: { mode: 'custom', name: '指挥官' }, modelActivity: { kind: 'model-running', stepIndex: 4 }
+      } } });
+    });
+    assert.match(await dialogue.innerText(), /Gemini.*生成/);
+    assert.match(await dialogue.innerText(), /指挥官/);
+    await gallery.evaluate(() => window.emitTracker({ activity: { kind: 'interrupted' } }));
+    assert.match(await dialogue.innerText(), /回复中断/);
+    await gallery.waitForFunction(() => {
+      const root = document.getElementById('kimino-companion-root').shadowRoot;
+      return root.querySelector('.kimino-dialogue').textContent.includes('模型步骤 #4');
+    });
+    await gallery.evaluate(() => write({ agyBridgeState: { ...state.agyBridgeState, online: false } }));
+    assert.doesNotMatch(await dialogue.innerText(), /模型步骤 #4/);
+    await gallery.locator('.btn-open-settings').click();
+    await gallery.locator('.kg-tab-btn[data-tab="wallpaper"]').click();
+    await gallery.evaluate(() => {
+      const {dataUrl} = state.customWallpapers[0];
+      write({customWallpapers:[...state.customWallpapers,
+        {id:'custom:online-moriyama-catgirl-01',title:'套装壁纸一',dataUrl},
+        {id:'custom:online-moriyama-catgirl-02',title:'套装壁纸二',dataUrl,
+          pack:{id:'moriyama-catgirl-pack',name:'森山白月壁纸包',position:2}}
+      ]});
+    });
+    const pack = gallery.locator('.kg-wallpaper-grid .wallpaper-pack');
+    await pack.waitFor();
+    assert.equal(await pack.getAttribute('aria-expanded'),'false');
+    assert.equal(await gallery.locator('.wallpaper-pack-items button').count(),0);
+    await pack.click();
+    const packWall = gallery.locator('.wallpaper-pack-items .kg-thumb[title="套装壁纸二"]');
+    await packWall.click();
+    await gallery.waitForFunction(() => state.wallpaperId === 'custom:online-moriyama-catgirl-02');
+    assert.equal(await pack.getAttribute('aria-expanded'),'true');
+    await pack.click();
+    await packWall.waitFor({state:'hidden'});
     const evidence = path.resolve(root, process.env.SKIN_EVIDENCE_DIR || '../evidence');
     fs.mkdirSync(evidence, { recursive: true });
     await gallery.screenshot({ path: path.join(evidence, 'wallpaper-gallery.png') });
