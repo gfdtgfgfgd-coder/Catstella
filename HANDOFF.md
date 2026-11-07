@@ -4,6 +4,8 @@
 
 本版新增设置首次打开时的更新说明，文案位于 `Antigravity-Cat-Widget/assets/release-notes.json`，须与根目录版本一致。显示成功后由主进程持久化已读版本，同版本不再自动弹出；CI 同时检查首次展示和重开不再展示。
 
+发布结果：`v0.6.1` 和 `web-v1.5.1` 已上线，Actions `42394456903` 的 Windows、macOS arm64/x64、Linux 与发布任务全部成功。桌面 Release 含 7 份安装文件、2 份 Web 扩展及校验清单；Web Release 另外提供同一组扩展。Mac 拖动通过 CI 原生窗口检查，真实设备的宿主跟随仍待后续适配。
+
 > 更新时间：2026-11-05  
 > 状态：下文保留的是 20:41 那次构建的历史记录。发布以 GitHub Actions 的三端构建和验收结果为准。<br>
 > 桌面工作区：`D:\Catstella`，分支 `main`，跟踪 `origin/main`<br>

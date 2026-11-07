@@ -1,6 +1,6 @@
 # Catstella 路线图
 
-「已实现」指源码已接入，实机验收单独记录。0.6.1 的 RC 3 已获用户验收，本轮通过 GitHub Actions 生成正式版三端安装包，Web 源码固定到 `web-source-v1.5.1`。
+「已实现」指源码已接入，实机验收单独记录。0.6.1 的 RC 3 已获用户验收，正式版三端安装包已通过 GitHub Actions 构建、启动检查与发布，Web 源码固定到 `web-source-v1.5.1`。
 
 ## 已实现
 
@@ -30,7 +30,7 @@
 - [ ] **macOS 拖动实机复测。** 旧版用户反馈桌宠在宿主窗口外且拖不动。新版修复拖动中移出命中区导致穿透的风险，CI 增加原生窗口移动和离屏恢复检查。macOS 的宿主窗口跟随仍需专门适配。
 - [ ] **Web「对话／任务」切换。** 隔离环境已验证皮肤保留原生按钮。真实账号的差异可能与 Gemini 灰度有关，暂不作为发包阻塞。
 - **首页黑雾。** 暂缓。
-- [ ] **0.6.1 发布。** 桌面源码推进 `main`，固定 Web 1.5.1 源码标签，等待三端 Actions 构建、启动检查和校验后发布。
+- [x] **0.6.1 发布。** 桌面源码已推进 `main`，Windows x64、macOS arm64/x64、Linux x64 均通过构建与验证。已发布 [桌面 0.6.1](https://github.com/lynnfei/Catstella/releases/tag/v0.6.1) 和 [Web 1.5.1](https://github.com/lynnfei/Catstella/releases/tag/web-v1.5.1)，下载附件附带 SHA-256 校验清单。 [Actions 结果](https://github.com/lynnfei/Catstella/actions/runs/42394456903)
 
 ## 后续功能
 
