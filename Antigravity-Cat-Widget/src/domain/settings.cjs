@@ -5,9 +5,9 @@ class SettingsManager{
  constructor(file=path.join(os.homedir(),".antigravity-cat-widget/settings.json")){this.filePath=file;this.data=this.sanitize(readJson(file,DEFAULT_SETTINGS));}
  sanitize(input){const s={...DEFAULT_SETTINGS,...input};for(const k of ["alwaysOnTop","reducedMotion","sound","bubbleOn","turnCostOn","clickThrough","hostWindowOnly","standaloneDesktopMode","easterEggs","ambientChatter","autoUpdateCheck","syncCharacter","syncWallpaper","syncInteraction"])s[k]=bool(s[k],DEFAULT_SETTINGS[k]);for(const k of ["hostOffsetX","hostOffsetY"])s[k]=finite(s[k],18,0,100000);s.hostDock=["left","right", ""].includes(s.hostDock)?s.hostDock:"";s.scale=finite(s.scale,220,140,360);s.volume=finite(s.volume,.35,0,1);for(const k of ["x","y"])s[k]=typeof s[k]==="number"&&Number.isFinite(s[k])?Math.round(s[k]):null;s.soundSet=ALLOWED_SOUND_SETS.includes(s.soundSet)?s.soundSet:"bubble-pop";s.turnCostDurationMs=finite(s.turnCostDurationMs,5000,0,60000);s.petDisplayMode=["both","prefer-desktop","prefer-web"].includes(s.petDisplayMode)?s.petDisplayMode:"both";s.bubblePage=["quota","webQuota","claudeGpt","today","latest","talk"].includes(s.bubblePage)?s.bubblePage:"quota";s.manualWeeklyPercent=finite(s.manualWeeklyPercent,null,0,100);s.manualQuota=bool(s.manualQuota,false);s.manualPercent=finite(s.manualPercent,null,0,100);s.clickCatAction=typeof s.clickCatAction==="string"||typeof s.clickCatAction==="boolean"?s.clickCatAction:DEFAULT_SETTINGS.clickCatAction;s.userHonorificMode=["none","zayu","custom"].includes(s.userHonorificMode)?s.userHonorificMode:"none";s.customHonorific=typeof s.customHonorific==="string"?s.customHonorific.slice(0,16):"";return s;}
  save(){writeJson(this.filePath,this.data);return true;}
- update(partial){
+ update(partial,{persist=true}={}){
   const next=this.sanitize({...this.data,...partial});
-  writeJson(this.filePath,next);
+  if(persist)writeJson(this.filePath,next);
   this.data=next;
   return this.getAll();
  }

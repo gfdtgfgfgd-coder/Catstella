@@ -6,10 +6,10 @@ const { readJson, writeJson } = require('../../../shared/storage.cjs');
 const { probeImage } = require('../../../Antigravity-Dream-Skin/src/domain/theme-loader.cjs');
 
 function createOnlineActions({ dataDir, wallpaperDir, characterDir, version, settings, nativeImage, shell, apply,
-  onCheck = () => {}, onInstalled = () => {}, fetcher }) {
+  onCheck = () => {}, onInstalled = () => {}, fetcher, bundled }) {
   const cache = path.join(dataDir, 'update-check.json');
   const client = create({
-    fetcher,
+    fetcher, bundled,
     loadCheck: () => readJson(cache, null),
     saveCheck: result => { try { writeJson(cache, result); } catch {} }
   });
@@ -53,7 +53,7 @@ function createOnlineActions({ dataDir, wallpaperDir, characterDir, version, set
   async function install(id, applyAfterwards) {
     const asset = await client.download(id);
     if (asset.theme) {
-      apply({ dreamSkin: { themePreset: asset.theme.palette, opacity: asset.theme.opacity } });
+      apply({ dreamSkin: { themePreset: asset.theme.palette, opacity: asset.theme.opacity, onlineThemeId: id } });
       return { ok: true, kind: 'theme' };
     }
     if (asset.character) {
@@ -76,7 +76,7 @@ function createOnlineActions({ dataDir, wallpaperDir, characterDir, version, set
     } finally {
       fs.rmSync(temp, { force: true });
     }
-    writeJson(path.join(dir, 'manifest.json'), { id: packId, file: filename, name: asset.item.name, credit: asset.item.credit });
+    writeJson(path.join(dir, 'manifest.json'), { id: packId, file: filename, name: asset.item.name, credit: asset.item.credit, pack: asset.item.pack });
     if (applyAfterwards) apply({ dreamSkin: { wallpaperId: packId, wallpaperFile: file } });
     onInstalled('wallpaper');
     return { ok: true, kind: 'wallpaper' };
@@ -89,7 +89,20 @@ function createOnlineActions({ dataDir, wallpaperDir, characterDir, version, set
         await shell.openExternal(releaseUrl(result.url));
         return { ok: true };
       }
-      if (action === 'catalog') return { ok: true, items: await client.list(value === true) };
+      if (action === 'source' && typeof value === 'string' && /^https:\/\/www\.bilibili\.com\/video\/BV[a-zA-Z0-9]+\/?$/.test(value)) {
+        await shell.openExternal(value);
+        return { ok: true };
+      }
+      if (action === 'catalog') {
+        const items = await client.list(value === true);
+        return { ok: true, items, offline: client.catalogOffline() };
+      }
+      if (action === 'preview-theme' && typeof value === 'string') {
+        const item = (await client.list()).find(item => item.id === value && item.kind === 'theme');
+        if (!item) return { ok: false };
+        const { theme } = await client.download(item.id);
+        return theme ? { ok: true, ...theme } : { ok: false };
+      }
       if ((action === 'install' || action === 'download') && typeof value === 'string') {
         if (!operations.has(value)) operations.set(value, install(value, action === 'install').finally(() => operations.delete(value)));
         return await operations.get(value);

@@ -30,10 +30,10 @@
     });
   }
 
-  let onlinePanel;
+  let onlinePanel, contentHub;
   function showPage(name) {
     if (name === "audio") name = "pet";
-    if (name === "about" && !onlinePanel && api.online) onlinePanel = window.mountCatstellaOnline($("online-panel"), api.online, {themeOnly:true});
+    if (name === "about" && !onlinePanel && api.online) onlinePanel = window.mountCatstellaOnline($("online-panel"), api.online, {updatesOnly:true});
     if (!pages.some(p => p.dataset.page === name)) name = "overview";
     navItems.forEach(b => {
       const current = b.dataset.page === name;
@@ -202,6 +202,7 @@
     append(info, "span", "card-desc", description);
     card.onclick = select;
     gallery.appendChild(card);
+    return card;
   }
 
   const gallerySnapshots = new Map();
@@ -215,7 +216,7 @@
     gallery.replaceChildren();
     for (const item of items) build(item);
     gallery.scrollLeft = scrollLeft;
-    if (focused) [...gallery.children].find(card => card.dataset.assetId === focused)?.focus({preventScroll:true});
+    if (focused) [...gallery.querySelectorAll("[data-asset-id]")].find(card => card.dataset.assetId === focused)?.focus({preventScroll:true});
   }
 
   function describeAppearance(kind, name, syncKey, enabled = true) {
@@ -243,52 +244,122 @@
     });
   }
 
+  const expandedWallpaperPacks = new Set();
   function renderWallpaperGallery() {
     const gallery = $("wallpaper-gallery"), walls = data.wallpapers || [];
     $("wallpaper-count").textContent = walls.length + " 张";
-    const normalizePath = value => (value || "").replace(/\\/g, "/").toLowerCase();
-    const current = normalizePath(data.dreamSkin?.wallpaperFile);
-    const selected = (current && walls.find(wall => normalizePath(wall.filePath) === current)) ||
-      walls.find(wall => wall.id === data.dreamSkin?.wallpaperId) || walls[0];
+    const selected = selectedWallpaper(walls);
     describeAppearance("wallpaper", selected?.title, "syncWallpaper", data.dreamSkin?.enabled === true);
-    renderGallery(gallery, walls, ["id", "title", "fileName", "filePath", "preview"], selected?.id, wall => {
+    const groups = window.CatstellaWallpaperPacks.groups(walls);
+    const membership = new Map(groups.filter(group => group.name).flatMap(group => group.items.map(wall => [wall.id,group])));
+    const drawn = new Set();
+    const addWall = (parent,wall) => {
       const active = selected?.id === wall.id;
-      galleryTile(gallery, {
+      galleryTile(parent, {
         id: wall.id,
         name: wall.title, description: wall.fileName, preview: wall.preview, active, kind: "wallpaper",
         select: () => { if (!active) save({ dreamSkin: { wallpaperFile: wall.filePath } }, "已切换至「" + wall.title + "」"); }
       });
+    };
+    const galleryRows = walls.map(wall => ({...wall, packKey:JSON.stringify(wall.pack)}));
+    renderGallery(gallery, galleryRows, ["id", "title", "fileName", "filePath", "preview", "packKey"], selected?.id, wall => {
+      const group = membership.get(wall.id);
+      if (!group) { addWall(gallery,wall); return; }
+      if (drawn.has(group.key)) return;
+      drawn.add(group.key);
+      const current = group.items.find(item => item.id === selected?.id);
+      const cover = galleryTile(gallery,{
+        id:group.key,name:group.name,description:group.items.length + " 张壁纸 · 展开 / 收起",
+        preview:(current || group.items[0]).preview,active:!!current,kind:"wallpaper"
+      });
+      cover.classList.add("wallpaper-pack");
+      cover.title = group.name;
+      cover.removeAttribute("aria-pressed");
+      cover.setAttribute("aria-label",group.name + "，" + group.items.length + " 张壁纸");
+      window.CatstellaWallpaperPacks.attach(cover,group.key,expandedWallpaperPacks,parent => {
+        for (const item of group.items) addWall(parent,item);
+      });
     });
   }
 
-  const onlineCounts = { character: 0, wallpaper: 0 };
-  let onlineNoticeDismissed = false;
-  function updateOnlineNotice(kind, count) {
-    onlineCounts[kind] = count;
-    $("online-notice").hidden = onlineNoticeDismissed || !Object.values(onlineCounts).some(Boolean);
-    $("notice-characters").hidden = !onlineCounts.character;
-    $("notice-wallpapers").hidden = !onlineCounts.wallpaper;
-    const parts = [onlineCounts.character && onlineCounts.character + " 款桌宠", onlineCounts.wallpaper && onlineCounts.wallpaper + " 张壁纸"];
-    $("online-notice-text").textContent = "发现可安装的在线素材 · " + parts.filter(Boolean).join("、");
+  function selectedWallpaper(walls = data.wallpapers || []) {
+    const normalizePath = value => (value || "").replace(/\\/g, "/").toLowerCase();
+    const current = normalizePath(data.dreamSkin?.wallpaperFile);
+    return (current && walls.find(wall => normalizePath(wall.filePath) === current)) ||
+      walls.find(wall => wall.id === data.dreamSkin?.wallpaperId) || walls[0];
   }
-  function openOnlineGallery(page, id) {
-    showPage(page);
-    $(id).scrollIntoView({block:"start"});
+
+  const storeCategories = { theme: "主题", wallpaper: "壁纸", character: "桌宠" };
+  const seenStoreKey = "catstella.hub.seen-updates.v1";
+  let seenStoreUpdates = new Map(), unseenStoreUpdates = [];
+  try { seenStoreUpdates = new Map(JSON.parse(localStorage.getItem(seenStoreKey) || "[]")); } catch {}
+  const storeRevision = item => item.sha256 || item.updatedAt || item.id;
+  function updateOnlineNotice(items) {
+    unseenStoreUpdates = items.filter(item => seenStoreUpdates.get(item.id) !== storeRevision(item));
+    const available = new Set(unseenStoreUpdates.map(item => item.kind));
+    const labels = Object.keys(storeCategories).filter(kind => available.has(kind)).map(kind => storeCategories[kind]);
+    $("online-notice").hidden = !labels.length;
+    const message = labels.length ? "内容商店有" + labels.join("、") + "更新" : "";
+    if ($("online-notice-text").textContent !== message) $("online-notice-text").textContent = message;
   }
-  $("notice-characters").onclick = () => openOnlineGallery("pet", "online-characters");
-  $("notice-wallpapers").onclick = () => openOnlineGallery("wallpaper", "online-wallpapers");
-  $("dismiss-online-notice").onclick = () => { onlineNoticeDismissed = true; $("online-notice").hidden = true; };
-  if (api.online) for (const [kind, id, key] of [
-    ["character", "online-characters", "characterPacks"],
-    ["wallpaper", "online-wallpapers", "wallpapers"]
-  ]) {
-    const gallery = window.mountCatstellaGallery($(id), {
-      call: api.online,
-      kind,
-      installed: item => (data[key] || []).some(pack => pack.id === item.id || pack.id === "online-" + item.id),
-      onCount: count => updateOnlineNotice(kind, count)
+  function acknowledgeStoreUpdates() {
+    for (const item of unseenStoreUpdates) {
+      seenStoreUpdates.delete(item.id);
+      seenStoreUpdates.set(item.id,storeRevision(item));
+    }
+    seenStoreUpdates = new Map([...seenStoreUpdates].slice(-180));
+    try { localStorage.setItem(seenStoreKey,JSON.stringify([...seenStoreUpdates])); } catch {}
+    updateOnlineNotice([]);
+  }
+  function openOnlineGallery(kind) {
+    showPage("store");
+    contentHub?.filter(kind);
+  }
+  $("online-characters").onclick = () => openOnlineGallery("character");
+  $("online-wallpapers").onclick = () => openOnlineGallery("wallpaper");
+  $("view-online-updates").onclick = () => {
+    acknowledgeStoreUpdates();
+    showPage("store");
+    contentHub?.filter("all","recent");
+    $("content-hub").querySelector('.hub-filters [aria-pressed=true]')?.focus({preventScroll:true});
+  };
+  $("dismiss-online-notice").onclick = acknowledgeStoreUpdates;
+  if (api.online) {
+    const installedAsset = item => (data[item.kind === "character" ? "characterPacks" : "wallpapers"] || [])
+      .find(asset => asset.id === item.id || asset.id === "online-" + item.id);
+    contentHub = window.mountCatstellaHub($("content-hub"), {
+      call: async (action,value) => {
+        const result = await api.online(action,value);
+        if (action === "download" && result?.ok) data = await api.get() || data;
+        return result;
+      },
+      selection: item => {
+        if (item.kind === "theme") {
+          const known = {"violet-default":"violet","midnight-blue":"ocean"}[item.id];
+          const active = known ? known === data.dreamSkin.themePreset : data.dreamSkin.onlineThemeId === item.id;
+          return {installed:active,active};
+        }
+        const asset = installedAsset(item);
+        return {installed:!!asset,active:!!asset && (item.kind === "character" ? data.settings.characterPack === asset.id :
+          selectedWallpaper()?.id === asset.id),preview:(asset?.filePath ? ("file:///" + asset.filePath.replace(/\\/g, "/")) : asset?.frames?.idle || asset?.preview)};
+      },
+      use: async item => {
+        if (item.kind === "theme") {
+          const result = await api.online("install",item.id);
+          if(result?.ok) data = await api.get() || data;
+          return result;
+        }
+        const asset = installedAsset(item);
+        if (!asset) return {ok:false};
+        const updated = await api.save(item.kind === "character" ? {characterPack:asset.id} : {dreamSkin:{wallpaperFile:asset.filePath}});
+        if(updated) data = updated;
+        return {ok:item.kind === "character" ? data.settings.characterPack === asset.id : selectedWallpaper()?.id === asset.id};
+      },
+      openSource: url => void api.online("source",url),
+      previewWallpaper: () => selectedWallpaper()?.preview,
+      onCount: updateOnlineNotice
     });
-    void gallery.load();
+    void contentHub.load();
   }
 
   // 5.5 双端联动看板与状态胶囊渲染
@@ -1385,12 +1456,56 @@
     active.play().catch(() => $("audio-note").textContent = "播放未成功");
   };
 
+  const storeSelection = state => JSON.stringify([
+    state.settings.characterPack, state.dreamSkin?.themePreset, state.dreamSkin?.onlineThemeId,
+    state.dreamSkin?.wallpaperId, state.dreamSkin?.wallpaperFile,
+    state.characterPacks?.map(pack => pack.id), state.wallpapers?.map(wall => wall.id), state.artVersion
+  ]);
   api.subscribe(next => {
     if (next.settings.sound !== data.settings.sound || next.settings.volume !== data.settings.volume || next.settings.soundSet !== data.settings.soundSet) stop();
+    const refreshStore = contentHub && storeSelection(next) !== storeSelection(data);
     data = next;
     render();
+    if (refreshStore) contentHub.render();
   });
 
   window.addEventListener("beforeunload", stop);
   render();
+  async function showReleaseNotes() {
+    if (!api.releaseNotes || !api.markReleaseNotesSeen) return;
+    try {
+      const notes = await api.releaseNotes();
+      if (!notes || !Array.isArray(notes.items) || !notes.items.length) return;
+      // Let a dialog opened while fetching finish before showing the announcement.
+      while (document.querySelector("dialog[open]")) {
+        await new Promise(resolve => document.querySelector("dialog[open]").addEventListener("close", resolve, { once: true }));
+      }
+      const focus = document.activeElement;
+      const dialog = document.createElement("dialog");
+      dialog.className = "release-notes";
+      dialog.setAttribute("aria-labelledby", "release-notes-title");
+      const title = document.createElement("h2");
+      title.id = "release-notes-title";
+      title.textContent = notes.title;
+      const list = document.createElement("ul");
+      for (const item of notes.items) {
+        const li = document.createElement("li");
+        li.textContent = item;
+        list.append(li);
+      }
+      const close = document.createElement("button");
+      close.className = "btn primary";
+      close.textContent = "知道了";
+      close.onclick = () => dialog.close();
+      dialog.append(title, list, close);
+      dialog.addEventListener("close", () => {
+        dialog.remove();
+        if (focus?.isConnected) focus.focus({ preventScroll: true });
+      }, { once: true });
+      document.body.append(dialog);
+      dialog.showModal();
+      await api.markReleaseNotesSeen(notes.version);
+    } catch (error) { console.warn("Catstella: could not show release notes", error); }
+  }
+  void showReleaseNotes();
 })();

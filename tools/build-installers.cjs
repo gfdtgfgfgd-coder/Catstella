@@ -3,8 +3,11 @@ const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('no
 const {detectWebCompanion}=require('./web-companion-path.cjs');
 const {writeChecksums}=require('./release-checksums.cjs');
 const {stripByokUi}=require('./release-payload.cjs');
-const root=path.resolve(__dirname,'..'),version=require('../package.json').version;
-const out=path.join(root,'dist/installers'),stage=path.join(root,'dist/installer-stage-'+Date.now());
+const {writeOnlineSeed}=require('./online-seed.cjs');
+const root=path.resolve(__dirname,'..'),version=process.env.CATSTELLA_BUILD_VERSION||require('../package.json').version;
+if(!/^\d+\.\d+\.\d+(?:-(?:beta|rc)\.\d+)?$/.test(version))throw Error('Invalid installer build version');
+const out=path.resolve(process.env.CATSTELLA_INSTALLER_OUT||path.join(root,'dist/installers'));
+const stage=path.join(root,'dist/installer-stage-'+Date.now());
 const runtime=path.dirname(require('electron')),csc=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319/csc.exe');
 const web=detectWebCompanion();
 if(!web)throw Error('未找到 Web 扩展源码：请配置 WEB_COMPANION_PATH 或检出相邻的 Catstella-web 工作区。');
@@ -31,6 +34,7 @@ for(const name of ['src','assets'])fs.cpSync(path.join(root,'Antigravity-Cat-Wid
 // control window never enter the unified package.
 for(const name of ['domain','host'])fs.cpSync(path.join(root,'Antigravity-Dream-Skin/src',name),path.join(app,'Antigravity-Dream-Skin/src',name),{recursive:true,filter:sourceFilter});
 for(const name of ['localization','wallpapers'])fs.cpSync(path.join(root,'Antigravity-Dream-Skin/assets',name),path.join(app,'Antigravity-Dream-Skin/assets',name),{recursive:true,filter:sourceFilter});
+writeOnlineSeed(path.join(root,'online-assets'),path.join(app,'online-assets'));
 if(fs.existsSync(path.join(app,'Antigravity-Cat-Widget/assets/references')))throw Error('Reference images must not enter installer');
 fs.writeFileSync(path.join(app,'package.json'),JSON.stringify({name:'catstella',productName:'Catstella',version,main:'Antigravity-Cat-Widget/src/main/index.cjs',byokDevelopment:false}));
 
@@ -69,7 +73,9 @@ execFileSync(csc,['/nologo','/target:exe','/optimize+','/out:'+path.join(app,'An
  const iscc=path.join(__dirname,'vendor/InnoSetup/ISCC.exe');
  if(!fs.existsSync(iscc))throw Error('未找到 Inno Setup 编译器（tools/vendor/InnoSetup/ISCC.exe）——请先运行 tools/ensure-inno.cjs 一次性下载。');
  // web 端组件：分房后优先从 web worktree 现场构建最新插件，再随 webext 组件进包。
- execFileSync(process.execPath,[path.join(web.base,'scripts','build.js')],{stdio:'inherit',cwd:web.base,timeout:300000});
+ const seed=path.join(app,'online-assets');
+ execFileSync(process.execPath,[path.join(web.base,'scripts','build.js')],{stdio:'inherit',cwd:web.base,timeout:300000,
+  env:{...process.env,CATSTELLA_ONLINE_SEED:seed}});
  const fileName='Catstella-Setup-'+version+'-x64.exe';
  const target=path.join(out,fileName);
  // Keep the previous completed installer intact if compilation fails.

@@ -2,7 +2,8 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),asse
 const {_electron}=require('playwright');
 const {detectWebCompanion}=require('./web-companion-path.cjs');
 const {checksumLine}=require('./release-checksums.cjs');
-const root=path.resolve(__dirname,'..'),version=require('../package.json').version;
+const root=path.resolve(__dirname,'..'),version=process.env.CATSTELLA_BUILD_VERSION||require('../package.json').version;
+const installerDir=path.resolve(process.env.CATSTELLA_INSTALLER_OUT||path.join(root,'dist/installers'));
 const testRoot=fs.mkdtempSync(path.join(root,'dist','安装验证-')),checks=[];
 const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
 
@@ -22,7 +23,7 @@ function legacyLogFixture(){
 
 (async()=>{
  for(const [kind,name,exe] of [['Suite','Catstella','StarSuite.exe']]){
-  const setup=path.join(root,'dist/installers',name+'-Setup-'+version+'-x64.exe'),dir=path.join(testRoot,kind);
+  const setup=path.join(installerDir,name+'-Setup-'+version+'-x64.exe'),dir=path.join(testRoot,kind);
   const checksum=await checksumLine(setup);
   assert.equal(fs.readFileSync(setup+'.sha256','ascii'),checksum,'Installer checksum must match the tested EXE');
   const installArgs=['/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/DIR='+dir,'/COMPONENTS=core,webext','/TASKS='];
@@ -62,14 +63,17 @@ function legacyLogFixture(){
   assert.equal(fs.readFileSync(path.join(web.dist,'SHA256SUMS.txt'),'ascii'),webChecksums.join(''));
   assert(!fs.existsSync(path.join(dir,'resources/app/Gemini-Web-Companion')));
   const appDir=path.join(dir,'resources/app');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(appDir,'package.json'),'utf8')).byokDevelopment,false);
+  const appMetadata=JSON.parse(fs.readFileSync(path.join(appDir,'package.json'),'utf8'));
+  assert.equal(appMetadata.version,version);
+  assert.equal(appMetadata.byokDevelopment,false);
   assert(!fs.existsSync(path.join(appDir,'shared/gateway')),'The release must exclude the experimental gateway');
   assert(!fs.existsSync(path.join(appDir,'Antigravity-Dream-Skin/src/host/byok-portal.cjs')));
   assert(!fs.readdirSync(path.join(dir,'resources/app/Antigravity-Cat-Widget/src/native')).some(file=>/^ForegroundHost\.[0-9a-f]{12}\.exe$/i.test(file)), 'Development helper caches must not ship');
   assert(!fs.existsSync(path.join(dir,'node_modules')));checks.push(kind+': Inno silent install in non-ASCII directory; licenses, both suite projects, expression icons and webext component');
   execFileSync(path.join(dir,'StartupSettings.exe'),['--self-test'],{env,timeout:15000,windowsHide:true,encoding:'utf8'});
   checks.push(kind+': autostart/link flags, host transition decision, and temporary registry cleanup');
-  const app=await _electron.launch({executablePath:path.join(dir,exe),args:['--data-dir='+path.join(testRoot,kind+'-profile')],env,timeout:30000});
+  const profile=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'catstella-window-'));
+  const app=await _electron.launch({executablePath:path.join(dir,exe),args:['--isolated-dev','--data-dir='+profile],env,timeout:30000});
   try{
    const page=await app.firstWindow();await page.waitForFunction(()=>window.widgetApi,{},{timeout:20000});
    const state=await page.evaluate(async()=>await window.widgetApi.get());assert(state.settings);assert(state.dreamSkin);assert(Array.isArray(state.wallpapers));

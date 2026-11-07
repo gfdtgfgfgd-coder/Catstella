@@ -5,6 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'none'; img-src 'self' data: file:;">
   <title>Catstella · 设置中心</title>
   <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="content-hub.css">
 </head>
 <body>
   <div class="settings-shell">
@@ -24,6 +25,7 @@
       <!-- 左侧导航：新增页面只需在这里加一个 button[data-page] 和一个 section.page[data-page] -->
       <nav class="side-nav" id="side-nav" aria-label="设置分类">
         <button type="button" class="nav-item active" data-page="overview"><span class="nav-ico">🏠</span><span>总览</span></button>
+        <button type="button" class="nav-item" data-page="store"><span class="nav-ico">✦</span><span>内容商店</span></button>
         <button type="button" class="nav-item" data-page="pet"><span class="nav-ico">🐱</span><span>桌宠</span></button>
         <button type="button" class="nav-item" data-page="wallpaper"><span class="nav-ico">🖼️</span><span>壁纸</span></button>
         <button type="button" class="nav-item" data-page="agy"><span class="nav-ico">🪐</span><span>反重力</span></button>
@@ -93,7 +95,7 @@
               <select id="characterPack" style="display:none"></select>
             </div>
 
-            <div class="card" id="online-characters"></div>
+            <button type="button" class="btn small" id="online-characters">浏览在线桌宠</button>
 
             <div class="card">
               <h3>双端联动与样式同步 <span class="sync-pill offline" id="pet-bridge-pill">⚪ 等待 Web 扩展</span></h3>
@@ -105,7 +107,7 @@
                   <option value="prefer-web">焦点互斥（浏览 Gemini 网页时隐藏桌面猫猫）</option>
                 </select>
               </label>
-              <label class="row"><span class="row-text"><b>同步互动偏好</b><small>开启后点击猫猫的动作模式在双端保持一致</small></span><input id="syncInteraction" type="checkbox"></label>
+              <label class="row"><span class="row-text"><b>同步互动偏好</b><small>同步点击动作，允许网页端跟随本机称呼</small></span><input id="syncInteraction" type="checkbox"></label>
             </div>
 
             <div class="card">
@@ -115,11 +117,11 @@
                 <span class="row-text"><b>桌宠互动称呼</b><small>设置桌宠台词中对你的称呼</small></span>
                 <div style="display:flex;gap:8px;align-items:center;">
                   <select id="userHonorificMode" style="padding:4px 8px;border-radius:8px;border:1px solid rgba(189,162,242,0.3);background:rgba(255,255,255,0.7);font-size:13px;">
-                    <option value="none">（默认）不指定称呼</option>
+                    <option value="none">台词默认称呼</option>
                     <option value="zayu">杂鱼君</option>
                     <option value="custom">其他（自定义）…</option>
                   </select>
-                  <input id="customHonorific" type="text" placeholder="输入称呼" maxlength="12" style="width:90px;padding:4px 8px;border-radius:8px;border:1px solid rgba(189,162,242,0.3);background:rgba(255,255,255,0.9);font-size:13px;display:none;">
+                  <input id="customHonorific" type="text" placeholder="输入称呼" maxlength="16" style="width:90px;padding:4px 8px;border-radius:8px;border:1px solid rgba(189,162,242,0.3);background:rgba(255,255,255,0.9);font-size:13px;display:none;">
                 </div>
               </label>
               <label class="row"><span class="row-text"><b>无宿主时退守桌面显示</b><small>反重力未打开时桌宠留在桌面，而不是隐藏</small></span><input id="standaloneDesktopMode" type="checkbox"></label>
@@ -160,7 +162,7 @@
               <p class="hint">壁纸目录支持放入任意 16:9 壁纸，自动加入轮播与预览。</p>
             </div>
 
-            <div class="card" id="online-wallpapers"></div>
+            <button type="button" class="btn small" id="online-wallpapers">浏览在线壁纸</button>
 
             <div class="card">
               <h3>自动轮播</h3>
@@ -274,6 +276,7 @@
           </section>
 
           <!-- 关于 -->
+          <section class="page" data-page="store"><h2 class="page-title">在线内容商店</h2><div id="content-hub"></div></section>
           <section class="page" data-page="about">
             <h2 class="page-title">关于</h2>
             <div class="card">
@@ -291,10 +294,9 @@
 
         </div>
 
-        <aside class="online-notice" id="online-notice" aria-label="在线素材提醒" hidden>
+        <aside class="online-notice" id="online-notice" aria-label="内容商店更新" hidden>
           <span id="online-notice-text" role="status"></span>
-          <button id="notice-characters" type="button" class="btn small">看桌宠</button>
-          <button id="notice-wallpapers" type="button" class="btn small">看壁纸</button>
+          <button id="view-online-updates" type="button" class="btn small">查看更新</button>
           <button id="dismiss-online-notice" type="button" class="btn small" aria-label="关闭提醒">×</button>
         </aside>
         <footer class="status-bar">
@@ -537,6 +539,8 @@
 
 <!-- @byok-dev-end -->
   <script src="online-panel.js"></script>
+  <script src="content-hub.js"></script>
+  <script src="wallpaper-packs.js"></script>
   <script src="settings.cjs"></script>
 </body>
 </html>

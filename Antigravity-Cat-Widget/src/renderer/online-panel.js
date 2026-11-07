@@ -28,6 +28,7 @@
     status.setAttribute('role', 'status');
     const items = node('div', '', root);
     items.className = 'online-items';
+    if (options.updatesOnly) for (const element of [catalog,status,items]) element.hidden = true;
     const run = async (control, work, target, failure) => {
       if (control.disabled) return;
       control.disabled = true;

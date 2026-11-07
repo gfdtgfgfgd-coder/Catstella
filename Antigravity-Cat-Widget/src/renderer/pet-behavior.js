@@ -5,6 +5,30 @@
   const napTime = 180000;
   const rapidTouchWindow = 1250;
 
+  class HeadPatDialogue {
+    constructor(now = () => performance.now()) {
+      this.now = now;
+      this.taps = 0;
+      this.lastSpoken = -Infinity;
+      this.previousCategory = null;
+    }
+
+    next(counts, available) {
+      const {total,today} = counts || {};
+      if (!Number.isSafeInteger(total) || !Number.isSafeInteger(today) || today < 1 || total < today) return null;
+      this.taps = Math.min(4,this.taps + 1);
+      const now = this.now();
+      if (!available || now - this.lastSpoken < 20_000) return null;
+      const milestone = total === 50 || total >= 100 && total % 100 === 0;
+      if (!milestone && this.taps < (this.previousCategory ? 4 : 3)) return null;
+      const category = milestone || this.previousCategory === "petDaily" ? "petReflection" : "petDaily";
+      this.previousCategory = category;
+      this.lastSpoken = now;
+      this.taps = 0;
+      return {category,fields:{count:total,today}};
+    }
+  }
+
   class PetBehavior {
     static wakeTime = 280;
     static tapSlop = 10;
@@ -139,7 +163,8 @@
       if (!this.context.visible || !this.context.expressions || this.rest !== "awake" || this.expression?.source === "preview") return null;
       const now = this.now();
       this.activity();
-      this.recentTouches = this.recentTouches.filter(at => now - at <= rapidTouchWindow);
+      while (this.recentTouches.length && now - this.recentTouches[0] > rapidTouchWindow) this.recentTouches.shift();
+      if (this.recentTouches.length >= 3) this.recentTouches.shift();
       this.recentTouches.push(now);
       if (this.recentTouches.length >= 3) {
         this.gentleTouch = null;
@@ -170,6 +195,9 @@
     }
   }
 
-  if (typeof module === "object" && module.exports) module.exports = { PetBehavior };
-  else root.CatstellaPetBehavior = PetBehavior;
+  if (typeof module === "object" && module.exports) module.exports = { PetBehavior, HeadPatDialogue };
+  else {
+    root.CatstellaPetBehavior = PetBehavior;
+    root.CatstellaHeadPatDialogue = HeadPatDialogue;
+  }
 })(globalThis);

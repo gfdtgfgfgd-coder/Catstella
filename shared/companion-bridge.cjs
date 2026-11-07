@@ -168,6 +168,7 @@ class CompanionBridgeServer {
         title: w.title || w.name || w.id,
         fileName: w.fileName || "",
         preview: w.preview || "",
+        pack: w.pack,
         revision: (() => { try { const stat = fs.statSync(this.resolveWallpaperFile(w.id)); return w.id + ':' + Math.round(stat.mtimeMs) + ':' + stat.size; } catch { return w.id; } })()
       }));
       this.sendJson(req, res, 200, { ok: true, wallpapers: items });

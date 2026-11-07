@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/web-source-v1.5.0
+          ref: refs/tags/web-source-v1.5.1
           path: web
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -68,6 +68,14 @@ jobs:
           path: |
             desktop/dist/installers/Catstella-Setup-*-x64.exe
             desktop/dist/installers/Catstella-Setup-*-x64.exe.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: catstella-web-extensions
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            web/Gemini-Web-Companion/dist/kimino-gemini-companion-edge-chrome.zip
+            web/Gemini-Web-Companion/dist/kimino-gemini-companion.xpi
 
   unix:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} (experimental)
@@ -138,12 +146,18 @@ jobs:
           pattern: catstella-*
           path: release-assets
           merge-multiple: true
-      - name: Check all seven packages and publish the release
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/web-source-v1.5.1
+          path: web-source
+          persist-credentials: false
+      - name: Check packages and publish desktop and Web releases
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           version=$(node -p 'require("./package.json").version')
+          webversion=$(node -p 'require("./web-source/Gemini-Web-Companion/package.json").version')
           [[ "$GITHUB_REF_NAME" == "desktop-v$version" || "$GITHUB_REF_NAME" == "v$version" ]]
           cd release-assets
           files=("Catstella-Setup-$version-x64.exe")
@@ -151,14 +165,24 @@ jobs:
             files+=("Catstella-$version-mac-$arch.dmg" "Catstella-$version-mac-$arch.zip")
           done
           files+=("Catstella-$version-linux-x86_64.AppImage" "Catstella-$version-linux-x64.tar.gz")
+          webfiles=("kimino-gemini-companion-edge-chrome.zip" "kimino-gemini-companion.xpi")
+          files+=("${webfiles[@]}")
           for file in "${files[@]}"; do test -s "$file"; done
           sha256sum --check "${files[0]}.sha256"
           sha256sum "${files[@]}" > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
           cat > notes.md <<'EOF'
-          - Windows x64: Catstella 桌宠、Dream Skin 和可选的 Gemini 网页扩展使用同一个安装包。选择「完整安装」即可取得 Firefox XPI 和 Edge/Chrome ZIP。Firefox XPI 未签名，只支持临时加载。
-          - macOS（Apple Silicon / Intel）和 Linux x64：实验性桌面构建，不含网页扩展，尚未完成实机回归。macOS 未经 Apple 公证。
+          - 改善快速摸头性能与台词触发，减少重复存盘和完整状态广播。
+          - 更新后首次打开设置时展示当前版本更新内容，同一版本只展示一次。
+          - 双端内容商店新增分类、最近更新、预览轮播与壁纸包折叠。Web 商店在 Gemini 页内打开，并识别桌面已安装素材。
+          - 联动时跟随桌面壁纸轮播，解除联动后可设置网页独立轮播。
+          - 修复拖动过程中鼠标穿透可能中断拖动的问题，增加跨平台窗口位置恢复与拖动检查。
+          - Windows x64 安装包内含可选 Web 扩展。macOS 和 Linux 用户可另取本页 Web 扩展附件。
+          - macOS 未经 Apple 公证，macOS / Linux 暂不支持 Windows 专用的宿主窗口跟随，完整实机体验仍需反馈。Firefox XPI 未签名。
           - 使用 `SHA256SUMS.txt` 校验下载文件。
           EOF
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "Catstella $version" --notes-file notes.md --latest "${files[@]}" SHA256SUMS.txt
+          sha256sum "${webfiles[@]}" > WEB-SHA256SUMS.txt
+          gh release create "web-v$webversion" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Catstella Web $webversion" --notes-file notes.md --latest=false "${webfiles[@]}" WEB-SHA256SUMS.txt

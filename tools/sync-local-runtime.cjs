@@ -4,25 +4,32 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { stripByokUi } = require('./release-payload.cjs');
 const { detectWebCompanion } = require('./web-companion-path.cjs');
+const { writeOnlineSeed } = require('./online-seed.cjs');
 const root = path.resolve(__dirname, '..');
 const desktop = process.argv.includes('--desktop');
 const web = process.argv.includes('--web');
+const storePreviews = process.argv.includes('--store-previews');
 if (!desktop && !web) throw Error('Specify --desktop and/or --web');
 const changes = [];
 const backup = fs.mkdtempSync(path.join(root, 'dist/local-runtime-backup-'));
 const allowed = /\.(?:cjs|js|css|html|json)$/i;
 
-function queueTree(source, target, key, include = () => true) {
+function queueTree(source, target, key, include = () => true, fileTypes = allowed) {
   for (const entry of fs.readdirSync(source, {withFileTypes:true})) {
     const src = path.join(source, entry.name), dst = path.join(target, entry.name);
     if (!include(entry.name)) continue;
-    if (entry.isDirectory()) queueTree(src, dst, path.join(key, entry.name), include);
-    else if (entry.isFile() && allowed.test(entry.name) && !entry.name.endsWith('.test.cjs')) {
+    if (entry.isDirectory()) queueTree(src, dst, path.join(key, entry.name), include, fileTypes);
+    else if (entry.isFile() && fileTypes.test(entry.name) && !entry.name.endsWith('.test.cjs')) {
       const after = fs.readFileSync(src);
       const before = fs.existsSync(dst) ? fs.readFileSync(dst) : null;
       if (!before?.equals(after)) changes.push({dst, before, after, key:path.join(key,entry.name)});
     }
   }
+}
+const seed = path.join(backup, 'preview-seed');
+if (storePreviews) writeOnlineSeed(path.join(root, 'online-assets'), seed);
+function queueSeed(target, key) {
+  if (storePreviews) queueTree(seed, target, key, name => /^(wallpapers|catalog\.json|moriyama-catgirl-0[1-9]\.jpg)$/.test(name), /\.(?:jpg|json)$/i);
 }
 if (desktop) {
   const suite = path.resolve(process.env.LOCALAPPDATA, 'Programs/Catstella/Suite');
@@ -44,6 +51,7 @@ if (desktop) {
   }
   const dialogue = 'Antigravity-Cat-Widget/assets/dialogue';
   queueTree(path.join(root,dialogue),path.join(app,dialogue),path.join('desktop',dialogue));
+  queueSeed(path.join(app,'online-assets'),'desktop/online-assets');
 }
 if (web) {
   const source = detectWebCompanion({ root });
@@ -56,19 +64,31 @@ if (web) {
   for (const area of ['content','popup','online']) {
     queueTree(path.join(source.base,area),path.join(target,area),path.join('web',area));
   }
+  queueSeed(path.join(target,'online/seed'),'web/online/seed');
   const dst = path.join(target,'background.js');
   const before = fs.readFileSync(dst), after = fs.readFileSync(path.join(source.base,'background.js'));
   if (!before.equals(after)) changes.push({dst,before,after,key:'web/background.js'});
   const sourceManifest = JSON.parse(fs.readFileSync(path.join(source.base,'manifest.json'),'utf8'));
   const widgetGroup = data => data.content_scripts.find(group => group.js?.includes('content/widget.js'));
   const liveGroup = widgetGroup(manifest), sourceGroup = widgetGroup(sourceManifest);
+  let manifestChanged = false;
   if (JSON.stringify(liveGroup.js) !== JSON.stringify(sourceGroup.js)) {
     for (const name of sourceGroup.js) {
-      if (!/^content\/[\w.-]+\.js$/.test(name) || !fs.existsSync(path.join(source.base,name))) {
+      if (!/^(?:content\/[\w.-]+|online\/(?:panel|content-hub|store))\.js$/.test(name) || !fs.existsSync(path.join(source.base,name))) {
         throw Error('Unexpected content script: ' + name);
       }
     }
     liveGroup.js = sourceGroup.js;
+    manifestChanged = true;
+  }
+  const resourceGroup = data => data.web_accessible_resources.find(group => group.matches.includes('*://gemini.google.com/*'));
+  const storeStyles = 'online/content-hub.css';
+  const resources = resourceGroup(manifest).resources;
+  if (resourceGroup(sourceManifest).resources.includes(storeStyles) && !resources.includes(storeStyles)) {
+    resources.push(storeStyles);
+    manifestChanged = true;
+  }
+  if (manifestChanged) {
     changes.push({ dst:manifestPath, before:manifestBytes, after:Buffer.from(JSON.stringify(manifest,null,2)+'\n'), key:'web/manifest.json' });
   }
 }

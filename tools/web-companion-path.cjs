@@ -10,6 +10,6 @@ function detectWebCompanion({ root = path.resolve(__dirname, '..'), override = p
     if (override) throw Error('WEB_COMPANION_PATH must identify the active Web extension source, not the retired embedded copy: ' + base);
     return null;
   }
-  return { base, dist: path.join(base, 'dist') };
+  return { base, dist: process.env.CATSTELLA_WEB_DIST ? path.resolve(process.env.CATSTELLA_WEB_DIST) : path.join(base, 'dist') };
 }
 module.exports = { detectWebCompanion };

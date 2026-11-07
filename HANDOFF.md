@@ -1,5 +1,9 @@
 # Catstella 桌面工作区 · DeepSeek Harness 交接
 
+2026-11-08 发布补充。用户已验收 RC 3，授权发布桌面 0.6.1 和 Web 1.5.1。桌面从当前测试分支推进 main，Web 使用独立源码标签 `web-source-v1.5.1` 固定。Actions 生成 Windows x64、macOS arm64/x64 和 Linux x64 安装包，并检查原生窗口拖动和离屏恢复。macOS / Linux 的宿主窗口跟随仍待实现。
+
+本版新增设置首次打开时的更新说明，文案位于 `Antigravity-Cat-Widget/assets/release-notes.json`，须与根目录版本一致。显示成功后由主进程持久化已读版本，同版本不再自动弹出；CI 同时检查首次展示和重开不再展示。
+
 > 更新时间：2026-11-05  
 > 状态：下文保留的是 20:41 那次构建的历史记录。发布以 GitHub Actions 的三端构建和验收结果为准。<br>
 > 桌面工作区：`D:\Catstella`，分支 `main`，跟踪 `origin/main`<br>

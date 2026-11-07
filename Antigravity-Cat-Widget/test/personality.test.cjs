@@ -210,15 +210,24 @@ test('explicit host docking stays at the same side after resizing',()=>{
 
 test('pet reflection dialogue contains count placeholders and honors honorific substitution',()=>{
  const dialogue=require('../assets/dialogue/zh-CN.json');
- assert.ok(Array.isArray(dialogue.lines.petReflection)&&dialogue.lines.petReflection.length>=10);
- for(const line of dialogue.lines.petReflection){
-  assert.ok(line.includes('{count}'), 'Line missing {count}: ' + line);
-  assert.ok(line.includes('人类'), 'Line missing honorific placeholder 人类: ' + line);
+ const {formatLine}=require('../src/renderer/personality.js');
+ const {HeadPatDialogue}=require('../src/renderer/pet-behavior.js');
+ for(const [category,field] of [['petReflection','count'],['petDaily','today']]){
+  assert.ok(dialogue.lines[category].length>=4);
+  for(const line of dialogue.lines[category]){
+   assert.ok(line.includes(`{${field}}`)&&line.includes('{user}'));
+   assert.match(formatLine(line,{mode:'custom',name:' 用户甲 '},{[field]:42}),/用户甲/);
+  }
  }
- const personality=new Personality(dialogue.lines,()=>0);
- const line=personality.say('petReflection').replaceAll('{count}','42');
- assert.ok(line.includes('42'));
- const substituted=line.replaceAll('人类','杂鱼君');
- assert.ok(substituted.includes('杂鱼君'));
- assert.ok(!substituted.includes('人类'));
+ assert.equal(formatLine('{user:杂鱼君}，人类历史。',{mode:'custom',name:'  '}),'杂鱼君，人类历史。');
+ assert.equal(formatLine('{user}，AGY 模型步骤 #{step}',{mode:'zayu'},{step:7}),'杂鱼君，AGY 模型步骤 #7');
+ let now=0;
+ const talk=new HeadPatDialogue(()=>now);
+ assert.equal(talk.next({total:20,today:1},true),null);
+ assert.equal(talk.next({total:21,today:2},true),null);
+ assert.equal(talk.next({total:22,today:3},false),null);
+ assert.deepEqual(talk.next({total:23,today:4},true),{category:'petDaily',fields:{count:23,today:4}});
+ for(let total=24;total<=28;total++)assert.equal(talk.next({total,today:total-19},true),null);
+ now=20_000;
+ assert.deepEqual(talk.next({total:29,today:10},true),{category:'petReflection',fields:{count:29,today:10}});
 });

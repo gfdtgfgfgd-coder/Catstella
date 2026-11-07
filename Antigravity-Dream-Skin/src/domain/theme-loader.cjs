@@ -63,6 +63,9 @@ function readPack(wallpapersDir,name){
  return{
   id,
   name:typeof manifest?.name==="string"&&manifest.name.trim()?manifest.name.trim():id,
+  pack:manifest?.pack && /^[a-z][a-z0-9-]{0,47}$/.test(manifest.pack.id||"") &&
+   typeof manifest.pack.name==="string"&&manifest.pack.name.length>0&&manifest.pack.name.length<=80
+   ? {id:manifest.pack.id,name:manifest.pack.name,position:Number.isSafeInteger(manifest.pack.position)?manifest.pack.position:0} : undefined,
   file,
   width:probe?.width??null,
   height:probe?.height??null,

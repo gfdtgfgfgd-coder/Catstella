@@ -49,18 +49,34 @@ else{
  const dialogue=require("../../assets/dialogue/zh-CN.json");
  const running=new (require("../domain/model-activity.cjs").ModelActivity)();
  const settings=new SettingsManager(path.join(dataDir,"settings.json")),ledger=new UsageLedger({storagePath:path.join(dataDir,"usage-v2.json")}),sm=new WidgetStateMachine("offline"),adapter=new TranscriptAdapter(isolatedDev?{appDataDir:path.join(dataDir,"transcripts")}:{}),audio=new AudioManager();
- let headPatTotal=settings.get("headPatTotal"),headPatSaveTimer;
- if(!Number.isSafeInteger(headPatTotal)||headPatTotal<0)headPatTotal=0;
- const flushHeadPats=()=>{
-  clearTimeout(headPatSaveTimer);
-  if(settings.get("headPatTotal")===headPatTotal||!headPatTotal)return;
-  try{settings.update({headPatTotal});}catch(error){console.warn("Catstella: could not save head pat count",error.message);}
+ const validPatCount=value=>Number.isSafeInteger(value)&&value>=0?value:0;
+ let headPatTotal=validPatCount(settings.get("headPatTotal")),interactionSaveTimer,bubbleDirty=false;
+ let headPatDay=settings.get("headPatDay"),headPatToday=validPatCount(settings.get("headPatToday"));
+ const flushInteractions=(notify=false)=>{
+  clearTimeout(interactionSaveTimer);
+  const counted=settings.get("headPatTotal")!==headPatTotal||settings.get("headPatDay")!==headPatDay||settings.get("headPatToday")!==headPatToday;
+  if(!counted&&!bubbleDirty)return;
+  try{
+   if(counted)settings.update({headPatTotal,headPatDay,headPatToday});
+   else settings.save();
+   const changed=bubbleDirty;
+   bubbleDirty=false;
+   if(notify&&changed&&panel&&!panel.isDestroyed()&&panel.isVisible())panel.webContents.send("widget:snapshot",snapshot());
+  }catch(error){console.warn("Catstella: could not save interaction preferences",error.message);}
  };
- app.on("before-quit",flushHeadPats);
+ const scheduleInteractionSave=()=>{
+  clearTimeout(interactionSaveTimer);
+  interactionSaveTimer=setTimeout(()=>flushInteractions(true),350);
+ };
+ app.on("before-quit",()=>flushInteractions());
  const skinSettings=new DreamSkinSettings(path.join(skinDataDir,"settings.json"));
  const skinManager=new WallpaperManager({userDir:path.join(skinDataDir,"wallpapers")});
  const characterDir=path.join(dataDir,"character-packs");
- const online=createOnlineActions({dataDir,wallpaperDir:skinManager.userDir,characterDir,fetcher:isolatedDev?async()=>{throw Error("Network disabled in isolated source test");}:(...args)=>net.fetch(...args),
+ const onlineSeed=path.resolve(__dirname,"../../../online-assets");
+ const readSeed=relative=>require("node:fs").promises.readFile(path.join(onlineSeed,relative));
+ const bundled={catalog:async()=>{const data=JSON.parse(await readSeed("catalog.json"));return {schema:1,items:data.items.filter(item=>item.pack?.id==="moriyama-catgirl-pack")};},
+  file:async relative=>new Response(await readSeed(relative))};
+ const online=createOnlineActions({dataDir,wallpaperDir:skinManager.userDir,characterDir,bundled,fetcher:isolatedDev?async()=>{throw Error("Network disabled in isolated source test");}:(...args)=>net.fetch(...args),
   onInstalled:kind=>{if(kind==="character")cachedCharacterPacks=null;else cachedWallpapers=null;publish();},version:require("../../../package.json").version,settings,nativeImage,shell,apply,onCheck:result=>{
   const next=result.status==="available"?result:null;
   if(next?.latest!==availableUpdate?.latest){availableUpdate=next;updateMenu();}
@@ -85,7 +101,7 @@ else{
      const manifest=JSON.parse(fs.readFileSync(path.join(dir,"manifest.json"),"utf8"));
      const idle=path.join(dir,"frames","idle.png");
      if(!fs.statSync(idle).isFile()||packs.some(pack=>pack.id===entry.name))continue;
-     const preview=nativeImage.createFromPath(idle).resize({width:160}).toDataURL();
+     const preview=nativeImage.createFromPath(idle).resize({width:384}).toDataURL();
      const frames=root===characterDir?Object.fromEntries(["idle","blink","proud","sad","shy"].flatMap(frame=>{
       const file=path.join(dir,"frames",frame+".png");
       return fs.existsSync(file)?[[frame,pathToFileURL(file).href]]:[];
@@ -102,9 +118,9 @@ else{
    const fs=require("node:fs");
    cachedWallpapers=skinManager.listPacks(true).filter(pack=>pack.file).map(pack=>{
     let preview="";
-    try{preview=nativeImage.createFromPath(pack.file).resize({width:280}).toDataURL();}catch{}
+    try{preview=nativeImage.createFromPath(pack.file).resize({width:600}).toDataURL();}catch{}
     const fileName=path.basename(pack.file);
-    return{id:pack.id,fileName,filePath:pack.file,title:WALLPAPER_TITLES[fileName]||pack.name,preview};
+    return{id:pack.id,fileName,filePath:pack.file,title:WALLPAPER_TITLES[fileName]||pack.name,preview,pack:pack.pack};
    });
    lastWallScan=now;return cachedWallpapers;
   }catch{return cachedWallpapers=[];}
@@ -155,12 +171,19 @@ else{
      sound:settings.get("sound")===true,
      easterEggs:settings.get("easterEggs")===true,
      clickCatAction:settings.get("clickCatAction")||"talk",
+     honorific:settings.get("syncInteraction")!==false?{
+      mode:settings.get("userHonorificMode"),
+      name:settings.get("userHonorificMode")==="custom"?settings.get("customHonorific"):""
+     }:null,
+     modelActivity:running.snapshot(),
      themePreset:ds.themePreset||"violet",
      skinEnabled:ds.enabled===true,
      wallpaperId:activeWall?.id||ds.wallpaperId||"gemini-character-sheet-v1",
+     wallpaperIds:walls.map(wall=>wall.id),
      wallpaperTitle:activeWall?.title||"默认星语设定集",
      wallpaperRev:(activeWall?.id||ds.wallpaperId||"default")+":"+wallMtime,
      wallpaperTransition:ds.transition==="none"?"none":"fade",
+     wallpaperFit:ds.fit,
      opacity:ds.opacity??22,
      scrim:ds.scrim??25,
      slideshow:ds.slideshow!==false,
@@ -221,7 +244,8 @@ else{
  });
  const byokPortal=null;
 
- const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,modelActivity:running.snapshot(),quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway?.getSnapshot()??{available:false,gatewayOnline:false},facing,state:sm.currentState,persistentState:sm.persistentState,dialogue:dialogue.lines,dialogueTags:dialogue.expressionTags,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{visible:win?.isVisible()===true,supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
+ const displayState=()=>["pressed","release"].includes(sm.currentState)?sm.persistentState:sm.currentState;
+ const snapshot=()=>{ledger.quotaRemainingPercent=settings.get("manualQuota")===true?settings.get("manualPercent"):null;return{artShift,dockSide,modelActivity:running.snapshot(),quotaWindows:quotaAdapter.snapshot,webCompanion:companionBridge.getWebSnapshot(),byok:byokGateway?.getSnapshot()??{available:false,gatewayOnline:false},facing,state:displayState(),persistentState:sm.persistentState,dialogue:dialogue.lines,dialogueTags:dialogue.expressionTags,settings:settings.getAll(),dreamSkin:skinSettings.getAll(),skinStatus:skinController.status,characterPacks:getCharacterPacks(),wallpapers:getWallpapers(),artVersion:getArtVersion(),displayScale:displayScale||settings.get("scale"),visibility:{visible:win?.isVisible()===true,supported:process.platform==="win32",foreground:foreground.state.kind,nativeAttached:foreground.state.attached===true,withinHost:!!hostArea},ledger:ledger.getSnapshot(),source,presets:audio.getPresetList()};};
  const send=(channel,data)=>{for(const w of [win,panel])if(w&&!w.isDestroyed())w.webContents.send(channel,data);};
  const syncByokPortal=()=>{if(byokPortal)byokPortal.setFromSnapshot(byokGateway.getSnapshot(),{port:companionBridge.boundPort,portalNonce:companionBridge.portalNonce}).catch(()=>{});};
  const publish=()=>{const snap=snapshot();send("widget:snapshot",snap);syncByokPortal();};
@@ -355,7 +379,7 @@ else{
   win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
  }
  function apply(partial){
-  const allowed=["characterPack","scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","standaloneDesktopMode","clickCatAction","easterEggs","ambientChatter","autoUpdateCheck","syncCharacter","syncWallpaper","syncInteraction","petDisplayMode"];
+  const allowed=["characterPack","scale","alwaysOnTop","reducedMotion","sound","volume","soundSet","bubbleOn","turnCostOn","turnCostDurationMs","clickThrough","bubblePage","manualQuota","manualPercent","manualWeeklyPercent","hostWindowOnly","standaloneDesktopMode","clickCatAction","easterEggs","ambientChatter","autoUpdateCheck","syncCharacter","syncWallpaper","syncInteraction","petDisplayMode","userHonorificMode","customHonorific"];
   if(partial?.characterPack!==undefined&&!getCharacterPacks().some(pack=>pack.id===partial.characterPack)){
    partial={...partial};delete partial.characterPack;
   }
@@ -364,6 +388,7 @@ else{
   settings.update(Object.fromEntries(Object.entries(partial||{}).filter(([k])=>allowed.includes(k))));
   if(partial?.dreamSkin&&typeof partial.dreamSkin==="object"&&!Array.isArray(partial.dreamSkin)){
    const dream={...partial.dreamSkin};
+   const previous=skinSettings.getAll();
    // 壁纸画廊走 wallpaperFile 选择；同步解析为壁纸包 id 供主题负载使用。
    if(typeof dream.wallpaperFile==="string"&&dream.wallpaperFile){
     const pack=skinManager.listPacks().find(p=>p.file&&path.resolve(p.file)===path.resolve(dream.wallpaperFile));
@@ -374,7 +399,8 @@ else{
    cachedWallpapers=null;lastWallScan=0;
    skinController.update(skinSettings.getAll());
    localization.update(skinSettings.getAll());
-   scheduleSlideshow();
+   const next=skinSettings.getAll();
+   if(["slideshow","slideshowIntervalMinutes","wallpaperId"].some(key=>next[key]!==previous[key]))scheduleSlideshow();
   }
   syncQuotaState();
   if(oldHostOnly!==settings.get("hostWindowOnly")||oldDisplayMode!==settings.get("petDisplayMode"))foreground.stop();
@@ -461,10 +487,28 @@ else{
   win.on("responsive",()=>clearTimeout(unresponsiveTimer));win.on("closed",()=>clearTimeout(unresponsiveTimer));
  }
  function trusted(e){return[win,panel].some(w=>w&&!w.isDestroyed()&&e.sender===w.webContents);}
+ const releaseNotes=require("../../assets/release-notes.json");
+ const currentVersion=require("../../../package.json").version;
+ const seenReleaseNotes=()=>Array.isArray(settings.get("seenReleaseNotes"))?settings.get("seenReleaseNotes").filter(v=>typeof v==="string").slice(-20):[];
+ const settingsSender=e=>Boolean(panel&&!panel.isDestroyed()&&e.sender===panel.webContents);
+ ipcMain.handle("widget:release-notes",e=>settingsSender(e)&&releaseNotes.version===currentVersion&&!seenReleaseNotes().includes(currentVersion)?releaseNotes:null);
+ ipcMain.handle("widget:release-notes-seen",(e,version)=>{
+  if(!settingsSender(e)||version!==currentVersion||releaseNotes.version!==currentVersion)return false;
+  settings.update({seenReleaseNotes:[...new Set([...seenReleaseNotes(),currentVersion])].slice(-20)});
+  return true;
+ });
  ipcMain.handle("widget:online",(e,action,value)=>panel&&!panel.isDestroyed()&&e.sender===panel.webContents?online.handle(action,value):null);
  ipcMain.handle("widget:can-chatter",e=>Boolean(win&&!win.isDestroyed()&&e.sender===win.webContents&&win.isVisible()&&!panel?.isVisible()&&!companionBridge.getWebSnapshot().active&&settings.get("ambientChatter")&&settings.get("bubbleOn")&&["idle","offline"].includes(sm.currentState)&&powerMonitor.getSystemIdleState(300)==="active"));
  ipcMain.handle("widget:get",e=>trusted(e)?snapshot():null);
  ipcMain.handle("widget:settings",(e,v)=>trusted(e)?apply(v):null);
+ ipcMain.on("widget:bubble-preference",(e,value)=>{
+  if(!trusted(e)||e.sender!==win?.webContents||!value||typeof value!=="object")return;
+  const patch={};
+  if(["quota","webQuota","claudeGpt","today","latest","talk"].includes(value.bubblePage)&&settings.get("bubblePage")!==value.bubblePage)patch.bubblePage=value.bubblePage;
+  if(typeof value.bubbleOn==="boolean"&&settings.get("bubbleOn")!==value.bubbleOn)patch.bubbleOn=value.bubbleOn;
+  if(!Object.keys(patch).length)return;
+  settings.update(patch,{persist:false});bubbleDirty=true;scheduleInteractionSave();
+ });
  ipcMain.on("widget:ready",e=>{if(!win||win.isDestroyed()||e.sender!==win.webContents)return;clearTimeout(initialShowTimer);show();});
  if(byokGateway?.available)ipcMain.handle("widget:byok",(e,payload)=>trusted(e)?byokGateway.handleAction(payload?.action,payload?.data):null);
  ipcMain.on("widget:command",(e,command)=>{
@@ -522,12 +566,13 @@ else{
   if(phase==="start"){
    const bounds=win.getBounds(),scale=displayScale||settings.get("scale");
    dragPlacement={bounds,scale,visualX:bounds.x+(bounds.width-scale)/2+artShift,artShift,dockSide,facing};
+   win.setIgnoreMouseEvents(false);
    return;
   }
   const drag=dragPlacement;
   if(!drag||!["move","end","cancel"].includes(phase))return;
   if(phase==="cancel"){
-   dragPlacement=null;win.setBounds(drag.bounds);displayScale=drag.scale;artShift=drag.artShift;dockSide=drag.dockSide;facing=drag.facing;syncVisibility();publish();return;
+   dragPlacement=null;win.setBounds(drag.bounds);displayScale=drag.scale;artShift=drag.artShift;dockSide=drag.dockSide;facing=drag.facing;syncVisibility();win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});publish();return;
   }
   if(!Number.isFinite(dx)||!Number.isFinite(dy)||Math.abs(dx)>100000||Math.abs(dy)>100000)return;
   const left=drag.visualX+dx,top=drag.bounds.y+dy;
@@ -540,6 +585,7 @@ else{
   win.setBounds(placement.bounds);
   if(phase==="end"){
    dragPlacement=null;
+   win.setIgnoreMouseEvents(settings.get("clickThrough"),{forward:true});
    try{
     if(hostArea)settings.update({hostOffsetX:placement.hostOffsetX,hostOffsetY:placement.hostOffsetY,hostDock:side});
     else settings.update({x:placement.bounds.x,y:placement.bounds.y});
@@ -554,12 +600,15 @@ else{
   else if(action==="cancel"&&sm.currentState==="pressed")sm.clearTransient();
   else if(action==="pet")sm.handlePetting();
   else if(action==="head-pat"){
+   const now=new Date(),day=[now.getFullYear(),now.getMonth()+1,now.getDate()].join("-");
+   if(headPatDay!==day){headPatDay=day;headPatToday=0;}
    headPatTotal=Math.min(headPatTotal+1,Number.MAX_SAFE_INTEGER);
-   clearTimeout(headPatSaveTimer);headPatSaveTimer=setTimeout(flushHeadPats,350);
-   return headPatTotal;
+   headPatToday=Math.min(headPatToday+1,Number.MAX_SAFE_INTEGER);
+   scheduleInteractionSave();
+   return {total:headPatTotal,today:headPatToday};
   }
  });
- ipcMain.on("widget:hit",(e,interactive)=>{if(trusted(e)&&e.sender===win?.webContents)win.setIgnoreMouseEvents(settings.get("clickThrough")||interactive!==true,{forward:true});});
+ ipcMain.on("widget:hit",(e,interactive)=>{if(trusted(e)&&e.sender===win?.webContents&&!dragPlacement)win.setIgnoreMouseEvents(settings.get("clickThrough")||interactive!==true,{forward:true});});
  ipcMain.handle("widget:audio",(e,type)=>trusted(e)&&["press","release"].includes(type)?audio.getAudioFile(type):null);
  quotaAdapter.on("change",()=>{syncQuotaState();publish();});
  byokGateway?.on("change",()=>{publish();updateMenu();});
@@ -579,7 +628,13 @@ else{
    if(!running.size&&sm.persistentState==="thinking"){sm.setPersistentState(source.online?"idle":"offline");syncQuotaState();}
   }
  });
- sm.subscribe(publish);
+ let lastDisplayState=displayState();
+ sm.subscribe(()=>{
+  const state=displayState();
+  if(state===lastDisplayState)return;
+  lastDisplayState=state;
+  publish();
+ });
  foreground.on("change",()=>{if(syncVisibility()!==false)publish();});
  adapter.on("turnDone",step=>{
   const recorded=ledger.recordStep(step);

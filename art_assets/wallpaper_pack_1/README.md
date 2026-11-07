@@ -1,5 +1,7 @@
 # 森山白月 · 全部人类都会控猫猫的 壁纸包
 
+九张成品已移到 [在线壁纸目录](../../online-assets/wallpapers/)，安装和分发以 [在线清单](../../online-assets/catalog.json) 为准。
+
 - **原作**：[@森山白月](https://space.bilibili.com/2146089) （B站 UID: 2146089）
 - **原视频发布**：[【NovelAI】Gemini - 全部人类都会控猫猫的 壁纸分享](https://www.bilibili.com/video/BV17PxC6SERc/) (BV17PxC6SERc)
 - **原视频介绍**：“是猫猫，傻傻的元气娘，是猫娘还有异色瞳，只要是人类就不可能拒绝！”

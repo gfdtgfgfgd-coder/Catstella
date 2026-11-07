@@ -36,12 +36,14 @@ test('release detection separates both clients, ignores previews and requires re
   assert.equal(selectRelease(list.filter(r => !r.tag_name.startsWith('web-')), 'web', '1.4.4').status, 'unpublished');
 });
 
-test('a desktop beta can move to the matching stable release without downgrading or following other betas', () => {
+test('desktop beta and RC builds can move to the matching stable release without downgrading', () => {
   const older = desktop('v0.6.0', '0.6.0');
   const beta = desktop('desktop-v0.6.2-beta.1', '0.6.2-beta.1', { prerelease: true });
   assert.equal(selectRelease([older, beta], 'desktop', '0.6.1-beta.1').status, 'current');
   const final = desktop('desktop-v0.6.1', '0.6.1');
   const result = selectRelease([older, beta, final], 'desktop', '0.6.1-beta.1');
+  assert.equal(selectRelease([older,beta], 'desktop', '0.6.1-rc.1').status, 'current');
+  assert.equal(selectRelease([older,beta,final], 'desktop', '0.6.1-rc.1').status, 'available');
   assert.equal(result.status, 'available');
   assert.equal(result.latest, '0.6.1');
 });
@@ -111,10 +113,12 @@ test('desktop imports a verified wallpaper into its usual gallery and leaves it 
   });
   assert.equal((await actions.check()).status, 'disabled');
   assert.equal(fetches, 0);
-  const id = onDisk.items.find(x => x.kind === 'wallpaper' && x.path.endsWith('.jpg')).id;
+  const sample = onDisk.items.find(x => x.kind === 'wallpaper' && x.pack && x.path.endsWith('.jpg'));
+  const {id} = sample;
   assert.deepEqual(await actions.handle('download', id), { ok: true, kind: 'wallpaper' });
   const pack = new WallpaperManager({ wallpapersDir: path.join(dataDir, 'bundled'), userDir: wallpaperDir }).resolve('online-' + id);
   assert.ok(pack.width > 0 && pack.height > 0);
+  assert.deepEqual(pack.pack,{id:sample.pack.id,name:sample.pack.name,position:sample.pack.position});
   const original = fs.readFileSync(pack.file);
   const character = onDisk.characters[0];
   assert.deepEqual(await actions.handle('download', character.id), { ok: true, kind: 'character' });

@@ -1,11 +1,14 @@
 const{contextBridge,ipcRenderer}=require("electron");
 contextBridge.exposeInMainWorld("widgetApi",{
  get:()=>ipcRenderer.invoke("widget:get"),save:v=>ipcRenderer.invoke("widget:settings",v),
+ rememberBubble:v=>ipcRenderer.send("widget:bubble-preference",v),
  ready:()=>ipcRenderer.send("widget:ready"),
 /* @byok-dev-start */
  byok:(action,data)=>ipcRenderer.invoke("widget:byok",{action,data}),
 /* @byok-dev-end */
  online:(action,value)=>ipcRenderer.invoke("widget:online",action,value),
+ releaseNotes:()=>ipcRenderer.invoke("widget:release-notes"),
+ markReleaseNotesSeen:version=>ipcRenderer.invoke("widget:release-notes-seen",version),
  canChatter:()=>ipcRenderer.invoke("widget:can-chatter"),
  command:v=>ipcRenderer.send("widget:command",v),pointer:v=>ipcRenderer.invoke("widget:pointer",v),
  drag:(phase,dx=0,dy=0)=>ipcRenderer.send("widget:drag",phase,dx,dy),
