@@ -330,16 +330,19 @@ else{
   if(state.bounds)state={...state,bounds:process.platform==='win32'?screen.screenToDipRect(null,state.bounds):state.bounds};
   const placement=hostPlacement(state,settings.get("scale"),settings.get("hostOffsetX"),settings.get("hostOffsetY"),settings.get("hostDock"));
 
-  // Host unavailable (hidden/minimized/too small): never crash or force-hide.
+  // Host unavailable (hidden/minimized/too small/occluded/not in foreground): never crash or force-hide.
   // Standalone mode degrades gracefully to a free-floating desktop pet.
-  if(!placement){
+  if(!placement||state.widgetVisible===false||(state.kind!=="host"&&state.kind!=="self")){
    const wasFollowing=!!hostArea;
    hostArea=null;hostLayout=null;
    if(settings.get("standaloneDesktopMode")&&!settings.get("hostWindowOnly")){
     if(wasFollowing||!win.isVisible())degradeToStandalone();
     publish();return;
    }
-   if(win.isVisible())win.hide();
+   if(win.isVisible()){
+    if(process.platform==='darwin')win.setAlwaysOnTop(false);
+    win.hide();
+   }
    return;
   }
 
