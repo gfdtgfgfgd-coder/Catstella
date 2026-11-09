@@ -80,7 +80,9 @@ while true {
             restoreGeneration += 1
         }
         let boundsStr = "{\"x\":\(Int(round(x))),\"y\":\(Int(round(y))),\"width\":\(Int(round(w))),\"height\":\(Int(round(h)))}"
-        message = "{\"foregroundKind\":\"\(foregroundKind)\",\"restoreGeneration\":\(restoreGeneration),\"kind\":\"host\",\"bounds\":\(boundsStr),\"attached\":true,\"widgetVisible\":true,\"hostId\":\"\(id)\",\"nativeFollowing\":false}"
+        let kind = isHostForeground ? "host" : (isSelfForeground ? "self" : "other")
+        let isAttached = isHostForeground || isSelfForeground
+        message = "{\"foregroundKind\":\"\(foregroundKind)\",\"restoreGeneration\":\(restoreGeneration),\"kind\":\"\(kind)\",\"bounds\":\(boundsStr),\"attached\":\(isAttached),\"widgetVisible\":\(isAttached),\"hostId\":\"\(id)\",\"nativeFollowing\":false}"
     } else {
         let kind = isSelfForeground ? "self" : "other"
         message = "{\"foregroundKind\":\"\(foregroundKind)\",\"restoreGeneration\":\(restoreGeneration),\"kind\":\"\(kind)\",\"bounds\":null,\"attached\":false,\"widgetVisible\":false,\"hostId\":\"0\",\"nativeFollowing\":false}"

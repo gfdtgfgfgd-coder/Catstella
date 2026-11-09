@@ -335,7 +335,7 @@ else{
   if(!placement){
    const wasFollowing=!!hostArea;
    hostArea=null;hostLayout=null;
-   if(settings.get("standaloneDesktopMode")){
+   if(settings.get("standaloneDesktopMode")&&!settings.get("hostWindowOnly")){
     if(wasFollowing||!win.isVisible())degradeToStandalone();
     publish();return;
    }
@@ -373,10 +373,9 @@ else{
  function show(){
   if(!win||win.isDestroyed())createWindow();
   if(settings.get("hostWindowOnly"))startForeground(win.getNativeWindowHandle());
-  if(!win.isVisible()){
+  if(!win.isVisible()&&!settings.get("hostWindowOnly")){
    win.show();
-   if(!settings.get("hostWindowOnly"))applyStandaloneTopmost();
-   else win.moveTop();
+   applyStandaloneTopmost();
   }
   syncVisibility();
   if(settings.get("clickThrough"))win.setIgnoreMouseEvents(true,{forward:true});else win.setIgnoreMouseEvents(false);
